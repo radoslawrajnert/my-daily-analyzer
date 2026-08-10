@@ -1145,12 +1145,33 @@ const FIREBASE_SDK_VERSION = "10.13.2";
 let fbApp = null, fbAuth = null, fbDb = null, fbUser = null;
 let cloudSyncTimer = null;
 
+// Built into the app so every device (desktop, phone, anyone visiting the site) gets Cloud Sync
+// automatically with no copy/paste step. This is safe to hardcode: a Firebase web config only
+// identifies the project, it isn't a secret — access is actually controlled by requiring sign-in
+// plus the Firestore security rules (each account can only read/write its own data).
+const DEFAULT_FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDSxr7qym3M-H_GSCgYTIynxb98pGTntIk",
+  authDomain: "my-daily-analyzer.firebaseapp.com",
+  projectId: "my-daily-analyzer",
+  storageBucket: "my-daily-analyzer.firebasestorage.app",
+  messagingSenderId: "205819645607",
+  appId: "1:205819645607:web:d58fac1a95dd9917ff5582",
+  measurementId: "G-7140PTKTOH",
+};
+const CLOUD_SYNC_DISABLED_SENTINEL = "__disabled__";
+
 function getFirebaseConfig(){
-  try { return JSON.parse(localStorage.getItem(FIREBASE_CONFIG_KEY) || "null"); } catch(e){ return null; }
+  const raw = localStorage.getItem(FIREBASE_CONFIG_KEY);
+  if(raw === null) return DEFAULT_FIREBASE_CONFIG; // never touched by the user -> use the built-in default
+  if(raw === CLOUD_SYNC_DISABLED_SENTINEL) return null; // user explicitly removed/disabled cloud sync
+  try { return JSON.parse(raw); } catch(e){ return DEFAULT_FIREBASE_CONFIG; }
+}
+function isUsingDefaultFirebaseConfig(){
+  return localStorage.getItem(FIREBASE_CONFIG_KEY) === null;
 }
 function saveFirebaseConfigRaw(cfg){
   if(cfg) localStorage.setItem(FIREBASE_CONFIG_KEY, JSON.stringify(cfg));
-  else localStorage.removeItem(FIREBASE_CONFIG_KEY);
+  else localStorage.setItem(FIREBASE_CONFIG_KEY, CLOUD_SYNC_DISABLED_SENTINEL);
 }
 function isCloudSyncConfigured(){
   return !!getFirebaseConfig();
@@ -1380,9 +1401,11 @@ function refreshCloudSyncSettingsUI(){
   document.getElementById("cloudConfigInput").value = cfg ? JSON.stringify(cfg, null, 2) : "";
   document.getElementById("cloudSyncClearBtn").classList.toggle("hidden", !cfg);
   if(!cfg){
-    updateCloudSyncStatus("Not configured — this device only");
+    updateCloudSyncStatus("Cloud sync turned off — this device only");
   } else if(fbUser){
     updateCloudSyncStatus(`Connected as ${fbUser.email}`);
+  } else if(isUsingDefaultFirebaseConfig()){
+    updateCloudSyncStatus("Cloud sync ready (built in) — sign in from the login screen to connect");
   } else {
     updateCloudSyncStatus("Configured — sign in from the login screen to connect");
   }
