@@ -930,6 +930,14 @@
     <div class="step-desc" style="margin-top:0;">Optional: add a free <a href="https://spoonacular.com/food-api/console#Profile" target="_blank" rel="noopener">Spoonacular</a> API key to pull real recipes with real photos and live nutrition data into "Propose a meal" instead of the built-in list. Your key is stored only in this browser — it's never sent anywhere except directly to Spoonacular. No key needed to use the built-in 200-recipe list.</div>
     <div class="field"><label>Spoonacular API key (optional)</label><input type="text" id="recipeApiKey" placeholder="paste your free API key here"></div>
 
+    <h3 style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>Backup &amp; Restore</span></h3>
+    <div class="step-desc" style="margin-top:0;">Save a complete copy of your data (including photos) as a file on your computer, or restore from one. Useful for moving your data into a fresh copy of this app (like right after publishing it online) — export here first, then import it there.</div>
+    <div class="nav" style="justify-content:flex-start; gap:10px; flex-wrap:wrap;">
+      <button type="button" class="secondary" id="backupExportBtn">Export my data (JSON)</button>
+      <button type="button" class="secondary" id="backupImportBtn">Import backup…</button>
+      <input type="file" id="backupImportInput" accept="application/json" class="hidden">
+    </div>
+
     <h3 style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>Cloud Sync (optional)</span></h3>
     <div class="step-desc" style="margin-top:0;">Use this app on more than one device (like your phone) with the same data. Requires a free <a href="https://firebase.google.com/" target="_blank" rel="noopener">Firebase</a> project — see the setup guide for step-by-step instructions. Paste your project's config below to turn it on; leave it empty to keep everything local-only, exactly as before. Progress photos and package photos stay on this device only and are never uploaded.</div>
     <div class="field"><label>Firebase config</label><textarea id="cloudConfigInput" rows="4" placeholder='Paste the firebaseConfig object from your Firebase project settings, e.g. { "apiKey": "...", "authDomain": "...", "projectId": "...", ... }' style="width:100%; font-family:monospace; font-size:.82rem;"></textarea></div>
@@ -1424,6 +1432,69 @@ document.getElementById("cloudSyncClearBtn").addEventListener("click", ()=>{
   document.getElementById("cloudConfigInput").value = "";
   refreshCloudSyncSettingsUI();
   showToast("Cloud sync removed — this device is local-only again");
+});
+
+/* ---------------------------------------------------------
+   BACKUP & RESTORE — full local JSON export/import of the current
+   account's data (includes photos, unlike Cloud Sync's upload, since
+   this file never leaves the user's own computer unless they share it).
+--------------------------------------------------------- */
+function sanitizeForBackup(u){
+  const clone = JSON.parse(JSON.stringify(u || {}));
+  delete clone.password;
+  return clone;
+}
+
+document.getElementById("backupExportBtn").addEventListener("click", ()=>{
+  if(!currentUserEmail){ showToast("Log in first"); return; }
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u){ showToast("No data to export"); return; }
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    email: currentUserEmail,
+    data: sanitizeForBackup(u),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url; link.download = `nutrition-analyzer-backup-${todayStr()}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  showToast("Backup downloaded — check your Downloads folder");
+});
+
+document.getElementById("backupImportBtn").addEventListener("click", ()=>{
+  document.getElementById("backupImportInput").click();
+});
+document.getElementById("backupImportInput").addEventListener("change", (e)=>{
+  const file = e.target.files && e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const parsed = JSON.parse(reader.result);
+      const importedData = (parsed && typeof parsed === "object" && parsed.data) ? parsed.data : parsed;
+      if(!importedData || typeof importedData !== "object"){
+        showToast("That file doesn't look like a valid backup");
+        return;
+      }
+      if(!currentUserEmail){ showToast("Log in first, then import your backup"); return; }
+      const users = getUsers();
+      users[currentUserEmail] = Object.assign({}, users[currentUserEmail], importedData, {email: currentUserEmail});
+      saveUsers(users);
+      answers = users[currentUserEmail].answers || {};
+      closeSettings();
+      switchView("plan");
+      renderStep();
+      showToast("Backup restored");
+    } catch(err){
+      showToast("Couldn't read that file — make sure it's a backup exported from this app");
+    } finally {
+      e.target.value = "";
+    }
+  };
+  reader.readAsText(file);
 });
 
 document.getElementById("tabLogin").addEventListener("click", ()=>setLoginMode("login"));
