@@ -473,9 +473,6 @@
           <label>Password <span id="pwOptionalHint" style="font-weight:400;">(optional)</span></label>
           <input type="text" id="loginPassword" placeholder="Leave blank if you don't want one">
         </div>
-        <div class="hidden" id="forgotPasswordRow" style="margin:-6px 0 4px; text-align:right;">
-          <button type="button" id="forgotPasswordBtn" class="ghost" style="padding:0; font-size:13px; color:var(--muted); text-decoration:underline;">Forgot password?</button>
-        </div>
         <div class="login-error" id="loginError"></div>
         <div class="nav" style="justify-content:flex-end;">
           <button type="submit" id="loginSubmitBtn">Log in →</button>
@@ -1311,7 +1308,6 @@ function setLoginMode(mode){
   document.getElementById("nameField").classList.toggle("hidden", mode==="login");
   document.getElementById("loginSubmitBtn").textContent = mode==="login" ? "Log in →" : "Create profile →";
   document.getElementById("loginError").textContent = "";
-  document.getElementById("forgotPasswordRow").classList.toggle("hidden", !(mode==="login" && isCloudSyncConfigured()));
 }
 
 function showLoginScreen(){
@@ -1581,37 +1577,6 @@ document.getElementById("loginForm").addEventListener("submit", async (e)=>{
     return;
   }
   enterApp(email);
-});
-
-document.getElementById("forgotPasswordBtn").addEventListener("click", async ()=>{
-  const errEl = document.getElementById("loginError");
-  const email = normEmail(document.getElementById("loginEmail").value);
-  errEl.textContent = "";
-  errEl.style.color = "";
-  if(!email || !email.includes("@")){
-    errEl.textContent = "Enter your email address above first, then tap \"Forgot password?\".";
-    return;
-  }
-  if(!isCloudSyncConfigured()){
-    errEl.textContent = "Password reset only works once Cloud Sync is set up (Settings → Cloud Sync) — local-only profiles have no recoverable password.";
-    return;
-  }
-  const btn = document.getElementById("forgotPasswordBtn");
-  const prevLabel = btn.textContent;
-  btn.disabled = true; btn.textContent = "Sending…";
-  try{
-    if(!(await loadFirebaseSdk()) || !initFirebaseIfConfigured()){
-      errEl.textContent = "Couldn't reach the cloud sync service — check your connection and try again.";
-      return;
-    }
-    await fbAuth.sendPasswordResetEmail(email);
-    errEl.style.color = "var(--ok, #2f9e58)";
-    errEl.textContent = `Reset link sent to ${email} — check your inbox (and spam folder), then log in with your new password.`;
-  } catch(err){
-    errEl.textContent = friendlyFirebaseError(err);
-  } finally {
-    btn.disabled = false; btn.textContent = prevLabel;
-  }
 });
 
 /* ---------------------------------------------------------
