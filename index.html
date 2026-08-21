@@ -1039,7 +1039,15 @@
   <div class="modal-box">
     <h3><span>Settings</span><button type="button" class="close-x" id="settingsCloseBtn">✕</button></h3>
 
-    <h3 style="margin-top:0;"><span>AI Assistant (optional)</span></h3>
+    <h3 style="margin-top:0;"><span>Language / Idioma</span></h3>
+    <div class="field"><label>Language / Idioma</label>
+      <select id="langSelect">
+        <option value="en">English</option>
+        <option value="pt">Português</option>
+      </select>
+    </div>
+
+    <h3 style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>AI Assistant (optional)</span></h3>
     <div class="step-desc" style="margin-top:0;">Speak or type a summary of your day on the "AI Log" tab, and let AI turn it into food, activity, and habit entries for you to review before saving. Requires a free API key from one of the providers below — your key is stored only in this browser and sent directly to that provider, never anywhere else. Nothing is ever saved to your logs without your review and approval.</div>
     <div class="field"><label>Provider</label>
       <select id="aiProviderSelect">
@@ -1130,6 +1138,301 @@
 </div>
 
 <script>
+/* ================= i18n (English / Português) =================
+   UI-chrome-only translation: nav, buttons, labels, headers, messages.
+   Food/recipe database content stays in English. Works by matching
+   exact (trimmed) English text nodes and placeholder/title/aria-label
+   attributes against this dictionary, applied live via a MutationObserver
+   so it covers both static HTML and dynamically-rendered views without
+   touching any existing render function. Switch lives in Settings. */
+const I18N_LANG_KEY = "bodyAnalyzer.lang.v1";
+function getLang(){ return localStorage.getItem(I18N_LANG_KEY) || "en"; }
+function setLang(lang){
+  localStorage.setItem(I18N_LANG_KEY, lang);
+  translateNode(document.body);
+}
+const I18N_STRINGS = {
+  "AI Body & Nutrition Analyzer": "Analisador de Corpo e Nutrição por IA",
+  "Answer a few questions about your body, lifestyle, training and eating habits to get a personalized (non-medical) nutrition & fitness strategy.": "Responda a algumas perguntas sobre o seu corpo, estilo de vida, treino e hábitos alimentares para obter uma estratégia de nutrição e fitness personalizada (não médica).",
+  "Log in": "Iniciar sessão",
+  "Your data stays on this device only — nothing is sent anywhere.": "Os seus dados ficam apenas neste dispositivo — nada é enviado para lado nenhum.",
+  "Create profile": "Criar perfil",
+  "Name": "Nome",
+  "Your name": "O seu nome",
+  "Email": "Email",
+  "Password": "Palavra-passe",
+  "(optional)": "(opcional)",
+  "Leave blank if you don't want one": "Deixe em branco se não quiser uma",
+  "Forgot password?": "Esqueceu-se da palavra-passe?",
+  "Log in →": "Iniciar sessão →",
+  "This is a lightweight local profile switch, not secure authentication — anyone with access to this device/browser can see stored answers. Use it to keep separate profiles, not to protect sensitive data.": "Isto é um simples seletor de perfil local, não uma autenticação segura — qualquer pessoa com acesso a este dispositivo/navegador pode ver as respostas guardadas. Use-o para manter perfis separados, não para proteger dados sensíveis.",
+  "Scale Log": "Registo de Peso",
+  "Nutrition Log": "Registo Nutricional",
+  "Activity Log": "Registo de Atividade",
+  "Good Habits Log": "Registo de Bons Hábitos",
+  "Commitment Log": "Registo de Compromissos",
+  "AI Log": "Registo por IA",
+  "← Edit answers": "← Editar respostas",
+  "Download report (.md)": "Transferir relatório (.md)",
+  "Download JSON profile": "Transferir perfil JSON",
+  "Copy JSON": "Copiar JSON",
+  "JSON Profile": "Perfil JSON",
+  "Add a scale reading": "Adicionar uma pesagem",
+  "Date:": "Data:",
+  "Previous day": "Dia anterior",
+  "Next day": "Dia seguinte",
+  "From your smart scale — weight is required, everything else optional. BMI is calculated automatically from your height.": "Da sua balança inteligente — o peso é obrigatório, o resto é opcional. O IMC é calculado automaticamente a partir da sua altura.",
+  "Weight (kg) *": "Peso (kg) *",
+  "Body fat %": "Massa gorda %",
+  "How to find this": "Como encontrar isto",
+  "Muscle %": "Massa muscular %",
+  "Visceral fat rating": "Índice de gordura visceral",
+  "Chest (cm)": "Peito (cm)",
+  "How to measure": "Como medir",
+  "Waist (cm)": "Cintura (cm)",
+  "Hip (cm)": "Anca (cm)",
+  "Thigh (cm)": "Coxa (cm)",
+  "Front photo (optional)": "Foto de frente (opcional)",
+  "Tips for consistent photos": "Dicas para fotos consistentes",
+  "Drop image or click to browse": "Largue a imagem ou clique para procurar",
+  "Remove front photo": "Remover foto de frente",
+  "Back photo (optional)": "Foto de costas (opcional)",
+  "Remove back photo": "Remover foto de costas",
+  "Cancel edit": "Cancelar edição",
+  "Add reading →": "Adicionar pesagem →",
+  "History": "Histórico",
+  "Export CSV ⬇": "Exportar CSV ⬇",
+  "Photo Timeline": "Linha do Tempo de Fotos",
+  "Every progress photo you've logged, in order — click any thumbnail to view it full size.": "Todas as fotos de progresso que registou, por ordem — clique numa miniatura para ver em tamanho real.",
+  "Log food": "Registar alimento",
+  "Pick a product from Quick pick and adjust the amount. Can't find it? Click \"+ Add a product\" below to create it once — then it's there for next time too.": "Escolha um produto na Seleção rápida e ajuste a quantidade. Não encontra? Clique em \"+ Adicionar um produto\" abaixo para o criar uma vez — depois fica disponível para as próximas vezes.",
+  "Meal": "Refeição",
+  "Breakfast": "Pequeno-almoço",
+  "Lunch": "Almoço",
+  "Dinner": "Jantar",
+  "Snack": "Lanche",
+  "Quick pick": "Seleção rápida",
+  "Type to search…": "Digite para pesquisar…",
+  "Amount": "Quantidade",
+  "+ Add a product": "+ Adicionar um produto",
+  "Food *": "Alimento *",
+  "Calories (kcal) *": "Calorias (kcal) *",
+  "Protein (g)": "Proteína (g)",
+  "Carbs (g)": "Hidratos de carbono (g)",
+  "Fat (g)": "Gordura (g)",
+  "Copy yesterday's log": "Copiar registo de ontem",
+  "Add food →": "Adicionar alimento →",
+  "Day log": "Registo do dia",
+  "Notes for this day": "Notas para este dia",
+  "(optional — for when you can't remember exactly what you ate)": "(opcional — para quando não se lembra exatamente do que comeu)",
+  "Nutrition Trends": "Tendências Nutricionais",
+  "Your average daily intake on days you actually logged — a truer picture than a single day.": "A sua ingestão média diária nos dias em que efetivamente registou — uma imagem mais fiel do que um único dia.",
+  "Calories per day": "Calorias por dia",
+  "— last two weeks vs. target": "— últimas duas semanas vs. objetivo",
+  "Protein per day": "Proteína por dia",
+  "My products / My meals": "Os meus produtos / As minhas refeições",
+  "All categories": "Todas as categorias",
+  "Filter:": "Filtrar:",
+  "Save a meal, product, or serving you eat often — like reading it off a nutrition label — so you can add the whole thing in one click above instead of retyping it. You can also look up and correct any of the built-in foods used in Quick pick.": "Guarde uma refeição, produto ou dose que come com frequência — como se estivesse a ler o rótulo nutricional — para poder adicionar tudo com um clique em vez de voltar a escrever. Também pode consultar e corrigir qualquer alimento incorporado usado na Seleção rápida.",
+  "+ Add a meal": "+ Adicionar uma refeição",
+  "Scan or enter a barcode to auto-fill a product": "Digitalize ou introduza um código de barras para preencher um produto automaticamente",
+  "📷 Scan barcode": "📷 Digitalizar código de barras",
+  "Meal / package name *": "Nome da refeição / produto *",
+  "Serving": "Dose",
+  "Category": "Categoria",
+  "Store": "Loja",
+  "Units": "Unidades",
+  "(optional — e.g. 1 tbsp, 1 unit, 1 slice, each with its weight in grams, so Amount can offer them as a quick pick)": "(opcional — ex.: 1 colher de sopa, 1 unidade, 1 fatia, cada uma com o seu peso em gramas, para a Quantidade as poder oferecer como seleção rápida)",
+  "+ Add unit": "+ Adicionar unidade",
+  "Save package →": "Guardar produto →",
+  "Search": "Pesquisar",
+  "Show built-in foods too →": "Mostrar também alimentos incorporados →",
+  "Log activity": "Registar atividade",
+  "Pick a standard activity to auto-estimate calories burned (based on your weight and duration), or type your own — either way you can edit the numbers before adding.": "Escolha uma atividade padrão para estimar automaticamente as calorias queimadas (com base no seu peso e duração), ou escreva a sua própria — de qualquer forma pode editar os números antes de adicionar.",
+  "— custom / type your own —": "— personalizado / escreva o seu —",
+  "Duration (min)": "Duração (min)",
+  "Calories burned (kcal) *": "Calorias queimadas (kcal) *",
+  "Activity *": "Atividade *",
+  "Add activity →": "Adicionar atividade →",
+  "Day activity log": "Registo de atividade do dia",
+  "My activities": "As minhas atividades",
+  "Save exercises you do often — like \"Gym leg day\" — so they show up as a one-click quick pick above instead of retyping them each time.": "Guarde exercícios que faz com frequência — como \"Dia de pernas no ginásio\" — para aparecerem como seleção rápida de um clique acima, em vez de os voltar a escrever de cada vez.",
+  "Activity name *": "Nome da atividade *",
+  "Save activity →": "Guardar atividade →",
+  "Log a habit": "Registar um hábito",
+  "Pick a standard good habit, or type your own — check off what you actually did today.": "Escolha um bom hábito padrão, ou escreva o seu — marque o que efetivamente fez hoje.",
+  "Type": "Tipo",
+  "✅ Build habit — log the days I did it": "✅ Criar hábito — registar os dias em que o fiz",
+  "🚫 Avoid habit — only log the days I broke it": "🚫 Evitar hábito — registar apenas os dias em que falhei",
+  "Habit *": "Hábito *",
+  "Notes (optional)": "Notas (opcional)",
+  "Mark as an exception — I had a reason (e.g. a friend visited, ate sweets). Won't break my streak.": "Marcar como exceção — tive um motivo (ex.: uma visita, comi doces). Não quebra a minha sequência.",
+  "Add habit →": "Adicionar hábito →",
+  "Today's habits": "Hábitos de hoje",
+  "Habit Stats": "Estatísticas de Hábitos",
+  "Each habit tracked separately — one grid per habit, rows are Mon→Sun, columns are the last 12 weeks (oldest on the left, this week on the right).": "Cada hábito é acompanhado separadamente — uma grelha por hábito, as linhas são Seg→Dom, as colunas são as últimas 12 semanas (mais antiga à esquerda, esta semana à direita).",
+  "done/clean": "feito/cumprido",
+  "slip": "falha",
+  "exception (doesn't break streak)": "exceção (não quebra a sequência)",
+  "not logged": "não registado",
+  "before tracking started.": "antes de começar o acompanhamento.",
+  "My habits": "Os meus hábitos",
+  "Save habits you track often — like \"No alcohol\" or \"Meditation\" — so they show up as a one-click quick pick above.": "Guarde hábitos que acompanha com frequência — como \"Sem álcool\" ou \"Meditação\" — para aparecerem como seleção rápida de um clique acima.",
+  "Habit name *": "Nome do hábito *",
+  "✅ Build habit": "✅ Criar hábito",
+  "🚫 Avoid habit": "🚫 Evitar hábito",
+  "Tracking since": "A acompanhar desde",
+  "(Avoid habits only — your \"Day 1\")": "(apenas hábitos a evitar — o seu \"Dia 1\")",
+  "Save habit →": "Guardar hábito →",
+  "Add a commitment": "Adicionar um compromisso",
+  "Turn a pop-up idea into a promise with a deadline — pick how many days you're giving yourself, or set an exact date.": "Transforme uma ideia repentina numa promessa com prazo — escolha quantos dias se dá, ou defina uma data exata.",
+  "What are you committing to? *": "A que se está a comprometer? *",
+  "Finish within": "Concluir dentro de",
+  "1 day": "1 dia",
+  "3 days": "3 dias",
+  "1 week": "1 semana",
+  "2 weeks": "2 semanas",
+  "1 month": "1 mês",
+  "Deadline *": "Prazo *",
+  "Add commitment →": "Adicionar compromisso →",
+  "Your commitments": "Os seus compromissos",
+  "Speak or type a quick summary of your day — what you ate, activities you did, habits you kept or broke — and let AI turn it into draft entries. Nothing is saved until you review and confirm below.": "Fale ou escreva um resumo rápido do seu dia — o que comeu, atividades que fez, hábitos que cumpriu ou falhou — e deixe a IA transformar isso em rascunhos. Nada é guardado até rever e confirmar abaixo.",
+  "Talk me through your day": "Conte-me o seu dia",
+  "Done talking about this →": "Terminei de falar sobre isto →",
+  "Restart guide": "Reiniciar guia",
+  "Your day, in your own words": "O seu dia, por suas palavras",
+  "🎤 Start speaking": "🎤 Começar a falar",
+  "Parse with AI →": "Interpretar com IA →",
+  "Review before saving": "Rever antes de guardar",
+  "Uncheck anything that's wrong or not needed, edit numbers if you want, then add the rest to your logs.": "Desmarque o que estiver errado ou não for necessário, edite os números se quiser, depois adicione o resto aos seus registos.",
+  "Add checked items to log →": "Adicionar itens marcados ao registo →",
+  "Settings": "Definições",
+  "AI Assistant (optional)": "Assistente de IA (opcional)",
+  "Speak or type a summary of your day on the \"AI Log\" tab, and let AI turn it into food, activity, and habit entries for you to review before saving. Requires a free API key from one of the providers below — your key is stored only in this browser and sent directly to that provider, never anywhere else. Nothing is ever saved to your logs without your review and approval.": "Fale ou escreva um resumo do seu dia no separador \"Registo por IA\", e deixe a IA transformá-lo em entradas de alimentação, atividade e hábitos para rever antes de guardar. Requer uma chave API gratuita de um dos fornecedores abaixo — a sua chave é guardada apenas neste navegador e enviada diretamente para esse fornecedor, nunca para mais lado nenhum. Nada é guardado nos seus registos sem a sua revisão e aprovação.",
+  "Provider": "Fornecedor",
+  "API key": "Chave API",
+  "Save AI settings": "Guardar definições de IA",
+  "Get a free key:": "Obtenha uma chave gratuita:",
+  "Backup & Restore": "Cópia de Segurança e Restauro",
+  "Save a complete copy of your data (including photos) as a file on your computer, or restore from one. Useful for moving your data into a fresh copy of this app (like right after publishing it online) — export here first, then import it there.": "Guarde uma cópia completa dos seus dados (incluindo fotos) como um ficheiro no seu computador, ou restaure a partir de um. Útil para mover os seus dados para uma cópia nova desta aplicação (por exemplo, logo após a publicar online) — exporte aqui primeiro, depois importe lá.",
+  "Export my data (JSON)": "Exportar os meus dados (JSON)",
+  "Import backup…": "Importar cópia de segurança…",
+  "Cloud Sync (optional)": "Sincronização na Nuvem (opcional)",
+  "Use this app on more than one device (like your phone) with the same data. Requires a free": "Use esta aplicação em mais do que um dispositivo (como o seu telemóvel) com os mesmos dados. Requer um projeto",
+  "project — see the setup guide for step-by-step instructions. Paste your project's config below to turn it on; leave it empty to keep everything local-only, exactly as before. Progress photos sync too, via Firebase Storage rather than embedded in your data — see the setup guide for a one-time Storage rules step.": "gratuito — consulte o guia de configuração para instruções passo a passo. Cole a configuração do seu projeto abaixo para o ativar; deixe vazio para manter tudo apenas local, exatamente como antes. As fotos de progresso também sincronizam, através do Firebase Storage em vez de incorporadas nos seus dados — consulte o guia de configuração para um passo único de regras do Storage.",
+  "Firebase config": "Configuração do Firebase",
+  "Not configured — this device only": "Não configurado — apenas este dispositivo",
+  "Remove": "Remover",
+  "Save & connect": "Guardar e ligar",
+  "Scan a barcode": "Digitalizar um código de barras",
+  "Point your camera at the barcode on a packaged product. Looked up via the free, open": "Aponte a câmara para o código de barras de um produto embalado. Consultado através da base de dados gratuita e aberta",
+  "database — nothing is sent anywhere except that lookup.": "— nada é enviado para lado nenhum exceto essa consulta.",
+  "Starting camera…": "A iniciar câmara…",
+  "Or type the barcode number": "Ou digite o número do código de barras",
+  "Look up": "Procurar",
+  "Photo comparison": "Comparação de fotos",
+  "Edit food": "Editar alimento",
+  "Values are per 100g, same basis as the built-in entry. Your correction is saved just for you — the built-in database itself isn't changed.": "Os valores são por 100g, na mesma base do item incorporado. A sua correção é guardada só para si — a base de dados incorporada em si não é alterada.",
+  "Calories (kcal) per 100g *": "Calorias (kcal) por 100g *",
+  "Protein (g) per 100g": "Proteína (g) por 100g",
+  "Carbs (g) per 100g": "Hidratos de carbono (g) por 100g",
+  "Fat (g) per 100g": "Gordura (g) por 100g",
+  "Reset to default": "Repor predefinição",
+  "Cancel": "Cancelar",
+  "Save →": "Guardar →",
+  "Underweight": "Abaixo do peso",
+  "Overweight": "Acima do peso",
+  "Normal range": "Intervalo normal",
+  "Last 7 days": "Últimos 7 dias",
+  "Last 30 days": "Últimos 30 dias",
+  "All time": "Desde sempre",
+  "No data to export": "Sem dados para exportar",
+  "Other measurements": "Outras medidas",
+  "Recent changes": "Alterações recentes",
+  "Body change — first logged reading vs. latest": "Alteração corporal — primeira pesagem registada vs. mais recente",
+  "Not enough history yet": "Ainda não há histórico suficiente",
+  "Logged weight": "Peso registado",
+  "7-day average": "Média de 7 dias",
+  "Your own progress photos.": "As suas próprias fotos de progresso.",
+  "Start": "Início",
+  "Now": "Agora",
+  "Goal": "Objetivo",
+  "Switch / log out": "Trocar / terminar sessão",
+  "Open My Plan": "Abrir O Meu Plano"
+};
+function i18nApplyAttr(el, attr){
+  if(typeof el.hasAttribute !== "function" || !el.hasAttribute(attr)) return;
+  const snapKey = "__i18nOrig_" + attr;
+  if(el[snapKey] === undefined) el[snapKey] = el.getAttribute(attr);
+  const orig = el[snapKey];
+  const trimmed = orig.trim();
+  const lang = getLang();
+  const target = (lang === "pt" && I18N_STRINGS[trimmed] !== undefined) ? orig.replace(trimmed, I18N_STRINGS[trimmed]) : orig;
+  if(el.getAttribute(attr) !== target) el.setAttribute(attr, target);
+}
+function i18nProcessTextNode(n){
+  if(n.__i18nOrig === undefined) n.__i18nOrig = n.nodeValue;
+  const orig = n.__i18nOrig;
+  const trimmed = orig.trim();
+  if(!trimmed) return;
+  const lang = getLang();
+  const target = (lang === "pt" && I18N_STRINGS[trimmed] !== undefined) ? orig.replace(trimmed, I18N_STRINGS[trimmed]) : orig;
+  if(n.nodeValue !== target) n.nodeValue = target;
+}
+function translateNode(root){
+  if(!root) return;
+  if(root.nodeType === 3){ i18nProcessTextNode(root); return; }
+  if(root.nodeType !== 1 && root.nodeType !== 9 && root.nodeType !== 11) return;
+  if(root.nodeType === 1){
+    if(root.tagName === "SCRIPT" || root.tagName === "STYLE") return;
+    ["placeholder","title","aria-label"].forEach(attr => i18nApplyAttr(root, attr));
+  }
+  if(typeof document.createTreeWalker !== "function" || typeof NodeFilter === "undefined") return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+    acceptNode(node){
+      if(node.nodeType === 1 && (node.tagName === "SCRIPT" || node.tagName === "STYLE")) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  let n;
+  while(n = walker.nextNode()){
+    if(n.nodeType === 1) ["placeholder","title","aria-label"].forEach(attr => i18nApplyAttr(n, attr));
+    else i18nProcessTextNode(n);
+  }
+}
+// The i18n live-update layer (MutationObserver + TreeWalker) is browser-only;
+// it's skipped entirely in non-browser environments (e.g. the Node test harness)
+// so the rest of the app is completely unaffected there.
+if(typeof MutationObserver !== "undefined" && typeof document.createTreeWalker === "function"){
+  let i18nMutationQueue = [];
+  let i18nMutationScheduled = false;
+  const i18nObserver = new MutationObserver((mutations)=>{
+    for(const m of mutations){
+      if(m.type === "childList"){
+        m.addedNodes.forEach(node => i18nMutationQueue.push(node));
+      } else if(m.type === "characterData" || m.type === "attributes"){
+        i18nMutationQueue.push(m.target);
+      }
+    }
+    if(!i18nMutationScheduled){
+      i18nMutationScheduled = true;
+      setTimeout(()=>{
+        i18nMutationScheduled = false;
+        const queue = i18nMutationQueue;
+        i18nMutationQueue = [];
+        queue.forEach(node => translateNode(node));
+      }, 0);
+    }
+  });
+  const i18nStart = ()=>{
+    i18nObserver.observe(document.body, {childList:true, subtree:true, characterData:true, attributes:true, attributeFilter:["placeholder","title","aria-label"]});
+    translateNode(document.body);
+  };
+  if(typeof document.addEventListener === "function") document.addEventListener("DOMContentLoaded", i18nStart);
+  if(document.readyState !== "loading") i18nStart();
+}
+/* ================= end i18n ================= */
+
 const PRODUCT_CHECKLIST = [
   "Alcohol", "Almond", "Almond butter", "Anchovy", "Apple", "Apricot", "Artichoke", "Artificial sweeteners",
   "Arugula / rocket", "Asparagus", "Aspartame", "Avocado", "Bacon", "Bagel", "Balsamic vinegar", "Banana",
@@ -1705,6 +2008,7 @@ function refreshCloudSyncSettingsUI(){
 }
 
 function openSettings(){
+  document.getElementById("langSelect").value = getLang();
   document.getElementById("aiProviderSelect").value = getAiProvider();
   document.getElementById("aiApiKeyInput").value = getAiApiKey();
   refreshCloudSyncSettingsUI();
@@ -1713,6 +2017,9 @@ function openSettings(){
 function closeSettings(){
   document.getElementById("settingsOverlay").classList.add("hidden");
 }
+document.getElementById("langSelect").addEventListener("change", (e)=>{
+  setLang(e.target.value);
+});
 
 document.getElementById("cloudSyncSaveBtn").addEventListener("click", async ()=>{
   const raw = document.getElementById("cloudConfigInput").value;
