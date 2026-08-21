@@ -429,10 +429,6 @@
   }
   .help-btn:hover{background:var(--accent2); color:#0a0c11; transform:none;}
 
-  .amount-chip-row{display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;}
-  .amount-chip{background:var(--panel2); border:1px solid var(--border); color:var(--muted); font-size:.72rem; padding:4px 9px; border-radius:999px; cursor:pointer; box-shadow:none;}
-  .amount-chip:hover{transform:none; border-color:var(--accent2); color:var(--text);}
-  .amount-chip.active{background:var(--accent2); border-color:var(--accent2); color:#0a0c11; font-weight:700;}
 
   .quickpick-dropdown{position:absolute; top:100%; left:0; right:0; margin-top:4px; background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius-sm); max-height:260px; overflow-y:auto; z-index:20; box-shadow:0 8px 24px rgba(0,0,0,.35);}
   .quickpick-option{padding:8px 12px; cursor:pointer; font-size:.85rem; color:var(--text);}
@@ -684,12 +680,6 @@
               <div style="display:flex; gap:6px;">
                 <input type="number" id="foodQty" min="0" step="any" value="100" style="flex:1; min-width:0;">
                 <select id="foodUnit" style="flex:0 0 auto; width:auto;"></select>
-              </div>
-              <div class="amount-chip-row" id="amountChipRow">
-                <button type="button" class="amount-chip" data-pct="50">50%</button>
-                <button type="button" class="amount-chip" data-pct="100">100%</button>
-                <button type="button" class="amount-chip" data-pct="150">150%</button>
-                <button type="button" class="amount-chip" data-pct="200">200%</button>
               </div>
             </div>
           </div>
@@ -1073,7 +1063,7 @@
     </div>
 
     <h3 style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>Cloud Sync (optional)</span></h3>
-    <div class="step-desc" style="margin-top:0;">Use this app on more than one device (like your phone) with the same data. Requires a free <a href="https://firebase.google.com/" target="_blank" rel="noopener">Firebase</a> project — see the setup guide for step-by-step instructions. Paste your project's config below to turn it on; leave it empty to keep everything local-only, exactly as before. Progress photos and package photos stay on this device only and are never uploaded.</div>
+    <div class="step-desc" style="margin-top:0;">Use this app on more than one device (like your phone) with the same data. Requires a free <a href="https://firebase.google.com/" target="_blank" rel="noopener">Firebase</a> project — see the setup guide for step-by-step instructions. Paste your project's config below to turn it on; leave it empty to keep everything local-only, exactly as before. Progress photos sync too, via Firebase Storage rather than embedded in your data — see the setup guide for a one-time Storage rules step.</div>
     <div class="field"><label>Firebase config</label><textarea id="cloudConfigInput" rows="4" placeholder='Paste the firebaseConfig object from your Firebase project settings, e.g. { "apiKey": "...", "authDomain": "...", "projectId": "...", ... }' style="width:100%; font-family:monospace; font-size:.82rem;"></textarea></div>
     <div class="nav" style="justify-content:space-between; align-items:center;">
       <span id="cloudSyncStatus" style="font-size:.85rem; color:var(--muted);">Not configured — this device only</span>
@@ -1310,17 +1300,22 @@ function normEmail(e){
 }
 
 /* ---------------------------------------------------------
-   CLOUD SYNC (optional) — Firebase Auth + Firestore
+   CLOUD SYNC (optional) — Firebase Auth + Firestore + Storage
    Lets the same account/data be used from more than one device (e.g. a phone).
    Fully opt-in: with no config saved, the app behaves exactly as before —
    local-only, offline-first, nothing loaded or sent over the network.
-   Progress photos and package photos are deliberately excluded from what's
-   synced (kept local-only) to stay well under Firestore's per-document size
-   limit and to avoid uploading anything image-based without being asked.
+   Everything except progress photos syncs through Firestore directly. Progress
+   photos are uploaded to Firebase Storage instead of being embedded in the
+   Firestore document -- individual photos are small (resized + compressed
+   before upload), but a whole scale log's worth of them would blow past
+   Firestore's 1MB-per-document limit if stored inline. Only each photo's small
+   download URL goes into the Firestore doc; see syncScaleLogPhotosToCloud,
+   attachPhotoUrls and mergeScaleLogPhotos below for how that's kept in sync.
+   (Package photos were a separate, since-removed feature -- nothing to sync there.)
 --------------------------------------------------------- */
 const FIREBASE_CONFIG_KEY = "bodyAnalyzer.firebaseConfig.v1";
 const FIREBASE_SDK_VERSION = "10.13.2";
-let fbApp = null, fbAuth = null, fbDb = null, fbUser = null;
+let fbApp = null, fbAuth = null, fbDb = null, fbStorage = null, fbUser = null;
 let cloudSyncTimer = null;
 
 // Built into the app so every device (desktop, phone, anyone visiting the site) gets Cloud Sync
@@ -1391,6 +1386,7 @@ async function loadFirebaseSdk(){
     await loadScriptOnce(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-app-compat.js`);
     await loadScriptOnce(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-auth-compat.js`);
     await loadScriptOnce(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-firestore-compat.js`);
+    await loadScriptOnce(`https://www.gstatic.com/firebasejs/${FIREBASE_SDK_VERSION}/firebase-storage-compat.js`);
     return typeof firebase !== "undefined";
   } catch(e){
     console.error("Failed to load Firebase SDK", e);
@@ -1405,6 +1401,9 @@ function initFirebaseIfConfigured(){
     fbApp = (firebase.apps && firebase.apps.length) ? firebase.apps[0] : firebase.initializeApp(cfg);
     fbAuth = firebase.auth();
     fbDb = firebase.firestore();
+    // Storage is optional even when Firestore sync works -- a config saved before this feature
+    // existed, or a Firebase project with Storage not set up, shouldn't break sign-in/text sync.
+    try { fbStorage = firebase.storage(); } catch(e){ fbStorage = null; }
     return true;
   } catch(e){
     console.error("Firebase init failed", e);
@@ -1412,7 +1411,9 @@ function initFirebaseIfConfigured(){
   }
 }
 
-// Strips fields that shouldn't leave the device (password, photos) before writing to Firestore.
+// Strips fields that shouldn't be embedded in the Firestore document (password, raw photo data)
+// before writing. Photos themselves go to Firebase Storage separately (see
+// syncScaleLogPhotosToCloud/attachPhotoUrls below) -- only their small download URLs end up here.
 function sanitizeForCloud(u){
   const clone = JSON.parse(JSON.stringify(u || {}));
   delete clone.password;
@@ -1435,16 +1436,126 @@ function sanitizeForCloud(u){
   return clone;
 }
 
-// Re-attaches locally-stored photo fields (matched by a stable key) onto freshly-pulled
-// cloud records, since photos themselves are never uploaded or downloaded.
-function mergePhotosBack(cloudArr, localArr, matchKey, photoFields){
+// Merges the {date -> {photoFrontUrl, photoBackUrl, photoUrl}} map from syncScaleLogPhotosToCloud
+// onto an already-sanitized clone, so the cloud document carries a link to each photo instead of
+// nothing at all.
+function attachPhotoUrls(clone, urlsByDate){
+  if(!Array.isArray(clone.scaleLogs) || !urlsByDate || !urlsByDate.size) return;
+  clone.scaleLogs = clone.scaleLogs.map(l=>{
+    const urls = urlsByDate.get(l.date);
+    return urls ? Object.assign({}, l, urls) : l;
+  });
+}
+
+// ---- Photo upload cache: remembers which exact photo (by content hash) was last uploaded for
+// a given date+field, so re-syncing the rest of your data doesn't re-upload unchanged photos. ----
+const PHOTO_UPLOAD_CACHE_KEY = "bodyAnalyzer.photoUploadCache.v1";
+function getPhotoUploadCache(){
+  try { return JSON.parse(localStorage.getItem(PHOTO_UPLOAD_CACHE_KEY) || "{}"); } catch(e){ return {}; }
+}
+function savePhotoUploadCache(cache){
+  localStorage.setItem(PHOTO_UPLOAD_CACHE_KEY, JSON.stringify(cache));
+}
+function photoCacheKey(email, date, field){ return `${email}::${date}::${field}`; }
+
+// Cheap non-cryptographic hash, only used to notice "this photo's bytes changed since we last
+// uploaded it" -- not a security boundary, so speed/simplicity wins over collision-resistance.
+function simpleHash(str){
+  let h = 0;
+  for(let i=0;i<str.length;i++){ h = (Math.imul(31, h) + str.charCodeAt(i)) | 0; }
+  return h + ":" + str.length;
+}
+function isLocalPhotoDataUrl(v){
+  return typeof v === "string" && v.startsWith("data:");
+}
+
+// Uploads one scale-log photo to Firebase Storage (skipping it if this exact photo -- by content
+// hash -- was already uploaded) and returns its public download URL. Returns null on any failure
+// (Storage not set up, security rules not yet added, offline, etc.) -- callers treat that as
+// "leave this photo local-only for now" rather than failing the whole sync over one photo.
+async function ensureScalePhotoUploaded(email, date, field, dataUrl){
+  if(!fbStorage || !fbUser) return null;
+  const cache = getPhotoUploadCache();
+  const key = photoCacheKey(email, date, field);
+  const hash = simpleHash(dataUrl);
+  const cached = cache[key];
+  if(cached && cached.hash === hash && cached.url) return cached.url;
+  try{
+    const blob = await (await fetch(dataUrl)).blob();
+    const path = `users/${fbUser.uid}/scalePhotos/${date}-${field}.jpg`;
+    const ref = fbStorage.ref().child(path);
+    await ref.put(blob, {contentType: "image/jpeg"});
+    const url = await ref.getDownloadURL();
+    cache[key] = {hash, url};
+    savePhotoUploadCache(cache);
+    return url;
+  } catch(e){
+    console.error("Photo upload failed", e);
+    return null;
+  }
+}
+
+// Best-effort cleanup: removes the Storage object for a photo that's since been deleted locally,
+// and drops it from the cache. Failure here (already gone, rules not set up) isn't fatal.
+async function deleteScalePhotoIfUploaded(email, date, field){
+  const cache = getPhotoUploadCache();
+  const key = photoCacheKey(email, date, field);
+  if(!cache[key]) return;
+  if(fbStorage && fbUser){
+    try{ await fbStorage.ref().child(`users/${fbUser.uid}/scalePhotos/${date}-${field}.jpg`).delete(); }
+    catch(e){ /* already gone, or Storage rules not set up yet -- not fatal */ }
+  }
+  delete cache[key];
+  savePhotoUploadCache(cache);
+}
+
+// Walks every scale log entry, uploads any locally-owned photo (a data: URL) that's new or
+// changed since the last sync, and cleans up Storage objects for photos removed locally. Returns
+// a Map of date -> {photoFrontUrl, photoBackUrl, photoUrl} for whichever photos now have a cloud
+// copy (freshly uploaded, or already uploaded in an earlier sync) -- other devices use these URLs
+// directly as an <img src>, no download/decode step needed.
+async function syncScaleLogPhotosToCloud(email, scaleLogs){
+  const urlsByDate = new Map();
+  if(!fbStorage) return urlsByDate; // Storage unavailable (not configured / SDK failed to load) -- skip entirely
+  const fields = ["photoFront","photoBack","photo"];
+  for(const entry of (scaleLogs||[])){
+    const urls = {};
+    for(const field of fields){
+      const value = entry[field];
+      if(isLocalPhotoDataUrl(value)){
+        const url = await ensureScalePhotoUploaded(email, entry.date, field, value);
+        if(url) urls[field+"Url"] = url;
+      } else if(typeof value === "string" && value){
+        // Already a URL (this entry arrived from another device via an earlier pull) -- nothing
+        // to upload, just carry it forward so the cloud doc doesn't lose it.
+        urls[field+"Url"] = value;
+      } else {
+        await deleteScalePhotoIfUploaded(email, entry.date, field);
+      }
+    }
+    if(Object.keys(urls).length) urlsByDate.set(entry.date, urls);
+  }
+  return urlsByDate;
+}
+
+// Combines a freshly-pulled cloud scale log with what's stored locally. A local data: URL photo
+// (this device's own upload) always wins, since it's already right here with zero network
+// round-trip; otherwise falls back to whatever cloud URL is available (a photo taken/added on a
+// different device), so photos actually show up across devices instead of staying blank.
+function mergeScaleLogPhotos(cloudArr, localArr){
   if(!Array.isArray(cloudArr)) return localArr || [];
-  const localByKey = new Map((localArr||[]).map(item=>[item[matchKey], item]));
+  const localByDate = new Map((localArr||[]).map(item=>[item.date, item]));
+  const fields = ["photoFront","photoBack","photo"];
   return cloudArr.map(item=>{
-    const localMatch = localByKey.get(item[matchKey]);
-    if(!localMatch) return item;
+    const localMatch = localByDate.get(item.date);
     const merged = Object.assign({}, item);
-    photoFields.forEach(f=>{ if(localMatch[f] != null) merged[f] = localMatch[f]; });
+    fields.forEach(f=>{
+      const localValue = localMatch && localMatch[f];
+      if(isLocalPhotoDataUrl(localValue)) merged[f] = localValue;
+      else if(item[f+"Url"]) merged[f] = item[f+"Url"];
+      else if(localValue) merged[f] = localValue; // keep whatever we already had rather than blank it
+      delete merged[f+"Url"]; // internal cloud-only field -- don't let it linger in local storage
+    });
     return merged;
   });
 }
@@ -1457,11 +1568,14 @@ function updateCloudSyncStatus(text){
 function pushToCloud(){
   if(!fbUser || !fbDb || !currentUserEmail) return;
   clearTimeout(cloudSyncTimer);
-  cloudSyncTimer = setTimeout(()=>{
+  cloudSyncTimer = setTimeout(async ()=>{
     const users = getUsers();
     const u = users[currentUserEmail];
     if(!u) return;
-    fbDb.collection("users").doc(fbUser.uid).set(sanitizeForCloud(u))
+    const urlsByDate = await syncScaleLogPhotosToCloud(currentUserEmail, u.scaleLogs);
+    const clean = sanitizeForCloud(u);
+    attachPhotoUrls(clean, urlsByDate);
+    fbDb.collection("users").doc(fbUser.uid).set(clean)
       .then(()=> updateCloudSyncStatus("Synced " + new Date().toLocaleTimeString()))
       .catch(err=> updateCloudSyncStatus("Sync error: " + err.message));
   }, 1500);
@@ -1477,7 +1591,7 @@ async function pullFromCloud(email){
     const local = users[email] || {};
     users[email] = Object.assign({}, local, cloudData, {
       email,
-      scaleLogs: mergePhotosBack(cloudData.scaleLogs, local.scaleLogs, "date", ["photoFront","photoBack","photo"]),
+      scaleLogs: mergeScaleLogPhotos(cloudData.scaleLogs, local.scaleLogs),
     });
     localStorage.setItem(USERS_KEY, JSON.stringify(users)); // direct write — avoids re-triggering a push of what we just pulled
     return true;
@@ -1641,8 +1755,9 @@ document.getElementById("cloudSyncClearBtn").addEventListener("click", ()=>{
 
 /* ---------------------------------------------------------
    BACKUP & RESTORE — full local JSON export/import of the current
-   account's data (includes photos, unlike Cloud Sync's upload, since
-   this file never leaves the user's own computer unless they share it).
+   account's data, with photos embedded directly as base64 (unlike Cloud Sync,
+   which uploads photos to Firebase Storage separately and only links to them) --
+   this file never leaves the user's own computer unless they share it.
 --------------------------------------------------------- */
 function sanitizeForBackup(u){
   const clone = JSON.parse(JSON.stringify(u || {}));
@@ -3778,15 +3893,6 @@ document.getElementById("barcodeScanCloseBtn").addEventListener("click", stopBar
 document.getElementById("barcodeManualLookupBtn").addEventListener("click", submitManualBarcode);
 document.getElementById("barcodeManualInput").addEventListener("keydown", (e)=>{
   if(e.key === "Enter"){ e.preventDefault(); submitManualBarcode(); }
-});
-
-// Serving-size quick chips (50/100/150/200%) — same scaling the Amount field already supports via "%",
-// just one click instead of typing it. Delegated on the row so it works for the static markup.
-document.getElementById("amountChipRow").addEventListener("click", (e)=>{
-  const btn = e.target.closest("button[data-pct]");
-  if(!btn) return;
-  setVisibleAmount(btn.dataset.pct + "%");
-  reapplyCurrentQuickPick();
 });
 
 document.getElementById("foodDate").addEventListener("change", renderFoodView);
