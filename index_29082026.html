@@ -548,21 +548,10 @@
       <button type="button" id="viewTabHabits"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.5 2.5L16 9.3"/></svg>Good Habits Log</button>
       <button type="button" id="viewTabCommitments"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>Commitment Log</button>
       <button type="button" id="viewTabAiLog"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/><path d="M9 22h6"/></svg>AI Log</button>
-      <button type="button" id="viewTabCoach"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 1 5 5v2a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5z"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>Coach</button>
     </div>
 
     <div id="planView">
       <div class="progress" id="progress"></div>
-
-      <div class="card" id="coachFocusCard">
-        <h2>AI Coach focus</h2>
-        <div class="step-desc" style="margin-top:0;">Choose what the Coach tab's export includes. Turn off anything you don't want feedback on right now — e.g. leave only Nutrition on and the export won't mention habits or commitments at all.</div>
-        <div class="field" style="display:flex; flex-direction:column; gap:10px;">
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="coachFocusWeightNutrition" style="width:auto;" checked> Weight, measurements &amp; nutrition (incl. activity &amp; photos)</label>
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="coachFocusHabits" style="width:auto;" checked> Habits</label>
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="coachFocusCommitments" style="width:auto;" checked> Commitments</label>
-        </div>
-      </div>
 
       <div class="form-shell" id="formShell">
         <form id="intakeForm" autocomplete="off"></form>
@@ -1031,43 +1020,6 @@
         <div class="nav" style="justify-content:flex-end;">
           <button type="button" id="aiLogCommitBtn">Add checked items to log →</button>
         </div>
-      </div>
-    </div>
-
-    <div id="coachView" class="hidden">
-      <div class="card">
-        <h2>Export for your AI Coach</h2>
-        <div class="step-desc" style="margin-top:0;">One click builds a readable summary of your profile, trends, nutrition, activity, habits, commitments, and your own day notes — plus anything you want to ask below — asks Claude to act as your personal trainer and follow a fixed report structure every time, and downloads roughly one front/back progress photo per week plus your full raw scale-log and nutrition-log CSVs (bundled into one "coach-export-files.zip" so your browser doesn't block multiple downloads at once). Unzip it, paste the text, and attach the files into a chat with Claude for a direct, objective review. Use "My Plan" (click your name) to choose which sections the export focuses on. This is not medical advice; anything that sounds medical should go to a real doctor instead.</div>
-        <div class="field">
-          <label>Anything you want to say or ask the coach? (optional)</label>
-          <textarea id="coachUserNotesInput" rows="3" placeholder="e.g. Why do you think my weight stalled this month? Am I eating enough protein? Be honest about my consistency..."></textarea>
-          <div class="nav" style="justify-content:flex-start; margin-top:8px;">
-            <button type="button" class="secondary hidden" id="coachMicBtn">🎤 Start speaking</button>
-            <button type="button" class="ghost" id="coachClearNotesBtn">Erase</button>
-          </div>
-        </div>
-        <div class="nav" style="justify-content:flex-start; flex-wrap:wrap;">
-          <button type="button" id="coachGenerateBtn">Generate export + download photos →</button>
-          <button type="button" class="secondary hidden" id="coachCopyBtn">Copy to clipboard</button>
-        </div>
-        <div class="field hidden" id="coachExportWrap" style="margin-top:14px;">
-          <label>Your export — this is exactly what gets sent, nothing is hidden (copy this into a chat with Claude, and attach the downloaded photos too)</label>
-          <textarea id="coachExportText" rows="18" readonly style="font-family:monospace; font-size:.8rem;"></textarea>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Load AI Feedback</h2>
-        <div class="step-desc" style="margin-top:0;">Paste the response you got back here — since the export above asks Claude to follow one exact structure, it'll be recognized and displayed as a nicely formatted report below (headings, bullets, bold) instead of raw text.</div>
-        <div class="field"><textarea id="coachFeedbackInput" rows="8" placeholder="Paste Claude's feedback here..."></textarea></div>
-        <div class="nav" style="justify-content:flex-end;">
-          <button type="button" id="coachSaveFeedbackBtn">Load AI Feedback →</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Past feedback</h2>
-        <div id="coachHistoryWrap"></div>
       </div>
     </div>
 
@@ -1895,30 +1847,20 @@ async function syncScaleLogPhotosToCloud(email, scaleLogs){
 // different device), so photos actually show up across devices instead of staying blank.
 function mergeScaleLogPhotos(cloudArr, localArr){
   if(!Array.isArray(cloudArr)) return localArr || [];
-  const localList = localArr || [];
-  const localByDate = new Map(localList.map(item=>[item.date, item]));
-  const cloudDates = new Set(cloudArr.map(item=>item.date));
+  const localByDate = new Map((localArr||[]).map(item=>[item.date, item]));
   const fields = ["photoFront","photoBack","photo"];
-  const merged = cloudArr.map(item=>{
+  return cloudArr.map(item=>{
     const localMatch = localByDate.get(item.date);
-    const out = Object.assign({}, item);
+    const merged = Object.assign({}, item);
     fields.forEach(f=>{
       const localValue = localMatch && localMatch[f];
-      if(isLocalPhotoDataUrl(localValue)) out[f] = localValue;
-      else if(item[f+"Url"]) out[f] = item[f+"Url"];
-      else if(localValue) out[f] = localValue; // keep whatever we already had rather than blank it
-      delete out[f+"Url"]; // internal cloud-only field -- don't let it linger in local storage
+      if(isLocalPhotoDataUrl(localValue)) merged[f] = localValue;
+      else if(item[f+"Url"]) merged[f] = item[f+"Url"];
+      else if(localValue) merged[f] = localValue; // keep whatever we already had rather than blank it
+      delete merged[f+"Url"]; // internal cloud-only field -- don't let it linger in local storage
     });
-    return out;
+    return merged;
   });
-  // An entry that exists locally but hasn't made it into this cloud snapshot yet -- e.g. it was
-  // just added seconds ago and is still waiting on its own debounced push -- must not be dropped
-  // just because a pull happened to run first. Carry it over exactly as-is (raw local photo
-  // included) instead of silently losing today's brand-new entry.
-  localList.forEach(item=>{
-    if(!cloudDates.has(item.date)) merged.push(item);
-  });
-  return merged;
 }
 
 function updateCloudSyncStatus(text){
@@ -2442,7 +2384,6 @@ function switchView(view){
   document.getElementById("viewTabHabits").classList.toggle("active", view==="habits");
   document.getElementById("viewTabCommitments").classList.toggle("active", view==="commitments");
   document.getElementById("viewTabAiLog").classList.toggle("active", view==="ailog");
-  document.getElementById("viewTabCoach").classList.toggle("active", view==="coach");
   document.getElementById("planView").classList.toggle("hidden", view!=="plan");
   document.getElementById("logView").classList.toggle("hidden", view!=="log");
   document.getElementById("foodView").classList.toggle("hidden", view!=="food");
@@ -2450,15 +2391,12 @@ function switchView(view){
   document.getElementById("habitsView").classList.toggle("hidden", view!=="habits");
   document.getElementById("commitmentsView").classList.toggle("hidden", view!=="commitments");
   document.getElementById("aiLogView").classList.toggle("hidden", view!=="ailog");
-  document.getElementById("coachView").classList.toggle("hidden", view!=="coach");
   if(view==="log") renderLogView();
   if(view==="food"){ renderFoodView(); }
   if(view==="activities") renderActivitiesView();
   if(view==="habits") renderHabitsView();
   if(view==="commitments") renderCommitmentsView();
   if(view==="ailog") renderAiLogView();
-  if(view==="coach") renderCoachView();
-  if(view==="plan") syncCoachFocusUI();
 }
 document.getElementById("viewTabLog").addEventListener("click", ()=>switchView("log"));
 document.getElementById("viewTabFood").addEventListener("click", ()=>switchView("food"));
@@ -2466,7 +2404,6 @@ document.getElementById("viewTabActivities").addEventListener("click", ()=>switc
 document.getElementById("viewTabHabits").addEventListener("click", ()=>switchView("habits"));
 document.getElementById("viewTabCommitments").addEventListener("click", ()=>switchView("commitments"));
 document.getElementById("viewTabAiLog").addEventListener("click", ()=>switchView("ailog"));
-document.getElementById("viewTabCoach").addEventListener("click", ()=>switchView("coach"));
 
 /* ---------------------------------------------------------
    SCALE LOG
@@ -7033,17 +6970,9 @@ document.getElementById("copyJsonBtn").addEventListener("click", ()=>{
   navigator.clipboard.writeText(JSON.stringify(window._latestJsonProfile, null, 2)).then(()=>showToast("JSON copied to clipboard"));
 });
 
-function csvEscapeVal(v){
-  const s = String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
-}
-
-// Full-history CSV builders -- used by both the dedicated Export CSV buttons below and the
-// Coach export's "download all my raw data" bundle. Returns null when there's nothing to
-// export yet, so callers can skip the file entirely instead of shipping an empty CSV.
-function buildScaleCsv(){
+document.getElementById("exportScaleCsvBtn").addEventListener("click", ()=>{
   const logs = sortedLogs();
-  if(!logs.length) return null;
+  if(!logs.length){ showToast("No readings yet to export"); return; }
   const headers = ["Date","Weight (kg)","BMI","Body fat %","Muscle %","Visceral fat","Chest (cm)","Waist (cm)","Hip (cm)","Thigh (cm)"];
   const rows = logs.map(l=>{
     const bmi = computeLogBMI(l);
@@ -7060,13 +6989,24 @@ function buildScaleCsv(){
       l.thighCm != null ? l.thighCm : "",
     ];
   });
-  return [headers, ...rows].map(r=>r.map(csvEscapeVal).join(",")).join("\r\n");
-}
+  const csvEscape = v => {
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  };
+  const csv = [headers, ...rows].map(r=>r.map(csvEscape).join(",")).join("\r\n");
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url; link.download = "scale-log.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+  showToast("CSV exported");
+});
 
-function buildFoodCsv(){
+document.getElementById("exportFoodCsvBtn").addEventListener("click", ()=>{
   const log = getFoodLog();
   const dates = Object.keys(log).sort();
-  if(!dates.length) return null;
+  if(!dates.length){ showToast("No food logged yet to export"); return; }
   const headers = ["Date","Meal","Food","Amount","Calories","Protein (g)","Carbs (g)","Fat (g)"];
   const rows = [];
   dates.forEach(date=>{
@@ -7083,25 +7023,11 @@ function buildFoodCsv(){
       ]);
     });
   });
-  if(!rows.length) return null;
-  return [headers, ...rows].map(r=>r.map(csvEscapeVal).join(",")).join("\r\n");
-}
-
-document.getElementById("exportScaleCsvBtn").addEventListener("click", ()=>{
-  const csv = buildScaleCsv();
-  if(!csv){ showToast("No readings yet to export"); return; }
-  const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url; link.download = "scale-log.csv";
-  link.click();
-  URL.revokeObjectURL(url);
-  showToast("CSV exported");
-});
-
-document.getElementById("exportFoodCsvBtn").addEventListener("click", ()=>{
-  const csv = buildFoodCsv();
-  if(!csv){ showToast("No food logged yet to export"); return; }
+  const csvEscape = v => {
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  };
+  const csv = [headers, ...rows].map(r=>r.map(csvEscape).join(",")).join("\r\n");
   const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -8009,645 +7935,6 @@ document.getElementById("aiLogCommitBtn").addEventListener("click", ()=>{
   aiLogParsedResult = null;
   aiLogGuideStepIndex = 0;
   renderAiLogGuide();
-});
-
-/* ---------------------------------------------------------
-   AI COACH — one-click export of tracked data for pasting into a chat with
-   Claude, plus a place to save the feedback that comes back.
---------------------------------------------------------- */
-function getCoachNotes(){
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  return (u && u.coachNotes) ? u.coachNotes.slice() : [];
-}
-function saveCoachNotesArr(arr){
-  const users = getUsers();
-  if(!users[currentUserEmail]) return;
-  users[currentUserEmail].coachNotes = arr;
-  saveUsers(users);
-}
-function genCoachId(){
-  return "cn" + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
-}
-
-// Which sections the Coach export includes -- set from "My Plan" (click your name). Missing
-// keys default to true so existing users who never touch this see no change in behavior.
-function getCoachFocus(){
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  const f = (u && u.coachFocus) || {};
-  return {
-    weightNutrition: f.weightNutrition !== false,
-    habits: f.habits !== false,
-    commitments: f.commitments !== false,
-  };
-}
-function saveCoachFocus(focus){
-  const users = getUsers();
-  if(!users[currentUserEmail]) return;
-  users[currentUserEmail].coachFocus = focus;
-  saveUsers(users);
-}
-function syncCoachFocusUI(){
-  const f = getCoachFocus();
-  document.getElementById("coachFocusWeightNutrition").checked = f.weightNutrition;
-  document.getElementById("coachFocusHabits").checked = f.habits;
-  document.getElementById("coachFocusCommitments").checked = f.commitments;
-}
-["coachFocusWeightNutrition", "coachFocusHabits", "coachFocusCommitments"].forEach(id=>{
-  document.getElementById(id).addEventListener("change", ()=>{
-    saveCoachFocus({
-      weightNutrition: document.getElementById("coachFocusWeightNutrition").checked,
-      habits: document.getElementById("coachFocusHabits").checked,
-      commitments: document.getElementById("coachFocusCommitments").checked,
-    });
-    showToast("Coach focus updated");
-  });
-});
-
-// Builds the readable markdown summary. Reuses the same data-accessor functions as the
-// rest of the app (scale log, food log/notes, activity log, habit log, commitments) so this
-// stays correct automatically as those features evolve. userNotes is whatever the person
-// typed in the "anything you want to ask the coach" box -- shown verbatim, nothing is added
-// or paraphrased on their behalf.
-function buildCoachExport(userNotes, attachments, skipped){
-  const lines = [];
-  const a = answers || {};
-  const targets = getPlanTargets();
-
-  lines.push("# Body & Nutrition Coach Export");
-  lines.push(`_Generated ${todayStr()}_`);
-  lines.push("");
-  lines.push("You are acting as my personal trainer and health coach. Review my tracked data below, plus a roughly weekly front/back progress photo (attached separately, in chronological order) so you can see how my body has actually changed over time, not just a single before/after. Be objective and direct — base your read strictly on the data and photos, not on reassurance. Call out anything concerning, inconsistent, or working against my stated goal, not just what's going well; don't soften a genuine problem to be encouraging. This isn't a request for medical advice; if anything looks like it needs a doctor rather than a guess, say so instead of speculating.");
-  lines.push("");
-  lines.push("This needs to follow one very specific, stable structure — not just for readability, but because I paste your reply back into my tracking app, which parses this exact structure to display it as a nicely formatted report. Please follow it precisely, every time, so my reviews stay comparable and display correctly:");
-  lines.push("1. Overall Assessment — one or two sentences: is my trajectory right now good, stalled, or concerning?");
-  lines.push("2. What's Working — the specific things going well, backed by the data and photos, not generic encouragement.");
-  lines.push("3. What to Watch Out For — specific concerns, risks, or patterns working against my goal. Be blunt.");
-  lines.push(`4. Data Quality Flags — anything that looks like a likely data-entry mistake or a genuine outlier (an implausible jump in weight, a measurement that doesn't fit the trend, a day's numbers that look mistyped). Say "Nothing stood out" if there's nothing to flag.`);
-  lines.push(`5. Answers to My Questions — only if I've added something in the section below; treat it as supplementary to the report above, not the main focus. If I didn't add anything, write "No question this time."`);
-  lines.push("");
-  lines.push(`Formatting rules for the reply itself: put each section title on its own line, written exactly as "1. Overall Assessment" etc. (a number, a period, a space, then just the short title — nothing else on that line); use "* " at the start of a line for bullet points; use **double asterisks** around anything you want bolded. Don't use markdown # headers instead of the numbered titles above, and don't merge two sections onto one line.`);
-  lines.push("");
-
-  if(userNotes && userNotes.trim()){
-    lines.push("## Supplementary questions / comments (secondary to the structured report above)");
-    lines.push(userNotes.trim());
-    lines.push("");
-  }
-
-  lines.push("## Profile & goal");
-  if(a.birthDate || a.heightCm || a.targetWeightKg){
-    const age = a.birthDate ? computeAge(a.birthDate) : null;
-    lines.push(`- Age: ${age != null ? age : "n/a"}, Height: ${a.heightCm || "n/a"} cm, Gender: ${a.gender || "n/a"}`);
-    lines.push(`- Goal: ${a.goalType || "n/a"}, Target weight: ${a.targetWeightKg != null ? a.targetWeightKg + " kg" : "n/a"}`);
-    if(a.activityLevel) lines.push(`- Activity level: ${a.activityLevel}`);
-    if(a.trainingDaysPerWeek) lines.push(`- Training days/week: ${a.trainingDaysPerWeek}`);
-  } else {
-    lines.push("- Profile not filled in yet (My Plan).");
-  }
-  if(a.allergies) lines.push(`- Allergies: ${a.allergies}`);
-  if(a.intolerances && a.intolerances.length) lines.push(`- Intolerances: ${a.intolerances.join(", ")}`);
-  if(a.dietaryRestrictions) lines.push(`- Dietary restriction: ${a.dietaryRestrictions}`);
-  lines.push("");
-
-  const last90 = [];
-  for(let i=89;i>=0;i--){ last90.push(shiftDateStr(todayStr(), -i)); }
-  const focus = getCoachFocus();
-
-  if(focus.weightNutrition){
-    if(targets) lines.push(`Daily targets: ${targets.calories} kcal, ${targets.proteinG}g protein, ${targets.carbG}g carbs, ${targets.fatG}g fat`);
-    lines.push("");
-
-    lines.push("## Weight & measurements");
-    const logs = sortedLogs();
-    if(logs.length){
-      const first = logs[0], last = logs[logs.length-1];
-      lines.push(`- Logged readings: ${logs.length}, from ${first.date} to ${last.date}`);
-      const totalDelta = last.weightKg - first.weightKg;
-      lines.push(`- Weight: started ${first.weightKg} kg → now ${last.weightKg} kg (${totalDelta>=0?"+":""}${totalDelta.toFixed(1)} kg overall)`);
-      const cutoff30 = shiftDateStr(todayStr(), -30);
-      const recent = logs.filter(l=>l.date >= cutoff30);
-      if(recent.length >= 2){
-        const change30 = recent[recent.length-1].weightKg - recent[0].weightKg;
-        lines.push(`- Last 30 days: ${change30>=0?"+":""}${change30.toFixed(1)} kg (${recent.length} readings)`);
-      }
-      if(last.bodyFatPct != null) lines.push(`- Latest body fat: ${last.bodyFatPct}%`);
-      if(last.waistCm != null) lines.push(`- Latest waist: ${last.waistCm} cm`);
-      if(first.waistCm != null && last.waistCm != null && first.date !== last.date){
-        const waistDelta = last.waistCm - first.waistCm;
-        lines.push(`- Waist change since first reading: ${waistDelta>=0?"+":""}${waistDelta.toFixed(1)} cm`);
-      }
-    } else {
-      lines.push("- No scale readings logged yet.");
-    }
-    lines.push("");
-
-    lines.push("## Nutrition (last 90 days)");
-    const foodLog = getFoodLog();
-    const dayNotes = getFoodDayNotes();
-    let loggedDays=0, sumKcal=0, sumProtein=0;
-    const noteLines = [];
-    last90.forEach(d=>{
-      const entries = foodLog[d] || [];
-      if(entries.length){
-        loggedDays++;
-        sumKcal += entries.reduce((s,e)=>s+(e.kcal||0),0);
-        sumProtein += entries.reduce((s,e)=>s+(e.proteinG||0),0);
-      }
-      if(dayNotes[d]) noteLines.push(`  - ${d}: "${dayNotes[d]}"`);
-    });
-    lines.push(`- Days logged: ${loggedDays}/90`);
-    if(loggedDays){
-      lines.push(`- Average on logged days: ${Math.round(sumKcal/loggedDays)} kcal, ${Math.round(sumProtein/loggedDays)}g protein`);
-    }
-    if(noteLines.length){
-      lines.push(`- My own notes on specific days (this is often the most useful context — why a day went the way it did):`);
-      lines.push(...noteLines);
-    }
-    lines.push("");
-
-    lines.push("## Activity (last 90 days)");
-    const activityLog = getActivityLog();
-    let actDays=0, actMinutes=0, actKcal=0, actCount=0;
-    last90.forEach(d=>{
-      const entries = activityLog[d] || [];
-      if(entries.length) actDays++;
-      entries.forEach(e=>{ actCount++; actMinutes += (e.minutes||0); actKcal += (e.kcal||0); });
-    });
-    lines.push(`- Days with activity logged: ${actDays}/90 (${actCount} session${actCount===1?"":"s"}, ${Math.round(actMinutes)} min total, ~${Math.round(actKcal)} kcal burned)`);
-    lines.push("");
-  }
-
-  if(focus.habits){
-    lines.push("## Habits (last 90 days)");
-    const habitLog = getHabitLog();
-    const habitStats = new Map();
-    last90.forEach(d=>{
-      (habitLog[d]||[]).forEach(h=>{
-        const s = habitStats.get(h.name) || {type:h.type, kept:0, slipped:0};
-        if(h.type === "avoid"){ if(h.exception) s.slipped++; else s.kept++; }
-        else { s.kept++; }
-        habitStats.set(h.name, s);
-      });
-    });
-    if(habitStats.size){
-      habitStats.forEach((s,name)=>{
-        if(s.type === "avoid") lines.push(`- ${name} (avoid): kept ${s.kept} day(s), slipped ${s.slipped} day(s)`);
-        else lines.push(`- ${name} (build): done ${s.kept} day(s)`);
-      });
-    } else {
-      lines.push("- No habits logged in this period.");
-    }
-    lines.push("");
-  }
-
-  if(focus.commitments){
-    lines.push("## Commitments");
-    const commitments = getCommitments();
-    if(commitments.length){
-      commitments.forEach(c=>{
-        const st = commitStatus(c);
-        lines.push(`- ${c.title} — ${st.label}${c.notes?` (${c.notes})`:""}`);
-      });
-    } else {
-      lines.push("- No commitments set.");
-    }
-    lines.push("");
-  }
-
-  lines.push("---");
-  if(attachments && attachments.length){
-    const bundled = attachments.length > 1;
-    lines.push(`_The following ${attachments.length===1?"file was":`${attachments.length} files were`} ${bundled?'bundled into one "coach-export-files.zip"':'downloaded'} alongside this export — I'm attaching ${attachments.length===1?"it":"them"} to this message so you have the full underlying data (not just the summary above) and can see my actual visual progress:_`);
-    attachments.forEach(f=> lines.push(`  - ${f.name} — ${f.description}`));
-  } else {
-    lines.push("_No photos or full data files are available yet, so nothing extra was downloaded._");
-  }
-  if(skipped && skipped.length){
-    lines.push("");
-    lines.push(`_Note: ${skipped.length} photo${skipped.length===1?" was":"s were"} NOT included this time — a technical sync issue on my end meant ${skipped.length===1?"it":"they"} couldn't be downloaded (this is not something you need to comment on unless it changes how much you can assess my recent progress):_`);
-    skipped.forEach(f=> lines.push(`  - ${f.name} — ${f.description}`));
-  }
-
-  return lines.join("\n");
-}
-
-// Small, dependency-free markdown-ish renderer for pasted-back coach feedback -- turns
-// "**bold**", "* bullets" / "1. numbered lists", and headers (either "# " markdown or a
-// bare "1. Short Title" line, since that's the exact numbered-section style the export's
-// own instructions ask Claude to reply with) into real HTML instead of showing the raw
-// symbols. Escapes everything else first, so this never introduces new HTML from the text.
-// The five section titles we ask the coach export's prompt for (see buildCoachExport). The AI
-// reading that prompt doesn't always follow the "1. Title" formatting to the letter -- it may
-// drop the leading number, or bold the title instead of using our numbered-line convention --
-// so besides the generic numbered-heading heuristic below, we also recognize these exact titles
-// verbatim (numbered or not, bolded or not) so a real reply still renders with clear section
-// breaks even when the model's formatting drifts.
-const COACH_SECTION_TITLES = [
-  "Overall Assessment",
-  "What's Working",
-  "What to Watch Out For",
-  "Data Quality Flags",
-  "Answers to My Questions",
-];
-const HEADING_STYLE = "margin:22px 0 8px; padding-top:14px; border-top:1px solid var(--border); font-size:1.05rem; color:var(--accent2);";
-const FIRST_HEADING_STYLE = "margin:0 0 8px; padding-top:0; border-top:none; font-size:1.05rem; color:var(--accent2);";
-
-function renderMarkdownLite(raw){
-  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-  const inlineFormat = s => esc(s)
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, "$1<em>$2</em>");
-  const lines = String(raw || "").replace(/\r\n/g, "\n").split("\n").map(l=>l.trim());
-  const out = [];
-  let listBuffer = [];
-  let listType = null;
-  let sawHeading = false;
-  function pushHeading(title){
-    const style = sawHeading ? HEADING_STYLE : FIRST_HEADING_STYLE;
-    sawHeading = true;
-    out.push(`<h4 style="${style}">${inlineFormat(title)}</h4>`);
-  }
-  function flushList(){
-    if(listBuffer.length){
-      out.push(`<${listType} style="margin:4px 0 10px; padding-left:22px;">` + listBuffer.map(li=>`<li style="margin:3px 0;">${li}</li>`).join("") + `</${listType}>`);
-      listBuffer = [];
-      listType = null;
-    }
-  }
-  for(let i=0; i<lines.length; i++){
-    const trimmed = lines[i];
-    if(!trimmed){ flushList(); continue; }
-    let m;
-    // Strip a leading "N. " and/or wrapping **bold** to compare against our known section
-    // titles regardless of exactly how the model formatted the line.
-    const bareTitle = trimmed.replace(/^\d+\.\s+/, "").replace(/^\*\*(.+)\*\*$/, "$1").replace(/:$/, "").trim();
-    if(COACH_SECTION_TITLES.some(t => t.toLowerCase() === bareTitle.toLowerCase())){
-      flushList();
-      pushHeading(bareTitle);
-      continue;
-    }
-    if((m = trimmed.match(/^(#{1,4})\s+(.+)$/))){
-      flushList();
-      pushHeading(m[2]);
-      continue;
-    }
-    if(listType !== "ol" && (m = trimmed.match(/^\d+\.\s+([A-Z][A-Za-z0-9 /'&:()+-]{2,50})$/)) && !/[.!?]$/.test(m[1])){
-      // Only a heading if it's standalone -- a real numbered list has another numbered
-      // line right after it (skipping blank lines), this app's report headings don't.
-      // Also skip this check entirely once we're already mid-list (above), so the last
-      // item of a short list never gets mistaken for a heading.
-      let j = i + 1;
-      while(j < lines.length && lines[j] === "") j++;
-      const nextIsNumbered = j < lines.length && /^\d+\.\s+/.test(lines[j]);
-      if(!nextIsNumbered){
-        flushList();
-        pushHeading(m[1]);
-        continue;
-      }
-    }
-    if((m = trimmed.match(/^[*-]\s+(.+)$/))){
-      if(listType !== "ul"){ flushList(); listType = "ul"; }
-      listBuffer.push(inlineFormat(m[1]));
-      continue;
-    }
-    if((m = trimmed.match(/^\d+\.\s+(.+)$/))){
-      if(listType !== "ol"){ flushList(); listType = "ol"; }
-      listBuffer.push(inlineFormat(m[1]));
-      continue;
-    }
-    flushList();
-    out.push(`<p style="margin:6px 0;">${inlineFormat(trimmed)}</p>`);
-  }
-  flushList();
-  return out.join("");
-}
-
-function renderCoachView(){
-  const micBtn = document.getElementById("coachMicBtn");
-  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-  micBtn.classList.toggle("hidden", !SpeechRecognitionCtor);
-  const notes = getCoachNotes().slice().sort((x,y)=> new Date(y.date) - new Date(x.date));
-  const wrap = document.getElementById("coachHistoryWrap");
-  if(!notes.length){
-    wrap.innerHTML = `<div class="step-desc">No saved coach feedback yet.</div>`;
-    return;
-  }
-  wrap.innerHTML = notes.map(n=>`
-    <div class="card" style="margin-bottom:12px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-        <strong>${n.date}</strong>
-        <button type="button" class="ghost" onclick="deleteCoachNote('${n.id}')" style="font-size:.75rem; padding:4px 10px;">Delete</button>
-      </div>
-      <div style="margin-top:8px; font-size:.9rem; line-height:1.5;">${renderMarkdownLite(n.text)}</div>
-    </div>
-  `).join("");
-}
-
-function deleteCoachNote(id){
-  saveCoachNotesArr(getCoachNotes().filter(n=>n.id!==id));
-  renderCoachView();
-}
-window.deleteCoachNote = deleteCoachNote;
-
-/* ---- voice input for the "comments/questions for the coach" box (Web Speech API,
-   same approach as the AI Log tab's mic, but its own state so the two don't interfere) ---- */
-let coachSpeechRecognition = null;
-let coachSpeechListening = false;
-let coachSpeechBaseText = "";
-let coachSpeechCommittedText = "";
-let coachSpeechUserStopped = true;
-
-function setupCoachSpeechRecognition(){
-  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SpeechRecognitionCtor) return null;
-  const rec = new SpeechRecognitionCtor();
-  rec.continuous = true;
-  rec.interimResults = true; // textarea updates live, word by word, while still talking
-  rec.lang = "en-US";
-  rec.onresult = (event)=>{
-    let finalPiece = "";
-    let interimPiece = "";
-    for(let i = event.resultIndex; i < event.results.length; i++){
-      const transcript = event.results[i][0].transcript;
-      if(event.results[i].isFinal) finalPiece += transcript + " ";
-      else interimPiece += transcript;
-    }
-    if(finalPiece) coachSpeechCommittedText = (coachSpeechCommittedText + " " + finalPiece).trim();
-    const combined = [coachSpeechBaseText, coachSpeechCommittedText, interimPiece.trim()].filter(Boolean).join(" ");
-    document.getElementById("coachUserNotesInput").value = combined;
-  };
-  rec.onerror = (event)=>{
-    if(event && (event.error === "not-allowed" || event.error === "audio-capture" || event.error === "service-not-allowed")){
-      coachSpeechUserStopped = true;
-      coachSpeechListening = false;
-      document.getElementById("coachMicBtn").textContent = "🎤 Start speaking";
-      showToast("Voice input stopped: " + event.error.replace(/-/g, " "));
-    }
-  };
-  rec.onend = ()=>{
-    if(coachSpeechUserStopped){
-      coachSpeechListening = false;
-      document.getElementById("coachMicBtn").textContent = "🎤 Start speaking";
-      return;
-    }
-    try{
-      rec.start();
-    }catch(e){
-      coachSpeechListening = false;
-      document.getElementById("coachMicBtn").textContent = "🎤 Start speaking";
-      showToast("Voice input stopped unexpectedly — click Start speaking to resume");
-    }
-  };
-  return rec;
-}
-
-document.getElementById("coachMicBtn").addEventListener("click", ()=>{
-  if(!coachSpeechRecognition) coachSpeechRecognition = setupCoachSpeechRecognition();
-  if(!coachSpeechRecognition){ showToast("Voice input isn't supported in this browser"); return; }
-  const btn = document.getElementById("coachMicBtn");
-  if(coachSpeechListening){
-    coachSpeechUserStopped = true;
-    coachSpeechRecognition.stop();
-    coachSpeechListening = false;
-    btn.textContent = "🎤 Start speaking";
-  } else {
-    coachSpeechBaseText = document.getElementById("coachUserNotesInput").value.trim();
-    coachSpeechCommittedText = "";
-    coachSpeechUserStopped = false;
-    try{
-      coachSpeechRecognition.start();
-      coachSpeechListening = true;
-      btn.textContent = "⏹ Stop speaking";
-    }catch(e){
-      coachSpeechUserStopped = true;
-      showToast("Couldn't start voice input: " + e.message);
-    }
-  }
-});
-
-document.getElementById("coachClearNotesBtn").addEventListener("click", ()=>{
-  if(coachSpeechListening && coachSpeechRecognition){
-    coachSpeechUserStopped = true;
-    coachSpeechRecognition.stop();
-    coachSpeechListening = false;
-    document.getElementById("coachMicBtn").textContent = "🎤 Start speaking";
-  }
-  document.getElementById("coachUserNotesInput").value = "";
-  showToast("Cleared");
-});
-
-// One photo roughly per week, per angle (front/back), in chronological order -- enough to see
-// the trajectory of change over time (a stall, a plateau, steady progress) without turning a
-// long tracking history into dozens of near-duplicate photos to download and attach.
-function getProgressPhotoSet(){
-  const logs = sortedLogs(); // ascending by date
-  const set = [];
-  const dayIndex = (dateStr, baseStr) => Math.round((new Date(dateStr+"T00:00:00") - new Date(baseStr+"T00:00:00")) / (24*3600*1000));
-  [{field:"photoFront", legacy:"photo", angle:"front"}, {field:"photoBack", legacy:null, angle:"back"}].forEach(({field, legacy, angle})=>{
-    const withPhoto = logs.filter(l => l[field] || (legacy && l[legacy]));
-    if(!withPhoto.length) return;
-    const urlOf = l => l[field] || (legacy ? l[legacy] : null);
-    const baseDate = withPhoto[0].date;
-    // Bucket into 7-day windows relative to the first photo ever logged for this angle,
-    // keeping the most recent photo within each window (later entries overwrite earlier
-    // ones in the same bucket).
-    const byWeek = new Map();
-    withPhoto.forEach(l=>{
-      const week = Math.floor(dayIndex(l.date, baseDate) / 7);
-      byWeek.set(week, l);
-    });
-    const sampled = Array.from(byWeek.values()).sort((a,b)=> new Date(a.date) - new Date(b.date));
-    sampled.forEach((l, i)=>{
-      const seq = String(i + 1).padStart(2, "0");
-      const tag = sampled.length === 1 ? "only" : i === 0 ? "start" : i === sampled.length - 1 ? "latest" : "mid";
-      set.push({url: urlOf(l), label: `${angle}-${seq}-${tag}`, date: l.date});
-    });
-  });
-  return set;
-}
-
-function downloadDataUrl(dataUrl, filename){
-  if(typeof document.createElement !== "function") return;
-  const a = document.createElement("a");
-  a.href = dataUrl;
-  a.download = filename;
-  if(typeof document.body.appendChild === "function") document.body.appendChild(a);
-  a.click();
-  if(typeof document.body.removeChild === "function") document.body.removeChild(a);
-}
-
-// Browsers block/prompt on more than one *automatic* download fired from a single click
-// (Chrome shows a "this site is trying to download multiple files" bar and silently drops
-// everything after the first if it isn't explicitly allowed) -- which is why looping
-// individual <a download> clicks only ever produced one real file. Bundling everything into
-// a single .zip sidesteps that entirely: the browser only ever sees one download.
-async function loadJsZip(){
-  if(typeof JSZip !== "undefined") return true;
-  try{
-    await loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
-    return typeof JSZip !== "undefined";
-  } catch(e){
-    console.error("Failed to load JSZip", e);
-    return false;
-  }
-}
-
-// A scale-log photo field isn't always a local data: URL -- once cloud photo sync is on,
-// mergeScaleLogPhotos() will legitimately leave it as an https:// Firebase Storage URL whenever
-// this device doesn't hold the original upload itself (synced down from another device/session,
-// or a background pull that raced ahead of this device's own upload). Callers that need the
-// actual image bytes -- not just something to point an <img src> at -- have to handle both
-// shapes. Returns {base64} for a local data: URL (no network needed), {blob} for a fetched
-// remote URL, or null if a remote fetch fails (offline, permissions, bucket CORS, etc.) so the
-// caller can skip that one file instead of silently bundling an empty one.
-async function resolveAttachmentBytes(dataUrl){
-  if(typeof dataUrl !== "string" || !dataUrl) return null;
-  if(dataUrl.startsWith("data:")) return {base64: dataUrl.split(",")[1] || ""};
-  try{
-    const res = await fetch(dataUrl);
-    if(!res.ok) throw new Error("HTTP " + res.status);
-    return {blob: await res.blob()};
-  } catch(e){
-    console.error("Failed to fetch remote photo for export", dataUrl, e);
-    return null;
-  }
-}
-
-// Checks every attachment's photo bytes are actually reachable *before* we commit to an export
-// (build the text, name the files) around them -- a remote https:// photo URL might not
-// resolve (offline, or the Firebase Storage bucket has no CORS policy for cross-origin fetch,
-// which is the common case for a fresh project). Caches the resolved bytes on the attachment
-// itself (`_resolved`) so downloadAttachment/downloadFilesAsZip don't fetch the same URL twice.
-// Returns {included, skipped} -- callers should only ever mention/zip `included`, and should
-// tell the person about `skipped` rather than silently producing a file that doesn't match what
-// the export text claims was sent.
-async function partitionAttachmentsByAvailability(attachments){
-  const included = [];
-  const skipped = [];
-  for(const a of attachments){
-    if(a.dataUrl && !String(a.dataUrl).startsWith("data:")){
-      const resolved = await resolveAttachmentBytes(a.dataUrl);
-      if(resolved){ included.push(Object.assign({}, a, {_resolved: resolved})); }
-      else { skipped.push(a); }
-    } else {
-      included.push(a);
-    }
-  }
-  return {included, skipped};
-}
-
-// Downloads a single attachment directly -- either an image (data: URL, or a cloud-synced
-// https:// photo URL that needs fetching first) or a text file (CSV) -- without going through
-// the zip helper. Used when there's exactly one file total.
-async function downloadAttachment(a){
-  if(a.dataUrl){
-    if(String(a.dataUrl).startsWith("data:")){ downloadDataUrl(a.dataUrl, a.name); return; }
-    const resolved = a._resolved || await resolveAttachmentBytes(a.dataUrl);
-    if(!resolved || !resolved.blob){
-      showToast(`Couldn't download ${a.name} — it may only exist in the cloud right now`);
-      return;
-    }
-    const url = URL.createObjectURL(resolved.blob);
-    downloadDataUrl(url, a.name);
-    setTimeout(()=> URL.revokeObjectURL(url), 5000);
-    return;
-  }
-  if(a.text != null){
-    const blob = new Blob([a.text], {type: "text/csv;charset=utf-8;"});
-    const url = URL.createObjectURL(blob);
-    downloadDataUrl(url, a.name);
-    setTimeout(()=> URL.revokeObjectURL(url), 5000);
-  }
-}
-
-async function downloadFilesAsZip(attachments){
-  const ok = await loadJsZip();
-  if(!ok){
-    if(attachments[0]) await downloadAttachment(attachments[0]);
-    showToast("Couldn't load the zip helper (check your connection) — only downloaded the first file");
-    return;
-  }
-  const zip = new JSZip();
-  for(const a of attachments){
-    if(a.dataUrl){
-      const resolved = a._resolved || await resolveAttachmentBytes(a.dataUrl);
-      if(!resolved) continue; // already reported via partitionAttachmentsByAvailability -- don't warn twice
-      if(resolved.blob) zip.file(a.name, resolved.blob);
-      else zip.file(a.name, resolved.base64, {base64: true});
-    } else if(a.text != null){
-      zip.file(a.name, a.text);
-    }
-  }
-  const blob = await zip.generateAsync({type: "blob"});
-  const url = URL.createObjectURL(blob);
-  downloadDataUrl(url, "coach-export-files.zip");
-  setTimeout(()=> URL.revokeObjectURL(url), 5000);
-}
-
-document.getElementById("coachGenerateBtn").addEventListener("click", async ()=>{
-  const userNotes = document.getElementById("coachUserNotesInput").value;
-  const focus = getCoachFocus();
-
-  // Weight/nutrition focus pulls in both the weekly photo set and the full raw CSV history
-  // (not just the 90-day summary in the text) -- no point downloading any of that for a
-  // habits-or-commitments-only review.
-  const rawAttachments = [];
-  if(focus.weightNutrition){
-    getProgressPhotoSet().forEach(p=>{
-      rawAttachments.push({name: `${p.date}-${p.label}.jpg`, dataUrl: p.url, description: `progress photo — ${p.label.replace(/-/g, " ")}`});
-    });
-    const scaleCsv = buildScaleCsv();
-    if(scaleCsv) rawAttachments.push({name: "scale-log-full.csv", text: scaleCsv, description: "every scale reading I've ever logged, not just the summary above"});
-    const foodCsv = buildFoodCsv();
-    if(foodCsv) rawAttachments.push({name: "nutrition-log-full.csv", text: foodCsv, description: "every food entry I've ever logged, not just the summary above"});
-  }
-
-  // Check what's actually downloadable *before* writing the export text or naming files in it --
-  // otherwise the text can end up claiming a photo was attached when the zip doesn't have it
-  // (exactly what happens if a cloud-only photo's URL can't be fetched).
-  if(rawAttachments.length) showToast("Checking your photos and files...");
-  const {included: attachments, skipped} = await partitionAttachmentsByAvailability(rawAttachments);
-
-  const text = buildCoachExport(userNotes, attachments, skipped);
-  document.getElementById("coachExportText").value = text;
-  document.getElementById("coachExportWrap").classList.remove("hidden");
-  document.getElementById("coachCopyBtn").classList.remove("hidden");
-
-  if(!attachments.length){
-    showToast(skipped.length ? `Export ready — but ${skipped.length} photo(s) couldn't be reached right now, see the note in the export` : "Export ready — no photos or logs to attach yet");
-  } else if(attachments.length === 1){
-    await downloadAttachment(attachments[0]);
-    showToast("Export ready — downloading your file");
-  } else {
-    showToast(`Export ready — zipping ${attachments.length} files...`);
-    await downloadFilesAsZip(attachments);
-    showToast(skipped.length
-      ? `Downloaded coach-export-files.zip (${attachments.length} files) — ${skipped.length} photo(s) couldn't be reached, see the note in the export`
-      : `Downloaded coach-export-files.zip (${attachments.length} files) — unzip it, then attach what you need to your chat`);
-  }
-});
-
-document.getElementById("coachCopyBtn").addEventListener("click", async ()=>{
-  const text = document.getElementById("coachExportText").value;
-  try {
-    await navigator.clipboard.writeText(text);
-    showToast("Copied — paste it into a chat with Claude");
-  } catch(e){
-    showToast("Couldn't copy automatically — select the text and copy manually");
-  }
-});
-
-document.getElementById("coachSaveFeedbackBtn").addEventListener("click", ()=>{
-  const text = document.getElementById("coachFeedbackInput").value.trim();
-  if(!text){ showToast("Paste some feedback first"); return; }
-  const notes = getCoachNotes();
-  notes.push({id: genCoachId(), date: todayStr(), text});
-  saveCoachNotesArr(notes);
-  document.getElementById("coachFeedbackInput").value = "";
-  renderCoachView();
-  showToast("Feedback saved");
 });
 
 /* init */
