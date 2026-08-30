@@ -35,7 +35,7 @@
   ::-webkit-scrollbar-thumb{background:var(--border); border-radius:8px;}
   ::-webkit-scrollbar-thumb:hover{background:var(--muted);}
 
-  .wrap{max-width:1416px; margin:0 auto; padding:36px 20px 80px;}
+  .wrap{max-width:1680px; margin:0 auto; padding:36px 20px 80px;}
   header.top{margin-bottom:32px;}
   .topbar{display:flex; align-items:center; justify-content:space-between; gap:20px; padding-bottom:22px; border-bottom:1px solid var(--border-soft);}
   .brand{display:flex; align-items:center; gap:14px; text-align:left; margin:0; min-width:0;}
@@ -189,6 +189,9 @@
   }
   .icon-btn:hover{color:var(--text); border-color:var(--accent2); box-shadow:var(--shadow-glow);}
   .icon-btn svg{width:16px; height:16px;}
+  .video-link-icon{display:inline-flex; vertical-align:middle; margin-left:6px; color:var(--muted); transition:.15s;}
+  .video-link-icon:hover{color:var(--accent2);}
+  .video-link-icon svg{width:14px; height:14px; display:block;}
   .date-nav{display:inline-flex; align-items:center; gap:4px;}
   .date-nav-btn{
     display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; padding:0;
@@ -197,6 +200,44 @@
   }
   .date-nav-btn:hover{color:var(--text); border-color:var(--accent2); box-shadow:var(--shadow-glow);}
   .date-day-label{font-weight:600; color:var(--text); margin-left:2px;}
+  .date-picker-trigger{
+    display:inline-block; width:100%; cursor:pointer; background:var(--panel2); border:1px solid var(--border);
+    color:var(--text); border-radius:var(--radius-sm); padding:10px 12px; font-size:.95rem; font-family:inherit;
+    text-align:left; transition:border-color .15s, box-shadow .15s;
+  }
+  .date-picker-trigger:hover, .date-picker-trigger:focus{outline:none; border-color:var(--accent2); box-shadow:var(--shadow-glow);}
+  .date-picker-popup{
+    position:absolute; z-index:99999; isolation:isolate; background-color:var(--panel); opacity:1;
+    backdrop-filter:none; -webkit-backdrop-filter:none; border:1px solid var(--border);
+    border-radius:var(--radius-sm); box-shadow:0 10px 30px rgba(0,0,0,.55); padding:8px; width:196px;
+    max-width:calc(100vw - 24px); font-size:.78rem;
+  }
+  .date-picker-popup.hidden{display:none;}
+  .dp-header{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+  .dp-title{font-weight:700; color:var(--text); font-size:.8rem;}
+  .dp-nav{
+    display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; padding:0;
+    border-radius:6px; background:var(--panel2); border:1px solid var(--border); color:var(--muted); cursor:pointer;
+    font-size:.75rem; line-height:1;
+  }
+  .dp-nav:hover{color:var(--text); border-color:var(--accent2);}
+  .dp-weekdays{display:grid; grid-template-columns:repeat(7,1fr); gap:1px; margin-bottom:2px;}
+  .dp-wd{text-align:center; color:var(--muted); font-size:.6rem; font-weight:700;}
+  .dp-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:1px;}
+  .dp-cell{height:24px; display:flex; align-items:center; justify-content:center;}
+  .dp-day{
+    width:100%; height:100%; background:transparent; border:1px solid transparent; border-radius:5px; color:var(--text);
+    cursor:pointer; font-size:.68rem; padding:0; line-height:1; display:flex; align-items:center; justify-content:center;
+  }
+  .dp-day:hover{background:var(--panel2); border-color:var(--accent2);}
+  .dp-today{border-color:var(--accent2);}
+  .dp-selected{background:var(--accent); color:#0b0d14; font-weight:700;}
+  .dp-footer{margin-top:6px; text-align:center;}
+  .dp-today-btn{
+    background:transparent; border:1px solid var(--border); border-radius:6px; color:var(--muted);
+    cursor:pointer; font-size:.68rem; padding:3px 8px;
+  }
+  .dp-today-btn:hover{color:var(--text); border-color:var(--accent2);}
   .meal-builder-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--panel2); margin-top:8px;}
   .meal-builder-row .mb-name{font-weight:600;}
   .meal-builder-row .mb-amount{color:var(--muted); font-weight:400; font-size:.82rem; margin-left:4px;}
@@ -551,7 +592,6 @@
     <div class="view-tabs">
       <button type="button" id="viewTabLog" class="active"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="12" cy="13" r="4"/><path d="M12 13l2.3-2.3"/><path d="M9.5 3v2.5"/></svg>Scale Log</button>
       <button type="button" id="viewTabFood"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v8a2 2 0 0 0 2 2v10"/><path d="M4 2v8"/><path d="M7 2v8"/><path d="M20 2c-2 0-3.5 2.3-3.5 6s1.5 6 3.5 6"/><path d="M20 2v20"/></svg>Nutrition Log</button>
-      <button type="button" id="viewTabActivities"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Activity Log</button>
       <button type="button" id="viewTabWorkout"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11"/><path d="M17.5 6.5v11"/><path d="M2 9.5v5"/><path d="M22 9.5v5"/><path d="M6.5 12h11"/></svg>Workout Log</button>
       <button type="button" id="viewTabHabits"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.5 2.5L16 9.3"/></svg>Good Habits Log</button>
       <button type="button" id="viewTabCommitments"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>Commitment Log</button>
@@ -571,7 +611,6 @@
             <option value="plan">My Plan</option>
             <option value="log">Scale Log</option>
             <option value="food">Nutrition Log</option>
-            <option value="activities">Activity Log</option>
             <option value="workout">Workout Log</option>
             <option value="habits">Good Habits Log</option>
             <option value="commitments">Commitment Log</option>
@@ -581,7 +620,6 @@
         </div>
         <div class="field" style="display:flex; flex-direction:column; gap:10px;">
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabFood" style="width:auto;" checked> Nutrition Log</label>
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabActivities" style="width:auto;" checked> Activity Log</label>
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabWorkout" style="width:auto;" checked> Workout Log</label>
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabHabits" style="width:auto;" checked> Good Habits Log</label>
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabCommitments" style="width:auto;" checked> Commitment Log</label>
@@ -594,7 +632,7 @@
         <h2>AI Coach focus</h2>
         <div class="step-desc" style="margin-top:0;">Choose what the Coach tab's export includes. Turn off anything you don't want feedback on right now — e.g. leave only Nutrition on and the export won't mention habits or commitments at all.</div>
         <div class="field" style="display:flex; flex-direction:column; gap:10px;">
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="coachFocusWeightNutrition" style="width:auto;" checked> Weight, measurements &amp; nutrition (incl. activity, workouts &amp; photos)</label>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="coachFocusWeightNutrition" style="width:auto;" checked> Weight, measurements &amp; nutrition (incl. workouts &amp; photos)</label>
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="coachFocusHabits" style="width:auto;" checked> Habits</label>
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="coachFocusCommitments" style="width:auto;" checked> Commitments</label>
         </div>
@@ -622,7 +660,7 @@
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <span id="logFormTitle">Add a scale reading</span>
           <span style="display:flex; align-items:center; gap:8px; font-size:.78rem; font-weight:400; color:var(--muted);">
-            Date: <span class="date-nav"><button type="button" class="date-nav-btn" id="logDatePrevBtn" aria-label="Previous day">‹</button><input type="date" id="logDate" style="width:auto; padding:6px 10px;"><button type="button" class="date-nav-btn" id="logDateNextBtn" aria-label="Next day">›</button></span> <span class="date-day-label" id="logDateDayLabel"></span>
+            Date: <span class="date-nav"><button type="button" class="date-nav-btn" id="logDatePrevBtn" aria-label="Previous day">‹</button><button type="button" id="logDate" style="width:auto; padding:6px 10px;"></button><button type="button" class="date-nav-btn" id="logDateNextBtn" aria-label="Next day">›</button></span> <span class="date-day-label" id="logDateDayLabel"></span>
           </span>
         </h2>
         <div class="step-desc">From your smart scale — weight is required, everything else optional. BMI is calculated automatically from your height.</div>
@@ -700,7 +738,7 @@
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <span id="foodFormTitle">Log food</span>
           <span style="display:flex; align-items:center; gap:8px; font-size:.78rem; font-weight:400; color:var(--muted);">
-            Date: <span class="date-nav"><button type="button" class="date-nav-btn" id="foodDatePrevBtn" aria-label="Previous day">‹</button><input type="date" id="foodDate" style="width:auto; padding:6px 10px;"><button type="button" class="date-nav-btn" id="foodDateNextBtn" aria-label="Next day">›</button></span> <span class="date-day-label" id="foodDateDayLabel"></span>
+            Date: <span class="date-nav"><button type="button" class="date-nav-btn" id="foodDatePrevBtn" aria-label="Previous day">‹</button><button type="button" id="foodDate" style="width:auto; padding:6px 10px;"></button><button type="button" class="date-nav-btn" id="foodDateNextBtn" aria-label="Next day">›</button></span> <span class="date-day-label" id="foodDateDayLabel"></span>
           </span>
         </h2>
         <div class="step-desc">Pick a product from Quick pick and adjust the amount. Can't find it? Click "+ Add a product" below to create it once — then it's there for next time too.</div>
@@ -843,70 +881,15 @@
       </div>
     </div>
 
-    <div id="activitiesView" class="hidden">
-      <div class="card">
-        <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-          <span id="activityFormTitle">Log activity</span>
-          <span style="display:flex; align-items:center; gap:8px; font-size:.78rem; font-weight:400; color:var(--muted);">
-            Date: <span class="date-nav"><button type="button" class="date-nav-btn" id="actDatePrevBtn" aria-label="Previous day">‹</button><input type="date" id="actDate" style="width:auto; padding:6px 10px;"><button type="button" class="date-nav-btn" id="actDateNextBtn" aria-label="Next day">›</button></span> <span class="date-day-label" id="actDateDayLabel"></span>
-          </span>
-        </h2>
-        <div class="step-desc">Pick a standard activity to auto-estimate calories burned (based on your weight and duration), or type your own — either way you can edit the numbers before adding.</div>
-        <form id="activityForm" autocomplete="off">
-          <div class="row-inline">
-            <div class="field"><label>Quick pick</label>
-              <select id="actQuickPick">
-                <option value="">— custom / type your own —</option>
-              </select>
-            </div>
-            <div class="field"><label>Duration (min)</label><input type="number" id="actMinutes" min="1" max="600" step="any" value="30"></div>
-            <div class="field"><label>Calories burned (kcal) *</label><input type="number" id="actKcal" min="0" max="3000" step="any" required></div>
-          </div>
-          <div class="row-inline">
-            <div class="field"><label>Activity *</label><input type="text" id="actName" required placeholder="e.g. Running"></div>
-          </div>
-          <div class="nav" style="justify-content:flex-end;">
-            <button type="button" class="secondary hidden" id="actCancelBtn">Cancel edit</button>
-            <button type="submit" id="actSubmitBtn">Add activity →</button>
-          </div>
-        </form>
-      </div>
-
-      <div class="card">
-        <h2>Day activity log</h2>
-        <div id="activitySummaryWrap"></div>
-        <div id="activityTableWrap"></div>
-      </div>
-
-      <div class="card">
-        <h2 id="presetFormTitle">My activities</h2>
-        <div class="step-desc">Save exercises you do often — like "Gym leg day" — so they show up as a one-click quick pick above instead of retyping them each time.</div>
-        <form id="actPresetForm" autocomplete="off">
-          <div class="row-inline">
-            <div class="field"><label>Activity name *</label><input type="text" id="presetName" required placeholder="e.g. Gym leg day"></div>
-            <div class="field"><label>Duration (min)</label><input type="number" id="presetMinutes" min="1" max="600" step="any" placeholder="e.g. 45"></div>
-          </div>
-          <div class="row-inline">
-            <div class="field"><label>Calories burned (kcal) *</label><input type="number" id="presetKcal" min="0" max="3000" step="any" required></div>
-          </div>
-          <div class="nav" style="justify-content:flex-end;">
-            <button type="button" class="secondary hidden" id="presetCancelBtn">Cancel edit</button>
-            <button type="submit" id="presetSubmitBtn">Save activity →</button>
-          </div>
-        </form>
-        <div id="presetTableWrap"></div>
-      </div>
-    </div>
-
     <div id="workoutView" class="hidden">
       <div class="card">
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <span id="workoutFormTitle">Log a set</span>
           <span style="display:flex; align-items:center; gap:8px; font-size:.78rem; font-weight:400; color:var(--muted);">
-            Date: <span class="date-nav"><button type="button" class="date-nav-btn" id="workoutDatePrevBtn" aria-label="Previous day">‹</button><input type="date" id="workoutDate" style="width:auto; padding:6px 10px;"><button type="button" class="date-nav-btn" id="workoutDateNextBtn" aria-label="Next day">›</button></span> <span class="date-day-label" id="workoutDateDayLabel"></span>
+            Date: <span class="date-nav"><button type="button" class="date-nav-btn" id="workoutDatePrevBtn" aria-label="Previous day">‹</button><button type="button" id="workoutDate" style="width:auto; padding:6px 10px;"></button><button type="button" class="date-nav-btn" id="workoutDateNextBtn" aria-label="Next day">›</button></span> <span class="date-day-label" id="workoutDateDayLabel"></span>
           </span>
         </h2>
-        <div class="step-desc" style="margin-top:0;">Pick which split you're doing today (defaults to your scheduled split for this weekday), then an exercise — saved under that split, a standard one, or your own — then log the sets/reps/weight. Add a row each time the weight or rep count changes within the same session.</div>
+        <div class="step-desc" style="margin-top:0;">Pick your split, then a category, then an exercise — the quick pick narrows to match whatever category you've selected. Add a row each time the weight or rep count changes within the same session.</div>
         <form id="workoutForm" autocomplete="off">
           <div class="row-inline">
             <div class="field"><label>Split</label>
@@ -914,13 +897,9 @@
                 <option value="">— no split / off-schedule —</option>
               </select>
             </div>
-            <div class="field"><label>Quick pick</label>
-              <select id="workoutQuickPick">
-                <option value="">— custom / type your own —</option>
-              </select>
-            </div>
             <div class="field"><label>Category</label>
               <select id="workoutCategory">
+                <option value="">— All (every category this split covers) —</option>
                 <option value="Legs">Legs</option>
                 <option value="Chest">Chest</option>
                 <option value="Back">Back</option>
@@ -932,14 +911,35 @@
                 <option value="Other">Other</option>
               </select>
             </div>
+            <div class="field"><label>Quick pick</label>
+              <select id="workoutQuickPick">
+                <option value="">— custom / type your own —</option>
+              </select>
+            </div>
             <div class="field"><label>Exercise *</label><input type="text" id="workoutExercise" required placeholder="e.g. Squat"></div>
           </div>
-          <div class="row-inline">
+          <div class="row-inline" id="workoutStrengthFields">
             <div class="field"><label>Sets *</label><input type="number" id="workoutSets" min="1" max="30" step="1" value="3" required></div>
-            <div class="field"><label>Reps *</label><input type="number" id="workoutReps" min="1" max="100" step="1" value="8" required></div>
-            <div class="field"><label>Weight (kg)</label><input type="number" id="workoutWeight" min="0" max="500" step="any" placeholder="leave blank for bodyweight"></div>
+            <div class="field"><label>Reps * <span style="font-weight:400; color:var(--muted);">(e.g. 8 or 8,8,10)</span></label><input type="text" id="workoutReps" required placeholder="8 or 8,8,10" value="8"></div>
+            <div class="field"><label>Weight <span style="font-weight:400; color:var(--muted);">(e.g. 24.5 or 24.5,21,21)</span></label>
+              <div style="display:flex; gap:6px;">
+                <select id="workoutWeightType" style="max-width:88px; flex:0 0 auto;">
+                  <option value="kg">kg</option>
+                  <option value="level">Level</option>
+                </select>
+                <input type="text" id="workoutWeight" placeholder="leave blank for bodyweight" style="flex:1;">
+              </div>
+            </div>
           </div>
+          <div class="row-inline hidden" id="workoutCardioFields">
+            <div class="field"><label>Distance (km) <span style="font-weight:400; color:var(--muted);">optional</span></label><input type="number" id="workoutDistanceKm" min="0" max="200" step="any" placeholder="e.g. 8"></div>
+            <div class="field"><label>Speed (km/h) <span style="font-weight:400; color:var(--muted);">optional</span></label><input type="number" id="workoutSpeedKmh" min="0" max="40" step="any" placeholder="e.g. 10"></div>
+            <div class="field"><label>Duration (min)</label><input type="number" id="workoutCardioMinutes" min="0" max="600" step="any" placeholder="auto or type your own"></div>
+            <div class="field"><label>Calories (kcal)</label><input type="number" id="workoutCardioKcal" min="0" max="3000" step="any" placeholder="auto or type your own"></div>
+          </div>
+          <div class="step-desc hidden" id="workoutCardioHint" style="margin-top:-6px;">Fill in Distance + Speed to auto-calculate Duration/Calories (jogging, treadmill), or just Duration for a MET-based pick like Swimming.</div>
           <div class="nav" style="justify-content:flex-end;">
+            <button type="button" class="secondary" id="copyLastExercisesBtn" title="Pick a Split above first, then click to pull in every exercise/set/rep/weight from the last time you logged that split">Copy last exercises →</button>
             <button type="button" class="secondary hidden" id="workoutCancelBtn">Cancel edit</button>
             <button type="submit" id="workoutSubmitBtn">Add set →</button>
           </div>
@@ -965,8 +965,8 @@
       </div>
 
       <div class="card">
-        <h2 id="workoutSplitFormTitle">My split schedule</h2>
-        <div class="step-desc" style="margin-top:0;">Define the splits in your program (e.g. Lower A, Upper A) with which weekday(s) they're scheduled on and which muscle categories they cover — the Log a set form above will default to today's scheduled split automatically, and picking a split filters the exercise quick pick down to just its categories.</div>
+        <h2 id="workoutSplitFormTitle">My splits</h2>
+        <div class="step-desc" style="margin-top:0;">Define the splits in your program (e.g. Lower A, Upper B) as an exact, ordered list of exercises — the quick pick in Log a set will offer that list first, in order, and "Copy last exercises" duplicates your last session for whichever split you pick.</div>
         <form id="workoutSplitForm" autocomplete="off">
           <div class="row-inline">
             <div class="field"><label>Split name *</label><input type="text" id="workoutSplitName" required placeholder="e.g. Lower A"></div>
@@ -977,30 +977,25 @@
             <div class="field"><label>Goal / target muscles</label><input type="text" id="workoutSplitGoal" placeholder="e.g. Legs + glutes"></div>
           </div>
           <div class="field">
-            <label>Scheduled weekday(s)</label>
-            <div class="chk-group" id="workoutSplitWeekdays">
-              <label class="chk"><input type="checkbox" value="1" style="width:auto;"> Mon</label>
-              <label class="chk"><input type="checkbox" value="2" style="width:auto;"> Tue</label>
-              <label class="chk"><input type="checkbox" value="3" style="width:auto;"> Wed</label>
-              <label class="chk"><input type="checkbox" value="4" style="width:auto;"> Thu</label>
-              <label class="chk"><input type="checkbox" value="5" style="width:auto;"> Fri</label>
-              <label class="chk"><input type="checkbox" value="6" style="width:auto;"> Sat</label>
-              <label class="chk"><input type="checkbox" value="0" style="width:auto;"> Sun</label>
+            <label>Exercises in this split <span style="font-weight:400; color:var(--muted);">(in order)</span></label>
+            <div class="row-inline" style="align-items:flex-end;">
+              <div class="field"><label>Category</label>
+                <select id="workoutSplitExerciseCategory">
+                  <option value="Legs">Legs</option>
+                  <option value="Chest">Chest</option>
+                  <option value="Back">Back</option>
+                  <option value="Shoulders">Shoulders</option>
+                  <option value="Arms">Arms</option>
+                  <option value="Core">Core</option>
+                  <option value="Full Body">Full Body</option>
+                  <option value="Cardio">Cardio</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="field" style="flex:2;"><label>Exercise</label><input type="text" id="workoutSplitExerciseName" placeholder="e.g. Bench Press"></div>
+              <button type="button" class="secondary" id="addSplitExerciseBtn">+ Add to list</button>
             </div>
-          </div>
-          <div class="field">
-            <label>Categories covered by this split</label>
-            <div class="chk-group" id="workoutSplitCategories">
-              <label class="chk"><input type="checkbox" value="Legs" style="width:auto;"> Legs</label>
-              <label class="chk"><input type="checkbox" value="Chest" style="width:auto;"> Chest</label>
-              <label class="chk"><input type="checkbox" value="Back" style="width:auto;"> Back</label>
-              <label class="chk"><input type="checkbox" value="Shoulders" style="width:auto;"> Shoulders</label>
-              <label class="chk"><input type="checkbox" value="Arms" style="width:auto;"> Arms</label>
-              <label class="chk"><input type="checkbox" value="Core" style="width:auto;"> Core</label>
-              <label class="chk"><input type="checkbox" value="Full Body" style="width:auto;"> Full Body</label>
-              <label class="chk"><input type="checkbox" value="Cardio" style="width:auto;"> Cardio</label>
-              <label class="chk"><input type="checkbox" value="Other" style="width:auto;"> Other</label>
-            </div>
+            <div id="workoutSplitExerciseListWrap" style="margin-top:8px;"></div>
           </div>
           <div class="nav" style="justify-content:flex-end;">
             <button type="button" class="secondary hidden" id="workoutSplitCancelBtn">Cancel edit</button>
@@ -1035,6 +1030,13 @@
               </select>
             </div>
           </div>
+          <div class="row-inline" id="workoutPresetCardioRow">
+            <div class="field"><label>Distance (km) <span style="font-weight:400; color:var(--muted);">optional, Cardio only</span></label><input type="number" id="workoutPresetDistanceKm" min="0" max="200" step="any" placeholder="e.g. 8, or leave blank to fill in each time"></div>
+            <div class="field"><label>Speed (km/h) <span style="font-weight:400; color:var(--muted);">optional, Cardio only</span></label><input type="number" id="workoutPresetSpeedKmh" min="0" max="40" step="any" placeholder="e.g. 10"></div>
+            <div class="field"><label>Duration override (min) <span style="font-weight:400; color:var(--muted);">optional</span></label><input type="number" id="workoutPresetDurationMin" min="0" max="600" step="any" placeholder="if your real time differs from distance÷speed"></div>
+            <div class="field"><label>MET <span style="font-weight:400; color:var(--muted);">optional, for no-distance cardio</span></label><input type="number" id="workoutPresetMet" min="0" max="20" step="any" placeholder="e.g. 4.8 for dancing, 6 for swimming"></div>
+          </div>
+          <div class="step-desc" style="margin-top:-6px;">For a Cardio exercise, set Distance + Speed for a fixed route (calories/duration then calculate automatically each time you log it), or just Speed alone for something like treadmill running where you'll enter the distance per session. Add a Duration override if your actual time for that route doesn't match the flat distance÷speed estimate (hills, stops, etc.) — calories will then be based on your real duration instead. For cardio with no distance at all (dancing, swimming), leave Distance/Speed blank and set a MET value instead — combined with a Duration, calories calculate the same way as the standard exercises do.</div>
           <div class="nav" style="justify-content:flex-end;">
             <button type="button" class="secondary hidden" id="workoutPresetCancelBtn">Cancel edit</button>
             <button type="submit" id="workoutPresetSubmitBtn">Save exercise →</button>
@@ -1049,7 +1051,7 @@
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <span id="habitFormTitle">Log a habit</span>
           <span style="display:flex; align-items:center; gap:8px; font-size:.78rem; font-weight:400; color:var(--muted);">
-            Date: <span class="date-nav"><button type="button" class="date-nav-btn" id="habitDatePrevBtn" aria-label="Previous day">‹</button><input type="date" id="habitDate" style="width:auto; padding:6px 10px;"><button type="button" class="date-nav-btn" id="habitDateNextBtn" aria-label="Next day">›</button></span> <span class="date-day-label" id="habitDateDayLabel"></span>
+            Date: <span class="date-nav"><button type="button" class="date-nav-btn" id="habitDatePrevBtn" aria-label="Previous day">‹</button><button type="button" id="habitDate" style="width:auto; padding:6px 10px;"></button><button type="button" class="date-nav-btn" id="habitDateNextBtn" aria-label="Next day">›</button></span> <span class="date-day-label" id="habitDateDayLabel"></span>
           </span>
         </h2>
         <div class="step-desc" id="habitFormDesc">Pick a standard good habit, or type your own — check off what you actually did today.</div>
@@ -1122,7 +1124,7 @@
           </div>
           <div class="row-inline">
             <div class="field"><label>Category</label><input type="text" id="habitPresetCategory" list="habitCategoryList" placeholder="e.g. Work, Health, Household"></div>
-            <div class="field"><label>Tracking since <span style="font-weight:400;">(Avoid habits only — your "Day 1")</span></label><input type="date" id="habitPresetSince"></div>
+            <div class="field"><label>Tracking since <span style="font-weight:400;">(Avoid habits only — your "Day 1")</span></label><button type="button" class="date-picker-trigger" id="habitPresetSince"></button></div>
           </div>
           <div class="nav" style="justify-content:flex-end;">
             <button type="button" class="secondary hidden" id="habitPresetCancelBtn">Cancel edit</button>
@@ -1152,7 +1154,7 @@
                 <button type="button" class="secondary" data-days="30">1 month</button>
               </div>
             </div>
-            <div class="field"><label>Deadline *</label><input type="date" id="commitDeadline" required></div>
+            <div class="field"><label>Deadline *</label><button type="button" class="date-picker-trigger" id="commitDeadline"></button></div>
           </div>
           <div class="row-inline">
             <div class="field"><label>Notes (optional)</label><input type="text" id="commitNotes" placeholder="e.g. why this matters"></div>
@@ -1176,7 +1178,7 @@
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <span>AI Log</span>
           <span style="display:flex; align-items:center; gap:8px; font-size:.78rem; font-weight:400; color:var(--muted);">
-            Date: <span class="date-nav"><button type="button" class="date-nav-btn" id="aiLogDatePrevBtn" aria-label="Previous day">‹</button><input type="date" id="aiLogDate" style="width:auto; padding:6px 10px;"><button type="button" class="date-nav-btn" id="aiLogDateNextBtn" aria-label="Next day">›</button></span> <span class="date-day-label" id="aiLogDateDayLabel"></span>
+            Date: <span class="date-nav"><button type="button" class="date-nav-btn" id="aiLogDatePrevBtn" aria-label="Previous day">‹</button><button type="button" id="aiLogDate" style="width:auto; padding:6px 10px;"></button><button type="button" class="date-nav-btn" id="aiLogDateNextBtn" aria-label="Next day">›</button></span> <span class="date-day-label" id="aiLogDateDayLabel"></span>
           </span>
         </h2>
         <div class="step-desc" style="margin-top:0;">Speak or type a quick summary of your day — what you ate, activities you did, habits you kept or broke — and let AI turn it into draft entries. Nothing is saved until you review and confirm below.</div>
@@ -1398,7 +1400,6 @@ const I18N_STRINGS = {
   "This is a lightweight local profile switch, not secure authentication — anyone with access to this device/browser can see stored answers. Use it to keep separate profiles, not to protect sensitive data.": "Isto é um simples seletor de perfil local, não uma autenticação segura — qualquer pessoa com acesso a este dispositivo/navegador pode ver as respostas guardadas. Use-o para manter perfis separados, não para proteger dados sensíveis.",
   "Scale Log": "Registo de Peso",
   "Nutrition Log": "Registo Nutricional",
-  "Activity Log": "Registo de Atividade",
   "Good Habits Log": "Registo de Bons Hábitos",
   "Commitment Log": "Registo de Compromissos",
   "AI Log": "Registo por IA",
@@ -1484,7 +1485,6 @@ const I18N_STRINGS = {
   "Calories burned (kcal) *": "Calorias queimadas (kcal) *",
   "Activity *": "Atividade *",
   "Add activity →": "Adicionar atividade →",
-  "Day activity log": "Registo de atividade do dia",
   "My activities": "As minhas atividades",
   "Save exercises you do often — like \"Gym leg day\" — so they show up as a one-click quick pick above instead of retyping them each time.": "Guarde exercícios que faz com frequência — como \"Dia de pernas no ginásio\" — para aparecerem como seleção rápida de um clique acima, em vez de os voltar a escrever de cada vez.",
   "Activity name *": "Nome da atividade *",
@@ -2181,11 +2181,19 @@ function showLoginScreen(){
   setLoginMode(Object.keys(getUsers()).length ? "login" : "signup");
 }
 
-function enterApp(email){
+function enterApp(email, forceMigration){
   const users = getUsers();
   const u = users[email];
   currentUserEmail = email;
   answers = u.answers || {};
+  migrateLegacyActivityEntriesToWorkout(forceMigration);
+  cleanupDuplicateWorkoutPresets(forceMigration);
+  // Never forced: unlike the two migrations above (which only ever merge/move data and can't
+  // resurrect something you deleted), this one can create presets from scratch when they're
+  // missing -- forcing it on every login/sync would bring back a preset you deliberately deleted.
+  // It runs exactly once per account, full stop.
+  applyPresetAdjustmentsV2();
+  seedDefaultSplitExercisePatterns();
   localStorage.setItem(SESSION_KEY, email);
   localStorage.setItem("bodyAnalyzer.lastEmail.v1", email);
   document.getElementById("loginWrap").classList.add("hidden");
@@ -2412,7 +2420,12 @@ document.getElementById("loginForm").addEventListener("submit", async (e)=>{
         localStorage.setItem(USERS_KEY, JSON.stringify(users));
       }
       await pullFromCloud(email);
-      enterApp(email);
+      // Force the legacy-activity migration to re-run even if it already ran on this device once
+      // before: the cloud snapshot we just pulled could be an older copy taken before this
+      // migration existed, and a plain Object.assign merge (see pullFromCloud) would silently
+      // reintroduce un-migrated Activity Log rows while leaving the "already done" flag untouched
+      // -- which would otherwise make it look like the migration silently failed.
+      enterApp(email, true);
     } catch(err){
       errEl.textContent = friendlyFirebaseError(err);
     } finally {
@@ -2614,14 +2627,13 @@ document.getElementById("helpOverlay").addEventListener("click", (e)=>{
 });
 
 /* ---------------------------------------------------------
-   VIEW TABS (Scale Log / Nutrition Log / Activities)
+   VIEW TABS (Scale Log / Nutrition Log / Workout Log / ...)
    "My Plan" is intentionally not a tab — it's opened via the
    user's name in the top-right user bar (see renderUserBar).
 --------------------------------------------------------- */
 function switchView(view){
   document.getElementById("viewTabLog").classList.toggle("active", view==="log");
   document.getElementById("viewTabFood").classList.toggle("active", view==="food");
-  document.getElementById("viewTabActivities").classList.toggle("active", view==="activities");
   document.getElementById("viewTabWorkout").classList.toggle("active", view==="workout");
   document.getElementById("viewTabHabits").classList.toggle("active", view==="habits");
   document.getElementById("viewTabCommitments").classList.toggle("active", view==="commitments");
@@ -2630,7 +2642,6 @@ function switchView(view){
   document.getElementById("planView").classList.toggle("hidden", view!=="plan");
   document.getElementById("logView").classList.toggle("hidden", view!=="log");
   document.getElementById("foodView").classList.toggle("hidden", view!=="food");
-  document.getElementById("activitiesView").classList.toggle("hidden", view!=="activities");
   document.getElementById("workoutView").classList.toggle("hidden", view!=="workout");
   document.getElementById("habitsView").classList.toggle("hidden", view!=="habits");
   document.getElementById("commitmentsView").classList.toggle("hidden", view!=="commitments");
@@ -2638,7 +2649,6 @@ function switchView(view){
   document.getElementById("coachView").classList.toggle("hidden", view!=="coach");
   if(view==="log") renderLogView();
   if(view==="food"){ renderFoodView(); }
-  if(view==="activities") renderActivitiesView();
   if(view==="workout") renderWorkoutsView();
   if(view==="habits") renderHabitsView();
   if(view==="commitments") renderCommitmentsView();
@@ -2648,7 +2658,6 @@ function switchView(view){
 }
 document.getElementById("viewTabLog").addEventListener("click", ()=>switchView("log"));
 document.getElementById("viewTabFood").addEventListener("click", ()=>switchView("food"));
-document.getElementById("viewTabActivities").addEventListener("click", ()=>switchView("activities"));
 document.getElementById("viewTabWorkout").addEventListener("click", ()=>switchView("workout"));
 document.getElementById("viewTabHabits").addEventListener("click", ()=>switchView("habits"));
 document.getElementById("viewTabCommitments").addEventListener("click", ()=>switchView("commitments"));
@@ -2728,35 +2737,171 @@ function weekdayName(dateStr){
   return d.toLocaleDateString("en-US", {weekday:"long"});
 }
 
-// Updates the "<inputId>DayLabel" element (if present) from the input's current value. Setting
-// .value in JS doesn't fire a "change" event, so render functions that default a date field call
-// this explicitly rather than relying solely on wireDateNav's own change listener.
+// Updates the "<inputId>DayLabel" element (if present) from the field's current value.
 function refreshDateDayLabel(inputId){
   const el = document.getElementById(inputId + "DayLabel");
   const input = document.getElementById(inputId);
   if(el && input) el.textContent = weekdayName(input.value);
 }
 
-// Wires ‹ / › buttons next to a date <input> to step it back/forward one day at a time,
-// calling onChange (if given) afterwards so the view for the newly-selected date refreshes.
-// Also keeps a "<dayLabelId>" element (if present) showing the weekday name for whatever date
-// is currently selected — updated on arrow clicks, typed edits, and the native date picker.
+// Every date field in the app is a <button> carrying its selected date as a plain "value"
+// property (set/read exactly like a real input's .value elsewhere in the code) plus visible text
+// formatted dd.mm.yyyy -- native <input type="date"> pickers can't be forced to start the week on
+// Monday (that's controlled by OS/browser locale, not by the page), so every field instead opens
+// this one shared custom calendar popup, which always renders Monday-first regardless of locale.
+function formatDateDisplay(iso){
+  if(!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
+  const [y,m,d] = iso.split("-");
+  return `${d}.${m}.${y}`;
+}
+
+let datePickerState = null;
+
+function ensureDatePickerPopupEl(){
+  let el = document.getElementById("customDatePickerPopup");
+  if(el) return el;
+  el = document.createElement("div");
+  el.id = "customDatePickerPopup";
+  el.className = "date-picker-popup hidden";
+  document.body.appendChild(el);
+  document.addEventListener("click", (e)=>{
+    if(el.classList.contains("hidden")) return;
+    if(el.contains(e.target)) return;
+    if(datePickerState && datePickerState.triggerEl === e.target) return;
+    closeDatePickerPopup();
+  });
+  document.addEventListener("keydown", (e)=>{ if(e.key === "Escape") closeDatePickerPopup(); });
+  return el;
+}
+
+function closeDatePickerPopup(){
+  const el = document.getElementById("customDatePickerPopup");
+  if(el) el.classList.add("hidden");
+}
+
+const DP_MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function renderDatePickerPopup(){
+  const el = ensureDatePickerPopupEl();
+  const {viewYear, viewMonth, selectedIso} = datePickerState;
+  const first = new Date(viewYear, viewMonth, 1);
+  const firstWeekdayMon0 = (first.getDay() + 6) % 7; // 0=Mon..6=Sun -- this is the whole point: Monday-first, always
+  const daysInMonth = new Date(viewYear, viewMonth+1, 0).getDate();
+  const todayIso = todayStr();
+  let cells = "";
+  for(let i=0;i<firstWeekdayMon0;i++) cells += `<div class="dp-cell"></div>`;
+  for(let d=1; d<=daysInMonth; d++){
+    const iso = `${viewYear}-${String(viewMonth+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const cls = ["dp-cell","dp-day"];
+    if(iso === todayIso) cls.push("dp-today");
+    if(iso === selectedIso) cls.push("dp-selected");
+    cells += `<div class="dp-cell"><button type="button" class="${cls.join(" ")}" data-date="${iso}">${d}</button></div>`;
+  }
+  el.innerHTML = `
+    <div class="dp-header">
+      <button type="button" class="dp-nav" id="dpPrevMonth" aria-label="Previous month">‹</button>
+      <div class="dp-title">${DP_MONTH_NAMES[viewMonth]} ${viewYear}</div>
+      <button type="button" class="dp-nav" id="dpNextMonth" aria-label="Next month">›</button>
+    </div>
+    <div class="dp-weekdays">${["Mo","Tu","We","Th","Fr","Sa","Su"].map(w=>`<div class="dp-wd">${w}</div>`).join("")}</div>
+    <div class="dp-grid">${cells}</div>
+    <div class="dp-footer"><button type="button" class="dp-today-btn" id="dpToday">Today</button></div>
+  `;
+  el.querySelector("#dpPrevMonth").addEventListener("click", (e)=>{ e.stopPropagation(); shiftDatePickerMonth(-1); });
+  el.querySelector("#dpNextMonth").addEventListener("click", (e)=>{ e.stopPropagation(); shiftDatePickerMonth(1); });
+  el.querySelector("#dpToday").addEventListener("click", (e)=>{ e.stopPropagation(); pickDatePickerDate(todayIso); });
+  el.querySelectorAll(".dp-day").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{ e.stopPropagation(); pickDatePickerDate(btn.dataset.date); });
+  });
+}
+
+function shiftDatePickerMonth(delta){
+  let {viewYear, viewMonth} = datePickerState;
+  viewMonth += delta;
+  if(viewMonth < 0){ viewMonth = 11; viewYear -= 1; }
+  if(viewMonth > 11){ viewMonth = 0; viewYear += 1; }
+  datePickerState.viewYear = viewYear;
+  datePickerState.viewMonth = viewMonth;
+  renderDatePickerPopup();
+}
+
+function pickDatePickerDate(iso){
+  const cb = datePickerState ? datePickerState.onSelect : null;
+  closeDatePickerPopup();
+  if(cb) cb(iso);
+}
+
+function openDatePickerFor(triggerEl, currentIso, onSelect){
+  const base = currentIso && /^\d{4}-\d{2}-\d{2}$/.test(currentIso) ? currentIso : todayStr();
+  const [y,m] = base.split("-").map(Number);
+  datePickerState = { onSelect, viewYear: y, viewMonth: m-1, selectedIso: base, triggerEl };
+  renderDatePickerPopup();
+  const el = document.getElementById("customDatePickerPopup");
+  el.classList.remove("hidden");
+  const rect = triggerEl.getBoundingClientRect();
+  // Clamp horizontally so the popup can never spill past the right edge of the viewport
+  // (which would otherwise force the browser to render part of it off-screen or overlapping
+  // unrelated content awkwardly on narrow/mobile screens).
+  const popupWidth = el.offsetWidth || 248;
+  const maxLeft = window.scrollX + document.documentElement.clientWidth - popupWidth - 8;
+  const left = Math.min(window.scrollX + rect.left, Math.max(window.scrollX + 8, maxLeft));
+  el.style.top = (window.scrollY + rect.bottom + 4) + "px";
+  el.style.left = left + "px";
+}
+
+// Attaches click-to-open-calendar behavior to a date-holding field. Clicking toggles the popup;
+// picking a day calls onSelect(isoDateStr) and closes it. getCurrentIso lets each field control
+// what date the popup should open showing (its own current value).
+function attachDatePickerPopup(el, getCurrentIso, onSelect){
+  el.classList.add("date-picker-trigger");
+  el.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    const popup = document.getElementById("customDatePickerPopup");
+    if(popup && !popup.classList.contains("hidden") && datePickerState && datePickerState.triggerEl === el){
+      closeDatePickerPopup();
+      return;
+    }
+    openDatePickerFor(el, getCurrentIso(), onSelect);
+  });
+}
+
+// Sets a date field's value + displayed text together (the field is a <button>, so its "value"
+// is a plain property read/written exactly like a real input's .value everywhere else in the
+// code -- only the display text needs a separate, explicit update).
+function setDateFieldValue(id, iso){
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.value = iso;
+  el.textContent = formatDateDisplay(iso);
+}
+
+// Wires ‹ / › buttons next to a date field to step it back/forward one day at a time, and gives
+// the field itself the custom Monday-first calendar popup -- both paths call onChange (if given)
+// afterwards so the view for the newly-selected date refreshes. Also keeps a "<dayLabelId>"
+// element (if present) showing the weekday name for whatever date is currently selected.
 function wireDateNav(inputId, prevBtnId, nextBtnId, onChange){
   const input = document.getElementById(inputId);
-  const prevBtn = document.getElementById(prevBtnId);
-  const nextBtn = document.getElementById(nextBtnId);
-  if(!input || !prevBtn || !nextBtn) return;
-  const dayLabel = document.getElementById(inputId + "DayLabel");
-  const updateDayLabel = () => { if(dayLabel) dayLabel.textContent = weekdayName(input.value); };
-  const shift = (delta) => {
-    input.value = shiftDateStr(input.value, delta);
-    updateDayLabel();
+  if(!input) return;
+  const prevBtn = prevBtnId ? document.getElementById(prevBtnId) : null;
+  const nextBtn = nextBtnId ? document.getElementById(nextBtnId) : null;
+  const setValue = (iso) => {
+    setDateFieldValue(inputId, iso);
+    refreshDateDayLabel(inputId);
     if(onChange) onChange();
   };
-  input.addEventListener("change", updateDayLabel);
-  updateDayLabel();
-  prevBtn.addEventListener("click", () => shift(-1));
-  nextBtn.addEventListener("click", () => shift(1));
+  setDateFieldValue(inputId, input.value || todayStr());
+  refreshDateDayLabel(inputId);
+  attachDatePickerPopup(input, () => input.value, setValue);
+  if(prevBtn) prevBtn.addEventListener("click", () => setValue(shiftDateStr(input.value, -1)));
+  if(nextBtn) nextBtn.addEventListener("click", () => setValue(shiftDateStr(input.value, 1)));
+}
+
+// For standalone date fields with no day-navigation arrows and no cross-tab sync (a form's own
+// "since"/"deadline" field) -- just the calendar popup, setting the field's value directly.
+function wireStandaloneDatePicker(inputId){
+  const input = document.getElementById(inputId);
+  if(!input) return;
+  attachDatePickerPopup(input, () => input.value, (iso) => setDateFieldValue(inputId, iso));
 }
 
 function visceralFatCategory(v){
@@ -3505,6 +3650,24 @@ function latestDateOf(logs){
   return logs[logs.length-1].date+"T00:00:00";
 }
 
+// Forward-fill: an entry with no photo of its own repeats the most recent EARLIER entry's
+// photo instead of showing an empty slot -- carried forward chronologically (front/back tracked
+// independently) until a newer photo appears. `logs` must be ascending by date. Shared by the
+// History table and the Body change comparison so both treat "no new photo this reading" the
+// same way (e.g. you updated your weight but didn't retake a photo).
+function carryForwardScalePhotos(logs){
+  const map = new Map();
+  let carriedFront = null, carriedBack = null;
+  logs.forEach(l=>{
+    const ownFront = l.photoFront || l.photo || null;
+    const ownBack = l.photoBack || null;
+    if(ownFront) carriedFront = ownFront;
+    if(ownBack) carriedBack = ownBack;
+    map.set(l.date, {front: carriedFront, back: carriedBack});
+  });
+  return map;
+}
+
 function renderBodyChangeVisual(logs){
   const wrap = document.getElementById("bodyChangeWrap");
   if(!wrap) return;
@@ -3530,17 +3693,46 @@ function renderBodyChangeVisual(logs){
   const bmiDeltaStr = bmiDelta!=null ? ` · ${bmiDelta>0?"+":""}${bmiDelta.toFixed(1)} BMI` : "";
   const bmiFirstCat = bmiFirst!=null ? bmiCategory(bmiFirst) : null;
   const bmiLastCat = bmiLast!=null ? bmiCategory(bmiLast) : null;
+
+  // A reading with no photo of its own (e.g. you just updated your weight) shows the most recent
+  // earlier photo instead of falling back to the generic BMI illustration.
+  const carriedPhotos = carryForwardScalePhotos(logs);
+  const firstOwnFront = first.photoFront || first.photo || null;
+  const firstOwnBack = first.photoBack || null;
+  const firstCarried = carriedPhotos.get(first.date) || {front:null, back:null};
+  const firstEffFront = firstOwnFront || firstCarried.front;
+  const firstEffBack = firstOwnBack || firstCarried.back;
+  const firstIsRepeated = !firstOwnFront && !!firstEffFront;
+  const lastOwnFront = last.photoFront || last.photo || null;
+  const lastOwnBack = last.photoBack || null;
+  const lastCarried = carriedPhotos.get(last.date) || {front:null, back:null};
+  const lastEffFront = lastOwnFront || lastCarried.front;
+  const lastEffBack = lastOwnBack || lastCarried.back;
+  const lastIsRepeated = !lastOwnFront && !!lastEffFront;
+  const firstFigureEntry = {...first, photoFront: firstEffFront, photo: null, photoBack: firstEffBack};
+  const lastFigureEntry = {...last, photoFront: lastEffFront, photo: null, photoBack: lastEffBack};
+
   bodyChangeZoomData = {
     firstDate: first.date, lastDate: last.date,
-    firstFront: first.photoFront || first.photo || null, firstBack: first.photoBack || null,
-    lastFront: last.photoFront || last.photo || null, lastBack: last.photoBack || null,
+    firstFront: firstEffFront, firstBack: firstEffBack,
+    lastFront: lastEffFront, lastBack: lastEffBack,
   };
+  const anyRepeated = firstIsRepeated || lastIsRepeated;
+  const bothHavePhotos = firstEffFront && lastEffFront;
+  let noteText;
+  if(bothHavePhotos && anyRepeated){
+    noteText = "Your own progress photos (no new photo logged for the reading shown, so it's carried over from the most recent one).";
+  } else if(bothHavePhotos){
+    noteText = "Your own progress photos.";
+  } else {
+    noteText = "Add a front/back photo to each reading above for a real before/after — figures without one are shown as an illustration scaled from BMI.";
+  }
   wrap.innerHTML = `
     <div class="body-change">
       <div class="body-change-title">Body change — first logged reading vs. latest</div>
       <div class="body-change-row">
         <div class="body-change-figure">
-          ${bodyFigureHtml(first, wfFirst, "var(--muted)")}
+          ${bodyFigureHtml(firstFigureEntry, wfFirst, "var(--muted)")}
           <div class="bc-date">${first.date}</div>
           <div class="bc-weight">${first.weightKg.toFixed(1)} kg</div>
           ${bmiFirstCat ? `<span class="badge ${bmiFirstCat.cls}">${bmiFirstCat.label}</span>` : ""}
@@ -3551,13 +3743,13 @@ function renderBodyChangeVisual(logs){
           <div class="body-change-sub">${withWeight.length} readings logged</div>
         </div>
         <div class="body-change-figure">
-          ${bodyFigureHtml(last, wfLast, "var(--accent2)")}
+          ${bodyFigureHtml(lastFigureEntry, wfLast, "var(--accent2)")}
           <div class="bc-date">${last.date} (latest)</div>
           <div class="bc-weight">${last.weightKg.toFixed(1)} kg</div>
           ${bmiLastCat ? `<span class="badge ${bmiLastCat.cls}">${bmiLastCat.label}</span>` : ""}
         </div>
       </div>
-      <div class="goal-progress-note" style="text-align:center; margin-top:12px;">${((first.photoFront||first.photo) && (last.photoFront||last.photo)) ? "Your own progress photos." : "Add a front/back photo to each reading above for a real before/after — figures without one are shown as an illustration scaled from BMI."}</div>
+      <div class="goal-progress-note" style="text-align:center; margin-top:12px;">${noteText}</div>
     </div>
   `;
 }
@@ -3665,13 +3857,7 @@ function renderLogView(){
   // Forward-fill: an entry with no photo of its own repeats the most recent EARLIER entry's
   // photo instead of showing an empty slot -- carried forward chronologically until a newer
   // photo appears. `logs` is ascending by date, so a simple running "last seen photo" works.
-  const lastPhotoByDate = new Map();
-  let carriedPhoto = null;
-  logs.forEach(l=>{
-    const own = l.photoFront || l.photo;
-    if(own) carriedPhoto = own;
-    lastPhotoByDate.set(l.date, carriedPhoto);
-  });
+  const carriedPhotosByDate = carryForwardScalePhotos(logs);
 
   const rowsDesc = logs.slice().reverse();
   const rows = rowsDesc.map(l=>{
@@ -3681,7 +3867,7 @@ function renderLogView(){
     const vf = visceralFatCategory(l.visceralFat);
     const waistCat = waistCategory(l.waistCm);
     const ownThumb = l.photoFront || l.photo;
-    const thumb = ownThumb || lastPhotoByDate.get(l.date);
+    const thumb = ownThumb || (carriedPhotosByDate.get(l.date) || {}).front;
     const repeated = !ownThumb && !!thumb;
     return `<tr>
       <td>${thumb ? `<img class="pkg-thumb${repeated?" pkg-thumb-repeated":""}" src="${thumb}" alt="${repeated?"Repeated from an earlier reading":"Progress photo"}, ${l.date}" title="${repeated?"No photo logged this reading — showing the most recent one":"Progress photo"}">` : `<span class="pkg-thumb-placeholder"></span>`}</td>
@@ -4432,7 +4618,7 @@ async function lookupBarcodeProduct(code){
     document.getElementById("pkgFat").value = n.fat_100g != null ? +n.fat_100g.toFixed(1) : "";
     document.getElementById("pkgServing").value = "100g";
     document.getElementById("pkgCategory").value = "Scanned products";
-    setUnitsDraft("pkg", grams !== 100 ? [{label:`1 portion (${grams}g)`, grams}] : []);
+    setUnitsDraft("pkg", grams !== 100 ? [{label:`1 portion`, grams}] : []);
     openPackageForm();
     document.getElementById("packageForm").scrollIntoView({behavior:"smooth", block:"start"});
     showToast(`Found "${name}" (${Math.round(kcal100)} kcal/100g) — review below, then save it`);
@@ -4962,19 +5148,19 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
 }
 
 // Clicking a date label on a trend chart jumps every date-driven view in the app (Scale Log,
-// Nutrition Log, Activity Log, Habits, AI Log) to that date, so you land straight on that day's
+// Nutrition Log, Workout Log, Habits, AI Log) to that date, so you land straight on that day's
 // details no matter which tab you check next.
 function jumpToDate(dateStr){
   if(!dateStr) return;
-  ["logDate", "foodDate", "actDate", "habitDate", "aiLogDate"].forEach(id=>{
+  ["logDate", "foodDate", "workoutDate", "habitDate", "aiLogDate"].forEach(id=>{
     const el = document.getElementById(id);
     if(!el) return;
-    el.value = dateStr;
+    setDateFieldValue(id, dateStr);
     refreshDateDayLabel(id);
   });
   renderLogView();
   renderFoodView();
-  renderActivitiesView();
+  renderWorkoutsView();
   renderHabitsView();
   if(typeof renderAiLogView === "function") renderAiLogView();
   showToast(`Switched the whole app to ${formatShortDate(dateStr)}`);
@@ -5068,7 +5254,10 @@ function renderFoodSummary(entries, date){
     return;
   }
 
-  const burnedKcal = getActivityEntriesForDate(date).reduce((s,e)=>s+(e.kcal||0),0);
+  // Cardio calorie burn now lives in the Workout Log (isCardio entries carry cardioKcal) rather
+  // than the old, now-removed Activity Log -- same "adjust today's target upward" behavior, new
+  // data source.
+  const burnedKcal = getWorkoutEntriesForDate(date).reduce((s,e)=> s + (workoutEntryIsCardio(e) ? (e.cardioKcal||0) : 0), 0);
   const adjustedTarget = Math.round(targets.calories + burnedKcal);
 
   const pct = Math.min(100, (totals.kcal / targets.calories) * 100);
@@ -5088,7 +5277,7 @@ function renderFoodSummary(entries, date){
         Carbs: <strong>${Math.round(totals.carb)}g</strong> / ${targets.carbG}g &nbsp;·&nbsp;
         Fat: <strong>${Math.round(totals.fat)}g</strong> / ${targets.fatG}g
       </div>
-      ${burnedKcal > 0 ? `<div class="goal-progress-note">+ ${Math.round(burnedKcal)} kcal burned today (Activity Log tab) → adjusted target: <strong>${adjustedTarget} kcal</strong></div>` : ""}
+      ${burnedKcal > 0 ? `<div class="goal-progress-note">+ ${Math.round(burnedKcal)} kcal burned today (Workout Log tab) → adjusted target: <strong>${adjustedTarget} kcal</strong></div>` : ""}
       ${renderMacroRatioHtml(totals)}
     </div>
     ${renderMealBreakdown(entries, targets)}
@@ -5542,6 +5731,15 @@ let productSearchTerm = "";
 let editingFoodOverrideIndex = null;
 let commonFoodsVisible = false;
 
+// A past barcode-scan default baked the gram weight straight into the unit label text (e.g.
+// "1 portion (28g)"), so appending "(28g)" again for display produced a duplicated
+// "1 portion (28g) (28g)". Strip any such trailing "(Ng)" from the label first so both old
+// (already-saved) and newly-scanned products render as a single, non-redundant string.
+function formatPackageUnit(u){
+  const cleanLabel = String(u.label||"").replace(/\s*\(\d+(?:\.\d+)?\s*g\)\s*$/i, "").trim();
+  return `${cleanLabel || u.label} (${u.grams}g)`;
+}
+
 function renderPackagesView(){
   let packages = getFoodPackages();
   const wrap = document.getElementById("packagesTableWrap");
@@ -5563,7 +5761,7 @@ function renderPackagesView(){
     const usageNote = usage.count
       ? `${usage.count}× logged${usage.lastUsed ? ` · ${formatRelativeDay(usage.lastUsed)}` : ""}`
       : "Not logged yet";
-    const unitsNote = (p.units && p.units.length) ? p.units.map(u=>`${u.label} (${u.grams}g)`).join(", ") : "—";
+    const unitsNote = (p.units && p.units.length) ? p.units.map(formatPackageUnit).join(", ") : "—";
     return `<tr>
       <td>${p.name}${p.category ? `<div class="hint">${p.category}</div>` : ""}${p.store ? `<div class="hint">🏪 ${p.store}</div>` : ""}</td>
       <td>${p.kcal} kcal</td>
@@ -5583,7 +5781,7 @@ function renderPackagesView(){
       .filter(({f})=> !term || f.label.toLowerCase().includes(term))
       .map(({f, i, ef})=>{
         const isOverridden = ef !== f;
-        const unitsNote = (ef.units && ef.units.length) ? ef.units.map(u=>`${u.label} (${u.grams}g)`).join(", ") : "—";
+        const unitsNote = (ef.units && ef.units.length) ? ef.units.map(formatPackageUnit).join(", ") : "—";
         return `<tr>
           <td>${f.emoji?f.emoji+" ":""}${f.label}<div class="hint">Built-in${isOverridden ? " · ✏️ edited by you" : ""}</div></td>
           <td>${ef.kcal} kcal</td>
@@ -5700,8 +5898,6 @@ const COMMON_ACTIVITIES = [
   {label:"Cycling (leisurely, <16km/h)", met:4.0},
   {label:"Cycling (moderate, 16-19km/h)", met:6.8},
   {label:"Cycling (vigorous, 19-22km/h)", met:8.0},
-  {label:"Swimming (moderate)", met:6.0},
-  {label:"Swimming (vigorous)", met:9.8},
   {label:"Strength training (general)", met:3.5},
   {label:"Strength training (vigorous)", met:6.0},
   {label:"HIIT / circuit training", met:8.0},
@@ -5720,331 +5916,12 @@ const COMMON_ACTIVITIES = [
   {label:"Housework (general cleaning)", met:3.0},
 ];
 
-function getActivityLog(){
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  return (u && u.activityLog) ? u.activityLog : {};
-}
-
-function saveActivityLogObj(obj){
-  const users = getUsers();
-  if(!users[currentUserEmail]) return;
-  users[currentUserEmail].activityLog = obj;
-  saveUsers(users);
-}
-
-function getActivityEntriesForDate(date){
-  const log = getActivityLog();
-  return log[date] ? log[date].slice() : [];
-}
-
-function genActivityId(){
-  return "a" + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
-}
-
-function effWeightKgForActivity(){
-  const latest = latestLog();
-  return (latest && latest.weightKg) ? latest.weightKg : (answers.weightKg || 70);
-}
-
-function getActivityPresets(){
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  return (u && u.activityPresets) ? u.activityPresets.slice() : [];
-}
-
-function saveActivityPresetsArr(arr){
-  const users = getUsers();
-  if(!users[currentUserEmail]) return;
-  users[currentUserEmail].activityPresets = arr;
-  saveUsers(users);
-}
-
-function genActivityPresetId(){
-  return "ap" + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
-}
-
-function populateActivityQuickPick(){
-  const sel = document.getElementById("actQuickPick");
-  const prevValue = sel.value;
-  let opts = `<option value="">— custom / type your own —</option>`;
-  const presets = getActivityPresets();
-  if(presets.length){
-    opts += `<optgroup label="My activities">`;
-    presets.forEach(p => opts += `<option value="preset:${p.id}">${p.name}${p.minutes?` (${p.minutes} min)`:""} — ${Math.round(p.kcal)} kcal</option>`);
-    opts += `</optgroup>`;
-  }
-  opts += `<optgroup label="Standard activities">`;
-  COMMON_ACTIVITIES.forEach((act,i)=> opts += `<option value="std:${i}">${act.label}</option>`);
-  opts += `</optgroup>`;
-  sel.innerHTML = opts;
-  if([...sel.options].some(o=>o.value===prevValue)) sel.value = prevValue;
-}
-
-let selectedActivityIndex = null;
-let selectedActivityPresetId = null;
-let editingActivityId = null, editingActivityDate = null;
-
-function applyQuickPickActivity(){
-  const act = COMMON_ACTIVITIES[selectedActivityIndex];
-  if(!act) return;
-  const minutes = parseFloat(document.getElementById("actMinutes").value) || 30;
-  const weightKg = effWeightKgForActivity();
-  const kcal = act.met * 3.5 * weightKg / 200 * minutes;
-  document.getElementById("actName").value = act.label;
-  document.getElementById("actKcal").value = Math.round(kcal);
-}
-
-function applyQuickPickActivityPreset(){
-  const preset = getActivityPresets().find(p=>p.id===selectedActivityPresetId);
-  if(!preset) return;
-  document.getElementById("actName").value = preset.name;
-  document.getElementById("actMinutes").value = preset.minutes!=null ? preset.minutes : "";
-  document.getElementById("actKcal").value = preset.kcal;
-}
-
-document.getElementById("actQuickPick").addEventListener("change", (e)=>{
-  const val = e.target.value;
-  selectedActivityIndex = null;
-  selectedActivityPresetId = null;
-  if(val.startsWith("std:")){
-    selectedActivityIndex = parseInt(val.slice(4), 10);
-    applyQuickPickActivity();
-  } else if(val.startsWith("preset:")){
-    selectedActivityPresetId = val.slice(7);
-    applyQuickPickActivityPreset();
-  }
-});
-
-document.getElementById("actMinutes").addEventListener("input", ()=>{
-  if(selectedActivityIndex != null) applyQuickPickActivity();
-});
-
-document.getElementById("actDate").addEventListener("change", renderActivitiesView);
-wireDateNav("actDate", "actDatePrevBtn", "actDateNextBtn", renderActivitiesView);
-
-let editingActivityPresetId = null;
-
-function exitActivityPresetEditMode(){
-  editingActivityPresetId = null;
-  document.getElementById("presetFormTitle").textContent = "My activities";
-  document.getElementById("presetSubmitBtn").textContent = "Save activity →";
-  document.getElementById("presetCancelBtn").classList.add("hidden");
-}
-
-function editActivityPreset(id){
-  const preset = getActivityPresets().find(p=>p.id===id);
-  if(!preset) return;
-  editingActivityPresetId = id;
-  document.getElementById("presetName").value = preset.name;
-  document.getElementById("presetMinutes").value = preset.minutes!=null ? preset.minutes : "";
-  document.getElementById("presetKcal").value = preset.kcal;
-  document.getElementById("presetFormTitle").textContent = `Edit activity — ${preset.name}`;
-  document.getElementById("presetSubmitBtn").textContent = "Update activity →";
-  document.getElementById("presetCancelBtn").classList.remove("hidden");
-  document.getElementById("actPresetForm").scrollIntoView({behavior:"smooth", block:"start"});
-}
-window.editActivityPreset = editActivityPreset;
-
-function deleteActivityPreset(id){
-  const arr = getActivityPresets().filter(p=>p.id!==id);
-  saveActivityPresetsArr(arr);
-  if(editingActivityPresetId === id){
-    document.getElementById("actPresetForm").reset();
-    exitActivityPresetEditMode();
-  }
-  renderActivitiesView();
-}
-window.deleteActivityPreset = deleteActivityPreset;
-
-document.getElementById("presetCancelBtn").addEventListener("click", ()=>{
-  document.getElementById("actPresetForm").reset();
-  exitActivityPresetEditMode();
-});
-
-document.getElementById("actPresetForm").addEventListener("submit", (e)=>{
-  e.preventDefault();
-  const name = document.getElementById("presetName").value.trim();
-  if(!name) return;
-  const kcal = parseFloat(document.getElementById("presetKcal").value);
-  if(Number.isNaN(kcal)) return;
-  const minutes = document.getElementById("presetMinutes").value ? parseFloat(document.getElementById("presetMinutes").value) : null;
-
-  const arr = getActivityPresets();
-  const wasEditing = !!editingActivityPresetId;
-  const preset = {id: wasEditing ? editingActivityPresetId : genActivityPresetId(), name, minutes, kcal};
-  if(wasEditing){
-    const idx = arr.findIndex(p=>p.id===editingActivityPresetId);
-    if(idx>=0) arr[idx] = preset; else arr.push(preset);
-  } else {
-    arr.push(preset);
-  }
-  saveActivityPresetsArr(arr);
-
-  e.target.reset();
-  exitActivityPresetEditMode();
-  renderActivitiesView();
-  showToast(wasEditing ? "Activity updated" : "Activity saved");
-});
-
-function renderActivityPresetsTable(){
-  const presets = getActivityPresets();
-  const wrap = document.getElementById("presetTableWrap");
-  if(presets.length === 0){
-    wrap.innerHTML = `<div class="empty-note">No saved activities yet — save one above and it'll show up as a quick pick in the log form.</div>`;
-    return;
-  }
-  const rows = presets.map(p=>`<tr>
-      <td>${p.name}</td>
-      <td>${p.minutes!=null ? p.minutes+" min" : "—"}</td>
-      <td>${Math.round(p.kcal)} kcal</td>
-      <td><button type="button" class="edit-btn" onclick="editActivityPreset('${p.id}')">Edit</button> <button type="button" class="del-btn" onclick="deleteActivityPreset('${p.id}')">Delete</button></td>
-    </tr>`).join("");
-  wrap.innerHTML = `
-    <div class="table-scroll">
-      <table class="log-table">
-        <thead><tr><th>Activity</th><th>Duration</th><th>Calories</th><th></th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-  `;
-}
-
-function editActivityEntry(date, id){
-  const entry = getActivityEntriesForDate(date).find(e=>e.id===id);
-  if(!entry) return;
-  editingActivityId = id;
-  editingActivityDate = date;
-  selectedActivityIndex = null;
-  selectedActivityPresetId = null;
-  document.getElementById("actQuickPick").value = "";
-  document.getElementById("actDate").value = date;
-  refreshDateDayLabel("actDate");
-  document.getElementById("actName").value = entry.name;
-  document.getElementById("actMinutes").value = entry.minutes!=null ? entry.minutes : "";
-  document.getElementById("actKcal").value = entry.kcal;
-  document.getElementById("activityFormTitle").textContent = `Edit activity — ${entry.name}`;
-  document.getElementById("actSubmitBtn").textContent = "Update activity →";
-  document.getElementById("actCancelBtn").classList.remove("hidden");
-  document.getElementById("activityForm").scrollIntoView({behavior:"smooth", block:"start"});
-}
-window.editActivityEntry = editActivityEntry;
-
-function exitActivityEditMode(){
-  editingActivityId = null;
-  editingActivityDate = null;
-  document.getElementById("activityFormTitle").textContent = "Log activity";
-  document.getElementById("actSubmitBtn").textContent = "Add activity →";
-  document.getElementById("actCancelBtn").classList.add("hidden");
-}
-
-document.getElementById("actCancelBtn").addEventListener("click", ()=>{
-  document.getElementById("activityForm").reset();
-  document.getElementById("actMinutes").value = 30;
-  selectedActivityIndex = null;
-  selectedActivityPresetId = null;
-  exitActivityEditMode();
-  renderActivitiesView();
-});
-
-function deleteActivityEntry(date, id){
-  const log = getActivityLog();
-  if(!log[date]) return;
-  log[date] = log[date].filter(e=>e.id!==id);
-  if(log[date].length === 0) delete log[date];
-  saveActivityLogObj(log);
-  if(editingActivityId === id){
-    document.getElementById("activityForm").reset();
-    document.getElementById("actMinutes").value = 30;
-    exitActivityEditMode();
-  }
-  renderActivitiesView();
-}
-window.deleteActivityEntry = deleteActivityEntry;
-
-document.getElementById("activityForm").addEventListener("submit", (e)=>{
-  e.preventDefault();
-  const date = document.getElementById("actDate").value.trim() || todayStr();
-  const name = document.getElementById("actName").value.trim();
-  if(!name) return;
-  const kcal = parseFloat(document.getElementById("actKcal").value);
-  if(Number.isNaN(kcal)) return;
-  const minutes = document.getElementById("actMinutes").value ? parseFloat(document.getElementById("actMinutes").value) : null;
-
-  const log = getActivityLog();
-  const wasEditing = !!editingActivityId;
-
-  if(wasEditing && log[editingActivityDate]){
-    log[editingActivityDate] = log[editingActivityDate].filter(en=>en.id!==editingActivityId);
-    if(log[editingActivityDate].length === 0) delete log[editingActivityDate];
-  }
-  const entry = {id: wasEditing ? editingActivityId : genActivityId(), name, minutes, kcal};
-  if(!log[date]) log[date] = [];
-  log[date].push(entry);
-  saveActivityLogObj(log);
-
-  e.target.reset();
-  document.getElementById("actMinutes").value = 30;
-  selectedActivityIndex = null;
-  selectedActivityPresetId = null;
-  exitActivityEditMode();
-  renderActivitiesView();
-  showToast(wasEditing ? "Activity updated" : "Activity added");
-});
-
-function renderActivitySummary(entries, date){
-  const wrap = document.getElementById("activitySummaryWrap");
-  if(entries.length === 0){
-    wrap.innerHTML = `<div class="empty-note">No activity logged for ${date} yet — add your first one above.</div>`;
-    return;
-  }
-  const totalKcal = entries.reduce((sum,e)=> sum + (e.kcal||0), 0);
-  const totalMinutes = entries.reduce((sum,e)=> sum + (e.minutes||0), 0);
-  wrap.innerHTML = `
-    <div class="goal-progress-summary">
-      Burned today: <span class="big">${Math.round(totalKcal)} kcal</span> &nbsp;·&nbsp; ${Math.round(totalMinutes)} min total
-    </div>
-    <div class="goal-progress-note">This is added on top of your calorie target on the Nutrition Log tab.</div>
-  `;
-}
-
-function renderActivityTable(entries, date){
-  const wrap = document.getElementById("activityTableWrap");
-  if(entries.length === 0){
-    wrap.innerHTML = "";
-    return;
-  }
-  const rows = entries.map(e=>`<tr>
-      <td>${e.name}</td>
-      <td>${e.minutes!=null ? e.minutes+" min" : "—"}</td>
-      <td>${Math.round(e.kcal)} kcal</td>
-      <td><button type="button" class="edit-btn" onclick="editActivityEntry('${date}','${e.id}')">Edit</button> <button type="button" class="del-btn" onclick="deleteActivityEntry('${date}','${e.id}')">Delete</button></td>
-    </tr>`).join("");
-  wrap.innerHTML = `
-    <div class="table-scroll">
-      <table class="log-table">
-        <thead><tr><th>Activity</th><th>Duration</th><th>Calories burned</th><th></th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-  `;
-}
-
-function renderActivitiesView(){
-  populateActivityQuickPick();
-  const dateInput = document.getElementById("actDate");
-  if(dateInput && !dateInput.value) dateInput.value = todayStr();
-  refreshDateDayLabel("actDate");
-  const date = dateInput.value || todayStr();
-  const entries = getActivityEntriesForDate(date);
-  renderActivitySummary(entries, date);
-  renderActivityTable(entries, date);
-  renderActivityPresetsTable();
-}
 
 /* ---------------------------------------------------------
-   WORKOUT LOG — strength training: exercise + category + sets/reps/weight,
-   separate from Activity Log (which is duration/calories, cardio-style).
+   WORKOUT LOG — strength training (exercise + category + sets/reps/weight) and
+   cardio (distance/speed/MET-based duration+calories) both live here; the old,
+   separate Activity Log has been removed and everything it used to track now
+   lives in this one log, cardio entries just carry isCardio:true.
    One row = one exercise for the day, with a Sets count field rather than
    one row per individual set -- faster to log; add a second row if a later
    set used a different weight/reps (e.g. a drop set or pyramid).
@@ -6062,6 +5939,8 @@ const COMMON_EXERCISES = [
   {name:"Walking Lunge", category:"Legs"},
   {name:"Calf Raise", category:"Legs"},
   {name:"Bench Press", category:"Chest"},
+  {name:"Barbell Bench Press", category:"Chest"},
+  {name:"Dumbbell Bench Press", category:"Chest"},
   {name:"Incline Dumbbell Press", category:"Chest"},
   {name:"Chest Fly", category:"Chest"},
   {name:"Push-up", category:"Chest"},
@@ -6070,11 +5949,20 @@ const COMMON_EXERCISES = [
   {name:"Lat Pulldown", category:"Back"},
   {name:"Pull-up", category:"Back"},
   {name:"Seated Cable Row", category:"Back"},
+  {name:"Machine Row", category:"Back"},
   {name:"Overhead Press", category:"Shoulders"},
+  {name:"Dumbbell Shoulder Press", category:"Shoulders"},
   {name:"Lateral Raise", category:"Shoulders"},
+  {name:"Dumbbell Lateral Raises", category:"Shoulders"},
   {name:"Face Pull", category:"Shoulders"},
   {name:"Bicep Curl", category:"Arms"},
-  {name:"Tricep Pushdown", category:"Arms"},
+  {name:"Dumbbell Bicep Curl", category:"Arms"},
+  {name:"Barbell Bicep Curl", category:"Arms"},
+  {name:"Incline Dumbbell Curl", category:"Arms"},
+  {name:"Preacher Curl", category:"Arms"},
+  {name:"Triceps Pushdown", category:"Arms"},
+  {name:"French Press", category:"Arms"},
+  {name:"Overhead Triceps Extension", category:"Arms"},
   {name:"Hammer Curl", category:"Arms"},
   {name:"Plank", category:"Core"},
   {name:"Hanging Leg Raise", category:"Core"},
@@ -6083,8 +5971,60 @@ const COMMON_EXERCISES = [
   {name:"Burpee", category:"Full Body"},
   {name:"Running (treadmill)", category:"Cardio"},
   {name:"Rowing machine", category:"Cardio"},
-  {name:"Cycling", category:"Cardio"},
+  // These carry a MET value so picking them auto-calculates calories straight from Duration (same
+  // formula as the distance-based jogging presets above, just driven by time instead of distance) --
+  // no Distance or Speed to fill in, which is the point for activities you can't measure in km/h.
+  {name:"Walking (moderate)", category:"Cardio", met:3.5},
+  {name:"Cycling (moderate)", category:"Cardio", met:7.5},
+  {name:"Swimming (moderate)", category:"Cardio", met:6.0},
+  {name:"Swimming (vigorous)", category:"Cardio", met:9.8},
+  {name:"Snorkelling", category:"Cardio", met:5.0},
 ];
+
+// Anchored to the standard-activity Running MET brackets (8/10/12 km/h) so distance-based calorie
+// estimates for jogging/treadmill entries stay consistent no matter the exact pace entered.
+const RUNNING_MET_SPEED_ANCHORS = [
+  {speed:8, met:8.3},
+  {speed:10, met:9.8},
+  {speed:12, met:11.5},
+];
+function metForRunningSpeed(speedKmh){
+  const anchors = RUNNING_MET_SPEED_ANCHORS;
+  if(!(speedKmh > 0)) return anchors[0].met;
+  if(speedKmh <= anchors[0].speed){
+    const a = anchors[0], b = anchors[1];
+    const slope = (b.met - a.met) / (b.speed - a.speed);
+    return Math.max(1, a.met + slope * (speedKmh - a.speed));
+  }
+  for(let i=0; i<anchors.length-1; i++){
+    const a = anchors[i], b = anchors[i+1];
+    if(speedKmh >= a.speed && speedKmh <= b.speed){
+      const t = (speedKmh - a.speed) / (b.speed - a.speed);
+      return a.met + t * (b.met - a.met);
+    }
+  }
+  const a = anchors[anchors.length-2], b = anchors[anchors.length-1];
+  const slope = (b.met - a.met) / (b.speed - a.speed);
+  return b.met + slope * (speedKmh - b.speed);
+}
+// Distance + speed -> duration + calories (jogging/treadmill style entries).
+function computeDistanceWorkoutCalcs(distanceKm, speedKmh, weightKg){
+  if(!(distanceKm > 0) || !(speedKmh > 0)) return null;
+  const minutes = (distanceKm / speedKmh) * 60;
+  const met = metForRunningSpeed(speedKmh);
+  const kcal = met * 3.5 * weightKg / 200 * minutes;
+  return {minutes, kcal, met};
+}
+// MET + duration -> calories (swimming/snorkelling style entries -- no distance involved).
+function computeMetWorkoutCalcs(met, minutes, weightKg){
+  if(!(met > 0) || !(minutes > 0)) return null;
+  const kcal = met * 3.5 * weightKg / 200 * minutes;
+  return {kcal};
+}
+function effWeightKgForWorkout(){
+  const latest = latestLog();
+  return (latest && latest.weightKg) ? latest.weightKg : (answers.weightKg || 70);
+}
 
 // A split is a named training day in your program (e.g. "Lower A"), with a target/goal
 // description and which weekday(s) it's scheduled on -- lets the Log a set form default to
@@ -6094,12 +6034,30 @@ const COMMON_EXERCISES = [
 // presets/log entries that reference a default split's id keep resolving correctly right up
 // until the person actually customizes and saves their own list.
 const WORKOUT_SPLIT_COLOR_PALETTE = ["#4ee1a3","#7c9cff","#ffb454","#ff6b6b","#c792ea","#5ec8d8","#f2789f","#a3d977"];
+// The exact ordered pattern requested for Upper B -- also reused by seedDefaultSplitExercisePatterns
+// below to retrofit it onto anyone's already-existing Upper B split that predates this feature.
+const UPPER_B_DEFAULT_EXERCISES = [
+  {category:"Chest", name:"Bench Press"},
+  {category:"Chest", name:"Incline Dumbbell Press"},
+  {category:"Shoulders", name:"Dumbbell Shoulder Press"},
+  {category:"Shoulders", name:"Lateral Raise"},
+  {category:"Arms", name:"Bicep Curl"},
+  {category:"Arms", name:"Preacher Curl"},
+  {category:"Arms", name:"Triceps Pushdown"},
+  {category:"Arms", name:"Overhead Triceps Extension"},
+];
+// The default Cardio split needs at least one Cardio-tagged pattern entry of its own -- otherwise
+// it has no derivable categories at all (see workoutSplitCategoriesFromExercises), which would
+// silently break workoutFormIsCardioMode()'s "split is Cardio-only" auto-detection for it.
+const CARDIO_SPLIT_DEFAULT_EXERCISES = [{category:"Cardio", name:"Jogging"}];
+
 function getDefaultWorkoutSplits(){
   return [
-    {id:"split-lower-a", name:"Lower A", emoji:"🦵", goal:"Nogi + pośladki", color:"#4ee1a3", weekdays:[1], categories:["Legs"]},
-    {id:"split-upper-a", name:"Upper A", emoji:"💪", goal:"Klatka + plecy + barki + ręce", color:"#7c9cff", weekdays:[2], categories:["Chest","Back","Shoulders","Arms"]},
-    {id:"split-lower-b", name:"Lower B", emoji:"🦵", goal:"Nogi + pośladki + core", color:"#ffb454", weekdays:[4], categories:["Legs","Core"]},
-    {id:"split-upper-b", name:"Upper B", emoji:"💪", goal:"Plecy + klatka + barki + ręce", color:"#ff6b6b", weekdays:[6], categories:["Chest","Back","Shoulders","Arms"]},
+    {id:"split-lower-a", name:"Lower A", emoji:"🦵", goal:"Legs + glutes", color:"#4ee1a3", exercises:[]},
+    {id:"split-upper-a", name:"Upper A", emoji:"💪", goal:"Chest + back + shoulders + arms", color:"#7c9cff", exercises:[]},
+    {id:"split-lower-b", name:"Lower B", emoji:"🦵", goal:"Legs + glutes + core", color:"#ffb454", exercises:[]},
+    {id:"split-upper-b", name:"Upper B", emoji:"💪", goal:"Back + chest + shoulders + arms", color:"#ff6b6b", exercises: UPPER_B_DEFAULT_EXERCISES.slice()},
+    {id:"split-cardio", name:"Cardio", emoji:"🏃", goal:"Jogging, treadmill, swimming — conditioning", color:"#5ec8d8", exercises: CARDIO_SPLIT_DEFAULT_EXERCISES.slice()},
   ];
 }
 function getWorkoutSplits(){
@@ -6116,13 +6074,13 @@ function saveWorkoutSplitsArr(arr){
 function genWorkoutSplitId(){
   return "ws" + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
 }
-// Which split is scheduled for a given date's weekday, if any -- used to auto-default the Log a
-// set form's Split field. new Date().getDay() -- 0=Sunday..6=Saturday -- matches the checkbox
-// values used in the split-schedule form, so no conversion is needed.
-function getSuggestedSplitIdForDate(dateStr){
-  const dow = new Date(dateStr+"T00:00:00").getDay();
-  const match = getWorkoutSplits().find(s => Array.isArray(s.weekdays) && s.weekdays.includes(dow));
-  return match ? match.id : "";
+// A split's own categories are no longer a separately-maintained field -- they're derived from
+// whatever exercises are actually in its ordered pattern, so the two can never drift out of sync
+// with each other the way a hand-maintained checkbox list could.
+function workoutSplitCategoriesFromExercises(split){
+  return (split && Array.isArray(split.exercises) && split.exercises.length)
+    ? Array.from(new Set(split.exercises.map(x=>x.category)))
+    : null;
 }
 
 function getWorkoutLog(){
@@ -6158,10 +6116,43 @@ function genWorkoutId(){
   return "w" + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
 }
 
-function getWorkoutPresets(){
+// Three ready-made cardio exercises (2 fixed-distance jogging routes + a flexible treadmill one)
+// are merged in automatically so they show up as quick picks without the person having to create
+// them by hand -- but a merge, not a one-time seed, so it survives even if they already had some
+// of their own presets saved. Deleting one of these records it in dismissedWorkoutPresetIds so it
+// doesn't reappear (see deleteWorkoutPreset) -- editing one instead promotes it into the saved
+// array like any custom preset, which naturally prevents it being merged in twice.
+const DEFAULT_CARDIO_WORKOUT_PRESET_IDS = ["wp-jog-cleverfit", "wp-jog-mainau", "wp-treadmill"];
+function getDefaultCardioWorkoutPresets(){
+  return [
+    {id:"wp-jog-cleverfit", name:"Jogging (Home-Clever fit)", category:"Cardio", splitId:null, distanceKm:2.6, speedKmh:10, met:null, durationMin:null},
+    {id:"wp-jog-mainau", name:"Jogging (Home-Mainau)", category:"Cardio", splitId:null, distanceKm:8, speedKmh:10, met:null, durationMin:null},
+    {id:"wp-treadmill", name:"Treadmill running", category:"Cardio", splitId:null, distanceKm:null, speedKmh:10, met:null, durationMin:null},
+  ];
+}
+function getWorkoutPresetsSavedOnly(){
   const users = getUsers();
   const u = users[currentUserEmail];
   return (u && u.workoutPresets) ? u.workoutPresets.slice() : [];
+}
+function getWorkoutPresets(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  const saved = getWorkoutPresetsSavedOnly();
+  const dismissed = (u && u.dismissedWorkoutPresetIds) ? u.dismissedWorkoutPresetIds : [];
+  const defaults = getDefaultCardioWorkoutPresets().filter(d => !dismissed.includes(d.id) && !saved.some(p=>p.id===d.id));
+  // Defensive de-dupe by name (case-insensitive) on top of the id-based de-dupe above -- if two
+  // presets ever end up with the same effective name (e.g. a leftover from an old migration bug),
+  // this collapses them to one in every place presets are read (quick pick, table, CSV) rather
+  // than needing every call site to remember to do it. First occurrence wins, which favors a
+  // saved/custom preset over a built-in default with the same name.
+  const seen = new Set();
+  return saved.concat(defaults).filter(p=>{
+    const key = p.name.trim().toLowerCase();
+    if(seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function saveWorkoutPresetsArr(arr){
@@ -6169,6 +6160,212 @@ function saveWorkoutPresetsArr(arr){
   if(!users[currentUserEmail]) return;
   users[currentUserEmail].workoutPresets = arr;
   saveUsers(users);
+}
+
+function dismissDefaultWorkoutPreset(id){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u) return;
+  const dismissed = u.dismissedWorkoutPresetIds || [];
+  if(!dismissed.includes(id)){
+    u.dismissedWorkoutPresetIds = dismissed.concat([id]);
+    saveUsers(users);
+  }
+}
+
+// One-time cleanup for duplicate-looking Cardio quick-pick entries that could build up from
+// earlier sessions: (a) a saved preset whose name exactly duplicates another saved preset (e.g.
+// the legacy-activity migration creating "Running Mainau (~8km/h)" when one already existed), and
+// (b) a saved preset whose name exactly matches an already-standard exercise (e.g. "Snorkelling"
+// is already a MET-based standard exercise, so a same-named custom preset is pure redundancy --
+// getWorkoutPresets()/populateWorkoutQuickPick() already hide these live, but this actually
+// removes them from storage too). Also specifically consolidates the two different "Mainau"
+// entries this app itself created across earlier sessions -- the built-in default "Jogging
+// (Home-Mainau)" and the migrated "Running Mainau (~8km/h)" -- into the one the person actually
+// uses, with their real-world timing for that 8km route (50 min door to door, not the flat
+// distance÷speed estimate of 48). Guarded by duplicateWorkoutPresetsCleanedUp so it only ever runs
+// once (with the same force-after-cloud-pull escape hatch as the activity migration).
+function cleanupDuplicateWorkoutPresets(force){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u || (u.duplicateWorkoutPresetsCleanedUp && !force)) return;
+
+  let saved = getWorkoutPresetsSavedOnly();
+  const stdNames = new Set(COMMON_EXERCISES.map(ex=>ex.name.trim().toLowerCase()));
+  saved = saved.filter(p => !stdNames.has(p.name.trim().toLowerCase()));
+
+  const byName = new Map();
+  saved.forEach(p=>{
+    const key = p.name.trim().toLowerCase();
+    const existing = byName.get(key);
+    if(!existing){ byName.set(key, p); return; }
+    const score = q => (q.distanceKm!=null?1:0) + (q.speedKmh!=null?1:0) + (q.durationMin!=null?1:0);
+    if(score(p) > score(existing)) byName.set(key, p);
+  });
+  saved = Array.from(byName.values());
+
+  const mainauIdx = saved.findIndex(p=>p.name.trim().toLowerCase() === "running mainau (~8km/h)");
+  if(mainauIdx >= 0){
+    saved[mainauIdx] = Object.assign({}, saved[mainauIdx], {distanceKm: 8, speedKmh: 10, durationMin: 50});
+  }
+  dismissDefaultWorkoutPreset("wp-jog-mainau");
+
+  saveWorkoutPresetsArr(saved);
+  const usersAfter = getUsers();
+  if(usersAfter[currentUserEmail]){
+    usersAfter[currentUserEmail].duplicateWorkoutPresetsCleanedUp = true;
+    saveUsers(usersAfter);
+  }
+}
+
+// Finds every saved preset whose name matches (regardless of exactly how it ended up named across
+// past versions -- e.g. "Running Mainau (~8km/h)", "Jogging (Home-Mainau-Home)", a half-migrated
+// "Jogging (Mainau)" with no split assigned), collapses them into exactly one, and overwrites it
+// with the given canonical fields. The survivor keeps the first match's id (so any references to it
+// stay valid) and inherits the first real splitId found among the matches, falling back to
+// fallbackSplitId only if none of them had one -- this is what fixes an entry showing "—" for Split.
+function upsertConsolidatedPreset(saved, matchFn, canonicalFields, fallbackSplitId){
+  const matches = saved.filter(matchFn);
+  const survivorId = matches.length ? matches[0].id : genWorkoutPresetId();
+  const splitId = matches.map(p=>p.splitId).find(s=>s) || fallbackSplitId || null;
+  const rest = saved.filter(p=>!matchFn(p));
+  rest.push(Object.assign({id: survivorId, splitId}, canonicalFields));
+  return rest;
+}
+
+// One-time follow-up adjustment: renames the consolidated Mainau route to the name actually used
+// going forward ("Jogging (Mainau)", matching the "Jogging (Home-...)" naming already used for its
+// sibling routes), and adds a "Choreography" preset -- a personal dance-practice session tracked
+// as duration-only cardio (no distance/speed) using Dancing's MET value, the same way the standard
+// Swimming/Snorkelling exercises work. Guarded by presetAdjustmentsV2Done so it only ever runs once
+// -- and is never force-rerun automatically (see its call sites), since re-creating these presets
+// after you've deliberately deleted one would be actively unhelpful, not a safety net.
+function applyPresetAdjustmentsV2(force){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u || (u.presetAdjustmentsV2Done && !force)) return;
+
+  let saved = getWorkoutPresetsSavedOnly();
+
+  saved = upsertConsolidatedPreset(
+    saved,
+    p => /mainau/i.test(p.name),
+    {name:"Jogging (Mainau)", category:"Cardio", distanceKm:8, speedKmh:10, durationMin:50, met:null},
+    "split-cardio"
+  );
+
+  // Matches both a fresh install (no Choreography preset yet) and someone who, before this MET
+  // field existed, worked around the missing "no-distance cardio" support by hand-making their own
+  // speed-based preset (e.g. "Choreography (Moderate)" with a fake Speed so it would at least
+  // calculate *something*, leaving Distance blank and having to fill it in every time). Either way,
+  // it's converted in place to the correct duration+MET shape so it works the way it always should
+  // have -- no Distance, no Speed, just a Duration and Calories calculated automatically.
+  saved = upsertConsolidatedPreset(
+    saved,
+    p => p.name.trim().toLowerCase().includes("choreography"),
+    {name:"Choreography", category:"Cardio", distanceKm:null, speedKmh:null, durationMin:30, met:4.8},
+    null
+  );
+
+  saveWorkoutPresetsArr(saved);
+  const usersAfter = getUsers();
+  if(usersAfter[currentUserEmail]){
+    usersAfter[currentUserEmail].presetAdjustmentsV2Done = true;
+    saveUsers(usersAfter);
+  }
+}
+
+// One-time retrofit: splits saved before the ordered-exercise-pattern feature existed have no
+// `exercises` array at all. Rather than leaving your already-existing Upper B and Cardio splits
+// blank -- Upper B needing all 8 exercises re-typed by hand, Cardio silently losing its "auto-show
+// cardio fields" behavior since that's now derived from its pattern -- this seeds both with the
+// same defaults a fresh install would get, the first time this runs. Never force-rerun (see
+// applyPresetAdjustmentsV2's comment) -- once seeded, they're yours to edit/reorder freely and
+// this won't touch them again.
+function seedDefaultSplitExercisePatterns(force){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u || (u.defaultSplitPatternsSeeded && !force)) return;
+
+  const arr = getWorkoutSplits();
+  let changed = false;
+  [
+    {match: s=> s.id === "split-upper-b" || s.name.trim().toLowerCase() === "upper b", exercises: UPPER_B_DEFAULT_EXERCISES},
+    {match: s=> s.id === "split-cardio" || s.name.trim().toLowerCase() === "cardio", exercises: CARDIO_SPLIT_DEFAULT_EXERCISES},
+  ].forEach(({match, exercises})=>{
+    const idx = arr.findIndex(match);
+    if(idx >= 0 && (!Array.isArray(arr[idx].exercises) || !arr[idx].exercises.length)){
+      arr[idx] = Object.assign({}, arr[idx], {exercises: exercises.map(x=>Object.assign({}, x))});
+      changed = true;
+    }
+  });
+  if(changed) saveWorkoutSplitsArr(arr);
+
+  const usersAfter = getUsers();
+  if(usersAfter[currentUserEmail]){
+    usersAfter[currentUserEmail].defaultSplitPatternsSeeded = true;
+    saveUsers(usersAfter);
+  }
+}
+
+// One-time-per-user final sweep, now that the standalone Activity Log feature has been removed
+// entirely: anything still sitting in the old activityLog/activityPresets fields -- including
+// "known general activity" rows a past (partial) run of this migration deliberately left behind,
+// back when Activity Log was still a live feature people could keep using it from -- gets moved
+// into Workout Log as a cardio-shaped entry (duration+calories is the closest fit even for a
+// non-cardio stray like "Housework"). Guarded by legacyActivityFullyMigrated -- a NEW flag,
+// distinct from the older legacyActivityMigrationDone, so this final sweep still runs once more
+// even for accounts that already went through the earlier, partial version of this migration.
+// Once moved, the legacy fields are deleted outright (not just left empty) since nothing reads
+// them anymore and the data itself now lives on safely in workoutLog/workoutPresets.
+function guessMigratedWorkoutCategory(name){
+  return /run|jog|treadmill|swim|snorkel/i.test(String(name||"")) ? "Cardio" : "Other";
+}
+function migrateLegacyActivityEntriesToWorkout(force){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u || (u.legacyActivityFullyMigrated && !force)) return;
+
+  const activityLog = u.activityLog || {};
+  const workoutLog = getWorkoutLog();
+  let movedCount = 0;
+
+  Object.keys(activityLog).forEach(date=>{
+    (activityLog[date] || []).forEach(e=>{
+      const category = guessMigratedWorkoutCategory(e.name);
+      if(!workoutLog[date]) workoutLog[date] = [];
+      workoutLog[date].push({
+        id: genWorkoutId(), splitId: null, splitName: null, category, exercise: e.name,
+        isCardio: true, sets: null, reps: null, repsList: null, weightKg: null, weightLevel: null,
+        weightKgList: null, weightLevelList: null,
+        distanceKm: e.distanceKm != null ? e.distanceKm : null,
+        speedKmh: e.speedKmh != null ? e.speedKmh : null,
+        durationMin: e.minutes != null ? e.minutes : null,
+        cardioKcal: e.kcal != null ? e.kcal : null,
+      });
+      movedCount++;
+    });
+  });
+  if(movedCount > 0) saveWorkoutLogObj(workoutLog);
+
+  // Any custom Activity presets (saved quick-picks) get the same treatment, so they're still
+  // available as one-click quick picks -- just from Workout Log's form instead.
+  const activityPresets = u.activityPresets || [];
+  if(activityPresets.length > 0){
+    const movedPresets = activityPresets.map(p=>({
+      id: "wpm" + genWorkoutId(), name: p.name, category: guessMigratedWorkoutCategory(p.name),
+      splitId: null, distanceKm: null, speedKmh: null, met: null,
+    }));
+    saveWorkoutPresetsArr(getWorkoutPresetsSavedOnly().concat(movedPresets));
+  }
+
+  const usersAfter = getUsers();
+  if(usersAfter[currentUserEmail]){
+    delete usersAfter[currentUserEmail].activityLog;
+    delete usersAfter[currentUserEmail].activityPresets;
+    usersAfter[currentUserEmail].legacyActivityFullyMigrated = true;
+    saveUsers(usersAfter);
+  }
 }
 
 function genWorkoutPresetId(){
@@ -6182,42 +6379,225 @@ function estimateOneRepMax(weightKg, reps){
   return weightKg * (1 + reps / 30);
 }
 
-// Filters BOTH the saved presets and the standard-exercise library down to whatever a split
-// actually covers, so choosing e.g. Upper B immediately narrows the quick pick to just
-// Chest/Back/Shoulders/Arms exercises -- without requiring every single exercise to be manually
-// tagged to a split first. Two independent ways an exercise can match the chosen split:
-//   1) a preset explicitly tagged to that split (p.splitId === splitId), or
-//   2) its category is one of the split's own "categories covered" list (works for presets AND
-//      the built-in standard exercises alike).
-// A preset with no splitId AND no category match still shows up if the split has no categories
-// defined at all (so nothing silently disappears for a split someone hasn't configured yet), but
-// once a split does define categories, only truly unassigned/uncategorized-match exercises stay
-// hidden -- that's the whole point of picking a split first.
-function populateWorkoutQuickPick(splitId){
+// Reps can be a single uniform number ("8") or a comma-separated per-set list ("8,8,10") for
+// days where the rep count actually varied set to set. A list's length IS the set count -- no
+// separate manual Sets entry needed for those days -- while a single number keeps the original
+// behavior of applying uniformly across whatever Sets value is entered.
+// Returns null for empty/unparseable input.
+function parseWorkoutReps(raw){
+  const str = String(raw == null ? "" : raw).trim();
+  if(!str) return null;
+  const parts = str.split(",").map(s=>s.trim()).filter(s=>s !== "");
+  if(!parts.length) return null;
+  const nums = parts.map(p=>parseInt(p, 10));
+  if(nums.some(n=>isNaN(n) || n <= 0)) return null;
+  if(nums.length > 1) return {list: nums, uniform: null};
+  return {list: null, uniform: nums[0]};
+}
+
+// Weight follows the same single-value-or-comma-list convention as Reps, so a drop set (e.g.
+// "24.5,21,21" across 3 sets) can be logged in one row instead of three separate ones. Decimals
+// are allowed (unlike Reps) since plates/dumbbells commonly land on fractional kg. Returns null
+// for empty/unparseable input.
+function parseWorkoutWeightList(raw){
+  const str = String(raw == null ? "" : raw).trim();
+  if(!str) return null;
+  const parts = str.split(",").map(s=>s.trim()).filter(s=>s !== "");
+  if(!parts.length) return null;
+  const nums = parts.map(p=>parseFloat(p));
+  if(nums.some(n=>isNaN(n) || n < 0)) return null;
+  if(nums.length > 1) return {list: nums, uniform: null};
+  return {list: null, uniform: nums[0]};
+}
+
+function workoutEntryTotalReps(e){
+  if(Array.isArray(e.repsList) && e.repsList.length) return e.repsList.reduce((a,b)=>a+b, 0);
+  return (e.sets || 0) * (e.reps || 0);
+}
+
+function workoutEntryVolume(e){
+  if(Array.isArray(e.weightKgList) && e.weightKgList.length){
+    // Pair each set's own weight with its own rep count when both vary; if reps stayed uniform
+    // across the drop set, apply that single rep count to every weight in the list instead.
+    const reps = Array.isArray(e.repsList) && e.repsList.length ? e.repsList : new Array(e.weightKgList.length).fill(e.reps || 0);
+    return e.weightKgList.reduce((sum,w,i)=> sum + w * (reps[i] != null ? reps[i] : reps[reps.length-1]), 0);
+  }
+  if(e.weightKg == null) return 0;
+  return workoutEntryTotalReps(e) * e.weightKg;
+}
+
+// Epley's formula assumes one specific set's reps at a given weight -- with variable reps but a
+// single logged weight for the whole entry, the set with the MOST reps at that weight gives the
+// highest (best-case) 1RM estimate, so that's the one used for stats.
+function workoutEntryRepsForOneRm(e){
+  if(Array.isArray(e.repsList) && e.repsList.length) return Math.max(...e.repsList);
+  return e.reps;
+}
+
+function workoutEntryRepsLabel(e){
+  if(Array.isArray(e.repsList) && e.repsList.length) return `${e.repsList.length} × (${e.repsList.join(",")})`;
+  return `${e.sets} × ${e.reps}`;
+}
+
+function workoutEntryWeightLabel(e){
+  if(Array.isArray(e.weightKgList) && e.weightKgList.length) return `@ ${e.weightKgList.join("/")} kg`;
+  if(Array.isArray(e.weightLevelList) && e.weightLevelList.length) return `@ Level ${e.weightLevelList.join("/")}`;
+  if(e.weightKg != null) return `@ ${e.weightKg} kg`;
+  if(e.weightLevel != null) return `@ Level ${e.weightLevel}`;
+  return "(bodyweight)";
+}
+
+// Best-ever weight and Epley 1RM estimate for one entry, whether it logged a single weight for
+// every set or a per-set list (e.g. a drop set). For a list, each set's own weight is paired with
+// its own rep count (falling back to a uniform rep count if reps didn't vary) so the estimate
+// reflects the actual heaviest set, not an average across the whole drop set.
+function workoutEntryBestWeightAndOneRm(e){
+  if(Array.isArray(e.weightKgList) && e.weightKgList.length){
+    const reps = Array.isArray(e.repsList) && e.repsList.length ? e.repsList : new Array(e.weightKgList.length).fill(e.reps);
+    let bestWeight = null, bestOneRm = null;
+    e.weightKgList.forEach((w,i)=>{
+      if(w == null) return;
+      if(bestWeight == null || w > bestWeight) bestWeight = w;
+      const r = reps[i] != null ? reps[i] : reps[reps.length-1];
+      const oneRm = estimateOneRepMax(w, r);
+      if(oneRm != null && (bestOneRm == null || oneRm > bestOneRm)) bestOneRm = oneRm;
+    });
+    return {bestWeight, bestOneRm};
+  }
+  if(e.weightKg == null) return {bestWeight: null, bestOneRm: null};
+  return {bestWeight: e.weightKg, bestOneRm: estimateOneRepMax(e.weightKg, workoutEntryRepsForOneRm(e))};
+}
+
+// A cardio entry (jogging, treadmill, swimming...) is tracked by duration/distance/calories
+// instead of sets/reps/weight -- the explicit isCardio flag is what distinguishes the two shapes,
+// set once at submit time based on which fields the Log a set form had visible.
+function workoutEntryIsCardio(e){
+  return !!e.isCardio;
+}
+function workoutCardioDurationLabel(e){
+  if(e.durationMin == null) return "—";
+  return e.distanceKm != null ? `${e.distanceKm}km in ${e.durationMin} min` : `${e.durationMin} min`;
+}
+
+// Decides whether the Log a set form should show the Cardio fields (Distance/Speed/Duration/
+// Calories) instead of the strength fields (Sets/Reps/Weight). Category is the primary signal
+// (an explicit non-Cardio category always wins); with Category left on "All", falls back to
+// whether the chosen split is Cardio-only, since that's effectively the same thing.
+function workoutFormIsCardioMode(){
+  const categoryVal = document.getElementById("workoutCategory").value;
+  if(categoryVal === "Cardio") return true;
+  if(categoryVal) return false;
+  const splitId = document.getElementById("workoutSplitSelect").value;
+  const split = splitId ? getWorkoutSplits().find(s=>s.id===splitId) : null;
+  const cats = workoutSplitCategoriesFromExercises(split);
+  return !!(cats && cats.length === 1 && cats[0] === "Cardio");
+}
+function applyWorkoutFormMode(){
+  const cardio = workoutFormIsCardioMode();
+  document.getElementById("workoutStrengthFields").classList.toggle("hidden", cardio);
+  document.getElementById("workoutCardioFields").classList.toggle("hidden", !cardio);
+  document.getElementById("workoutCardioHint").classList.toggle("hidden", !cardio);
+  document.getElementById("workoutSets").required = !cardio;
+  document.getElementById("workoutReps").required = !cardio;
+}
+
+let selectedWorkoutCardioMet = null;
+
+// Distance + speed together auto-calculate Duration/Calories (jogging/treadmill style); called
+// live as either field changes, independent of which quick pick (if any) is selected.
+function applyWorkoutDistanceCalc(){
+  const distanceKm = parseFloat(document.getElementById("workoutDistanceKm").value);
+  const speedKmh = parseFloat(document.getElementById("workoutSpeedKmh").value);
+  const calc = computeDistanceWorkoutCalcs(distanceKm, speedKmh, effWeightKgForWorkout());
+  if(!calc) return;
+  document.getElementById("workoutCardioMinutes").value = Math.round(calc.minutes * 10) / 10;
+  document.getElementById("workoutCardioKcal").value = Math.round(calc.kcal);
+}
+// A MET-based standard exercise (e.g. Swimming) auto-calculates Calories from whatever Duration
+// is currently entered -- re-runs whenever Duration changes while such an exercise is selected.
+function applyWorkoutMetCalc(){
+  if(selectedWorkoutCardioMet == null) return;
+  const minutes = parseFloat(document.getElementById("workoutCardioMinutes").value);
+  const calc = computeMetWorkoutCalcs(selectedWorkoutCardioMet, minutes, effWeightKgForWorkout());
+  if(!calc) return;
+  document.getElementById("workoutCardioKcal").value = Math.round(calc.kcal);
+}
+
+// Filters BOTH the saved presets and the standard-exercise library down to a single target
+// category list, so choosing a category (after picking a split) immediately narrows the quick
+// pick to just matching exercises -- e.g. Category=Legs can never show an Arms exercise. The
+// effective category list is: the one category actually selected in the Category field (always
+// takes priority once set), falling back to the chosen split's whole "categories covered" list
+// if no split has been picked to a specific category yet, or no restriction at all with neither.
+// Two independent ways a preset can match the chosen split (still applied on top of the category
+// filter): explicitly tagged to that split, or unassigned (and then subject to the category
+// filter like everything else).
+function populateWorkoutQuickPick(splitId, category){
   const sel = document.getElementById("workoutQuickPick");
   const prevValue = sel.value;
   let opts = `<option value="">— custom / type your own —</option>`;
   const split = splitId ? getWorkoutSplits().find(s=>s.id===splitId) : null;
-  const splitCategories = (split && Array.isArray(split.categories) && split.categories.length) ? split.categories : null;
+  const splitExercises = (split && Array.isArray(split.exercises)) ? split.exercises : [];
+  const splitCategories = workoutSplitCategoriesFromExercises(split);
+  const effectiveCategories = category ? [category] : splitCategories;
 
+  // The split's own defined exercise pattern (if any) always comes first, in the exact order it
+  // was defined -- the whole point of building a pattern is a one-click, correctly-ordered walk
+  // through e.g. Upper B without hunting through the general lists below. Narrowing by Category
+  // filters this list too (by its ORIGINAL position in the pattern, so "splitex:i" stays a valid
+  // index into split.exercises even though only some of them are shown).
+  if(splitExercises.length){
+    const visible = splitExercises
+      .map((x,i)=>({x,i}))
+      .filter(({x})=> !category || x.category === category);
+    if(visible.length){
+      opts += `<optgroup label="${split.emoji?split.emoji+" ":""}${split.name}'s exercises (in order)">`;
+      visible.forEach(({x,i})=>{
+        opts += `<option value="splitex:${i}">${i+1}. ${x.name} (${x.category})</option>`;
+      });
+      opts += `</optgroup>`;
+    }
+  }
+
+  // A preset whose name exactly matches a standard exercise (e.g. a "Snorkelling" preset when
+  // Snorkelling already exists in COMMON_EXERCISES) is pure duplication -- the standard entry
+  // already covers it, so it's excluded here rather than shown as a second, identical-looking
+  // option in the quick pick.
+  const stdNames = new Set(COMMON_EXERCISES.map(ex=>ex.name.trim().toLowerCase()));
   const allPresets = getWorkoutPresets();
-  const presets = !splitId ? allPresets : allPresets.filter(p => {
-    if(p.splitId === splitId) return true;
-    if(p.splitId) return false; // tagged to a DIFFERENT split -- never show under this one
-    return splitCategories ? splitCategories.includes(p.category) : true;
+  const presets = allPresets.filter(p => {
+    if(stdNames.has(p.name.trim().toLowerCase())) return false;
+    if(splitId){
+      if(p.splitId === splitId){ /* explicitly tagged to this split -- always eligible */ }
+      else if(p.splitId) return false; // tagged to a DIFFERENT split -- never show under this one
+    }
+    return effectiveCategories ? effectiveCategories.includes(p.category) : true;
   });
   if(presets.length){
     opts += `<optgroup label="My exercises">`;
-    presets.forEach(p => opts += `<option value="preset:${p.id}">${p.name} (${p.category})</option>`);
+    presets.forEach(p => {
+      let suffix = ` (${p.category})`;
+      if(p.speedKmh != null){
+        if(p.distanceKm != null){
+          suffix = p.durationMin != null ? ` (${p.distanceKm}km @ ${p.speedKmh}km/h, ${p.durationMin} min)` : ` (${p.distanceKm}km @ ${p.speedKmh}km/h)`;
+        } else {
+          suffix = ` (@ ${p.speedKmh}km/h, enter distance)`;
+        }
+      } else if(p.met != null){
+        suffix = p.durationMin != null ? ` (${p.category}, MET ${p.met}, ${p.durationMin} min)` : ` (${p.category}, MET ${p.met})`;
+      }
+      opts += `<option value="preset:${p.id}">${p.name}${suffix}</option>`;
+    });
     opts += `</optgroup>`;
   }
 
-  const stdExercises = splitCategories ? COMMON_EXERCISES.filter(ex => splitCategories.includes(ex.category)) : COMMON_EXERCISES;
+  const stdExercises = effectiveCategories ? COMMON_EXERCISES.filter(ex => effectiveCategories.includes(ex.category)) : COMMON_EXERCISES;
   if(stdExercises.length){
     opts += `<optgroup label="Standard exercises">`;
     stdExercises.forEach(ex => {
       const i = COMMON_EXERCISES.indexOf(ex);
-      opts += `<option value="std:${i}">${ex.name} (${ex.category})</option>`;
+      const suffix = ex.met != null ? ` (${ex.category}, MET ${ex.met})` : ` (${ex.category})`;
+      opts += `<option value="std:${i}">${ex.name}${suffix}</option>`;
     });
     opts += `</optgroup>`;
   }
@@ -6230,9 +6610,51 @@ document.getElementById("workoutQuickPick").addEventListener("change", (e)=>{
   let picked = null;
   if(val.startsWith("std:")) picked = COMMON_EXERCISES[parseInt(val.slice(4), 10)];
   else if(val.startsWith("preset:")) picked = getWorkoutPresets().find(p=>p.id===val.slice(7));
+  else if(val.startsWith("splitex:")){
+    // An item from the currently-selected split's own defined pattern -- just Category+Exercise,
+    // no calorie-calc metadata of its own (unlike a preset), so it falls through to whichever
+    // Distance/Speed/MET clearing branch below applies to a plain exercise pick.
+    const splitId = document.getElementById("workoutSplitSelect").value;
+    const split = splitId ? getWorkoutSplits().find(s=>s.id===splitId) : null;
+    picked = (split && Array.isArray(split.exercises)) ? split.exercises[parseInt(val.slice(8), 10)] : null;
+  }
   if(!picked) return;
   document.getElementById("workoutExercise").value = picked.name;
   document.getElementById("workoutCategory").value = picked.category;
+  applyWorkoutFormMode();
+
+  selectedWorkoutCardioMet = null;
+  if(picked.speedKmh != null){
+    // Distance-based cardio preset (jogging/treadmill) -- fill Speed always, Distance only if the
+    // preset has a fixed one (Treadmill running leaves it blank for you to fill in per session).
+    document.getElementById("workoutSpeedKmh").value = picked.speedKmh;
+    document.getElementById("workoutDistanceKm").value = picked.distanceKm != null ? picked.distanceKm : "";
+    if(picked.durationMin != null){
+      // A fixed Duration override on the preset means the real-world time for this route doesn't
+      // match the flat distance÷speed estimate (hills, stops, traffic...) -- use it directly, and
+      // derive calories from that actual duration via the speed's MET instead of the formula's
+      // computed duration. Also track it as the "active MET" so hand-editing Duration afterwards
+      // (without touching Distance/Speed) still live-recalculates Calories correctly.
+      document.getElementById("workoutCardioMinutes").value = picked.durationMin;
+      selectedWorkoutCardioMet = metForRunningSpeed(picked.speedKmh);
+      applyWorkoutMetCalc();
+    } else {
+      applyWorkoutDistanceCalc();
+    }
+  } else if(picked.met != null){
+    // MET-based cardio (Swimming/Snorkelling as standard exercises, or a custom preset like
+    // Choreography) -- duration-driven, no distance. A preset can also carry a default Duration
+    // (standard exercises never do), which gets pre-filled so it calculates immediately rather
+    // than waiting for the person to type one in.
+    document.getElementById("workoutDistanceKm").value = "";
+    document.getElementById("workoutSpeedKmh").value = "";
+    selectedWorkoutCardioMet = picked.met;
+    if(picked.durationMin != null) document.getElementById("workoutCardioMinutes").value = picked.durationMin;
+    applyWorkoutMetCalc();
+  } else if(workoutFormIsCardioMode()){
+    document.getElementById("workoutDistanceKm").value = "";
+    document.getElementById("workoutSpeedKmh").value = "";
+  }
 });
 
 function populateWorkoutSplitSelect(){
@@ -6244,19 +6666,76 @@ function populateWorkoutSplitSelect(){
   if([...sel.options].some(o=>o.value===prevValue)) sel.value = prevValue;
 }
 
+// Category's actual OPTIONS are scoped to whichever split is selected -- not just a filter
+// applied downstream in the quick pick -- so a category the split doesn't cover (e.g. Legs while
+// training Upper B) isn't even selectable in the dropdown in the first place. Falls back to the
+// full fixed 9-category list when no split is chosen or the split hasn't defined any exercises
+// yet. If the previously-selected value is still one of the new options it's kept (this is what
+// makes it safe to call on every render, not just on an explicit split change -- see
+// ensureCategoryMatchesSplit's old job, now folded in here); otherwise it resets to "All".
+function populateWorkoutCategorySelect(splitId){
+  const sel = document.getElementById("workoutCategory");
+  const prevValue = sel.value;
+  const split = splitId ? getWorkoutSplits().find(s=>s.id===splitId) : null;
+  const categories = workoutSplitCategoriesFromExercises(split) || WORKOUT_CATEGORIES;
+  let opts = `<option value="">— All (every category this split covers) —</option>`;
+  categories.forEach(c=> opts += `<option value="${c}">${c}</option>`);
+  sel.innerHTML = opts;
+  sel.value = [...sel.options].some(o=>o.value===prevValue) ? prevValue : "";
+}
+
+// When a split is (re)chosen -- via an explicit user action, not just a passive re-render --
+// rebuild Category's options to that split's own categories AND force-reset the selection to
+// "All", so picking a split alone immediately shows every exercise it covers (e.g. Upper B ->
+// Back/Chest/Shoulders/Arms all at once) rather than narrowing straight down to one category.
+// Category then stays available afterwards purely as an OPTIONAL further narrowing step.
+function autoSetCategoryForSplit(splitId){
+  populateWorkoutCategorySelect(splitId);
+  document.getElementById("workoutCategory").value = "";
+}
+
 document.getElementById("workoutSplitSelect").addEventListener("change", (e)=>{
-  populateWorkoutQuickPick(e.target.value);
+  autoSetCategoryForSplit(e.target.value);
+  populateWorkoutQuickPick(e.target.value, document.getElementById("workoutCategory").value);
+  applyWorkoutFormMode();
 });
 
+document.getElementById("workoutDistanceKm").addEventListener("input", applyWorkoutDistanceCalc);
+document.getElementById("workoutSpeedKmh").addEventListener("input", applyWorkoutDistanceCalc);
+document.getElementById("workoutCardioMinutes").addEventListener("input", applyWorkoutMetCalc);
+
+document.getElementById("workoutCategory").addEventListener("change", (e)=>{
+  populateWorkoutQuickPick(document.getElementById("workoutSplitSelect").value, e.target.value);
+  applyWorkoutFormMode();
+});
+
+// Switching the date no longer auto-reassigns the Split -- there's no weekday schedule to derive
+// it from anymore, so whatever Split you last had selected simply stays selected (same as any
+// other field in the form) rather than getting silently overwritten.
 document.getElementById("workoutDate").addEventListener("change", ()=>{
-  // Re-suggest the split for the newly-selected date -- the whole point of scheduling splits by
-  // weekday is that you don't have to remember/pick it yourself day to day.
-  document.getElementById("workoutSplitSelect").value = getSuggestedSplitIdForDate(document.getElementById("workoutDate").value || todayStr());
   renderWorkoutsView();
 });
 wireDateNav("workoutDate", "workoutDatePrevBtn", "workoutDateNextBtn", ()=>{
-  document.getElementById("workoutSplitSelect").value = getSuggestedSplitIdForDate(document.getElementById("workoutDate").value || todayStr());
   renderWorkoutsView();
+});
+
+// Reps list ("8,8,10") determines its own Sets count -- lock the Sets field (read-only, but still
+// submitted with the form) while a list is present so it visibly reflects that it's derived, and
+// unlock it again for plain single-number reps where Sets stays a manual, independent value.
+document.getElementById("workoutReps").addEventListener("input", (e)=>{
+  const parsed = parseWorkoutReps(e.target.value);
+  const setsInput = document.getElementById("workoutSets");
+  if(parsed && parsed.list){
+    setsInput.value = parsed.list.length;
+    setsInput.readOnly = true;
+  } else {
+    setsInput.readOnly = false;
+  }
+});
+
+document.getElementById("workoutWeightType").addEventListener("change", (e)=>{
+  const weightInput = document.getElementById("workoutWeight");
+  weightInput.placeholder = e.target.value === "level" ? "e.g. 5 (machine level), or 5,4,4" : "leave blank for bodyweight";
 });
 
 let editingWorkoutId = null, editingWorkoutDate = null;
@@ -6277,13 +6756,51 @@ function editWorkoutEntry(date, id){
   document.getElementById("workoutDate").value = date;
   refreshDateDayLabel("workoutDate");
   document.getElementById("workoutSplitSelect").value = entry.splitId || "";
-  populateWorkoutQuickPick(entry.splitId || "");
+  populateWorkoutCategorySelect(entry.splitId || "");
+  const categorySel = document.getElementById("workoutCategory");
+  // Defensive: if the split's category list changed since this set was logged and no longer
+  // includes the entry's own category, add it back in rather than silently losing/mismatching
+  // what was actually logged.
+  if(entry.category && ![...categorySel.options].some(o=>o.value===entry.category)){
+    categorySel.innerHTML += `<option value="${entry.category}">${entry.category}</option>`;
+  }
+  categorySel.value = entry.category || "Other";
+  populateWorkoutQuickPick(entry.splitId || "", entry.category || "");
   document.getElementById("workoutQuickPick").value = "";
-  document.getElementById("workoutCategory").value = entry.category || "Other";
   document.getElementById("workoutExercise").value = entry.exercise;
-  document.getElementById("workoutSets").value = entry.sets;
-  document.getElementById("workoutReps").value = entry.reps;
-  document.getElementById("workoutWeight").value = entry.weightKg != null ? entry.weightKg : "";
+  applyWorkoutFormMode();
+  selectedWorkoutCardioMet = null;
+  if(workoutEntryIsCardio(entry)){
+    document.getElementById("workoutDistanceKm").value = entry.distanceKm != null ? entry.distanceKm : "";
+    document.getElementById("workoutSpeedKmh").value = entry.speedKmh != null ? entry.speedKmh : "";
+    document.getElementById("workoutCardioMinutes").value = entry.durationMin != null ? entry.durationMin : "";
+    document.getElementById("workoutCardioKcal").value = entry.cardioKcal != null ? entry.cardioKcal : "";
+  } else {
+    const setsInput = document.getElementById("workoutSets");
+    if(Array.isArray(entry.repsList) && entry.repsList.length){
+      document.getElementById("workoutReps").value = entry.repsList.join(",");
+      setsInput.value = entry.repsList.length;
+      setsInput.readOnly = true;
+    } else {
+      document.getElementById("workoutReps").value = entry.reps;
+      setsInput.value = entry.sets;
+      setsInput.readOnly = false;
+    }
+    const weightTypeSelect = document.getElementById("workoutWeightType");
+    if(Array.isArray(entry.weightLevelList) && entry.weightLevelList.length){
+      weightTypeSelect.value = "level";
+      document.getElementById("workoutWeight").value = entry.weightLevelList.join(",");
+    } else if(Array.isArray(entry.weightKgList) && entry.weightKgList.length){
+      weightTypeSelect.value = "kg";
+      document.getElementById("workoutWeight").value = entry.weightKgList.join(",");
+    } else if(entry.weightLevel != null){
+      weightTypeSelect.value = "level";
+      document.getElementById("workoutWeight").value = entry.weightLevel;
+    } else {
+      weightTypeSelect.value = "kg";
+      document.getElementById("workoutWeight").value = entry.weightKg != null ? entry.weightKg : "";
+    }
+  }
   document.getElementById("workoutFormTitle").textContent = `Edit set — ${entry.exercise}`;
   document.getElementById("workoutSubmitBtn").textContent = "Update set →";
   document.getElementById("workoutCancelBtn").classList.remove("hidden");
@@ -6307,9 +6824,43 @@ window.deleteWorkoutEntry = deleteWorkoutEntry;
 
 document.getElementById("workoutCancelBtn").addEventListener("click", ()=>{
   document.getElementById("workoutForm").reset();
-  document.getElementById("workoutSplitSelect").value = getSuggestedSplitIdForDate(document.getElementById("workoutDate").value || todayStr());
-  populateWorkoutQuickPick(document.getElementById("workoutSplitSelect").value);
+  document.getElementById("workoutSets").readOnly = false;
+  document.getElementById("workoutWeightType").value = "kg";
+  selectedWorkoutCardioMet = null;
+  // No weekday schedule to fall back on -- form.reset() already clears Split back to
+  // "no split / off-schedule", so Category/quick pick are rebuilt to match that blank state.
+  const splitId = document.getElementById("workoutSplitSelect").value;
+  autoSetCategoryForSplit(splitId);
+  populateWorkoutQuickPick(splitId, document.getElementById("workoutCategory").value);
+  applyWorkoutFormMode();
   exitWorkoutEditMode();
+  renderWorkoutsView();
+});
+
+// Duplicates every entry from the last day this exact split was logged into whichever date the
+// Workout Log is currently showing -- same "find the last real day, not necessarily yesterday"
+// logic as Nutrition Log's "Copy yesterday's log", except scoped to one split so a Cardio session
+// logged the same day as Upper B doesn't get pulled in too. Uses the Split field's current
+// selection rather than a separate picker -- you'd already pick it before logging anyway.
+document.getElementById("copyLastExercisesBtn").addEventListener("click", ()=>{
+  const splitId = document.getElementById("workoutSplitSelect").value;
+  if(!splitId){ showToast("Pick a Split above first, then Copy last exercises"); return; }
+  const split = getWorkoutSplits().find(s=>s.id===splitId);
+  const targetDate = document.getElementById("workoutDate").value.trim() || todayStr();
+  const log = getWorkoutLog();
+  const sourceDate = Object.keys(log)
+    .filter(d => d < targetDate && log[d] && log[d].some(en=>en.splitId===splitId))
+    .sort()
+    .pop();
+  if(!sourceDate){ showToast(`No previous ${split ? split.name : "matching"} session to copy`); return; }
+  const sourceEntries = log[sourceDate].filter(en=>en.splitId===splitId);
+  if(!log[targetDate]) log[targetDate] = [];
+  sourceEntries.forEach(entry=>{
+    log[targetDate].push(Object.assign({}, entry, {id: genWorkoutId()}));
+  });
+  saveWorkoutLogObj(log);
+  const n = sourceEntries.length;
+  showToast(`Copied ${n} exercise${n===1?"":"s"} from ${formatShortDate(sourceDate)}`);
   renderWorkoutsView();
 });
 
@@ -6319,10 +6870,49 @@ document.getElementById("workoutForm").addEventListener("submit", (e)=>{
   const category = document.getElementById("workoutCategory").value || "Other";
   const exercise = document.getElementById("workoutExercise").value.trim();
   if(!exercise) return;
-  const sets = parseInt(document.getElementById("workoutSets").value, 10);
-  const reps = parseInt(document.getElementById("workoutReps").value, 10);
-  if(!sets || !reps) return;
-  const weightKg = document.getElementById("workoutWeight").value !== "" ? parseFloat(document.getElementById("workoutWeight").value) : null;
+  const isCardio = workoutFormIsCardioMode();
+
+  let sets = null, reps = null, repsList = null, weightKg = null, weightLevel = null;
+  let weightKgList = null, weightLevelList = null;
+  let distanceKm = null, speedKmh = null, durationMin = null, cardioKcal = null;
+
+  if(isCardio){
+    const distanceRaw = document.getElementById("workoutDistanceKm").value;
+    const speedRaw = document.getElementById("workoutSpeedKmh").value;
+    const minutesRaw = document.getElementById("workoutCardioMinutes").value;
+    const kcalRaw = document.getElementById("workoutCardioKcal").value;
+    distanceKm = distanceRaw !== "" ? parseFloat(distanceRaw) : null;
+    speedKmh = speedRaw !== "" ? parseFloat(speedRaw) : null;
+    durationMin = minutesRaw !== "" ? parseFloat(minutesRaw) : null;
+    cardioKcal = kcalRaw !== "" ? parseFloat(kcalRaw) : null;
+    if(!durationMin) return; // duration is the one field every cardio entry needs, however it got there
+  } else {
+    const parsedReps = parseWorkoutReps(document.getElementById("workoutReps").value);
+    if(!parsedReps) return;
+    repsList = parsedReps.list;
+    reps = repsList ? null : parsedReps.uniform;
+
+    const weightType = document.getElementById("workoutWeightType").value || "kg";
+    const weightRaw = document.getElementById("workoutWeight").value;
+    if(weightRaw !== ""){
+      const parsedWeight = parseWorkoutWeightList(weightRaw);
+      if(!parsedWeight){ showToast("Weight looks invalid — use a number, or a comma list like 24.5,21,21"); return; }
+      if(parsedWeight.list){
+        if(weightType === "level") weightLevelList = parsedWeight.list; else weightKgList = parsedWeight.list;
+      } else if(weightType === "level"){
+        weightLevel = parsedWeight.uniform;
+      } else {
+        weightKg = parsedWeight.uniform;
+      }
+    }
+    const weightList = weightKgList || weightLevelList;
+    if(repsList && weightList && repsList.length !== weightList.length){
+      showToast("Reps and Weight need the same number of comma-separated values, one per set");
+      return;
+    }
+    sets = repsList ? repsList.length : (weightList ? weightList.length : parseInt(document.getElementById("workoutSets").value, 10));
+    if(!sets) return;
+  }
   const splitId = document.getElementById("workoutSplitSelect").value || null;
   // Snapshot the split's name/emoji rather than trusting a live lookup every time this entry is
   // displayed -- if the split later gets renamed or deleted, past log entries still show what it
@@ -6337,17 +6927,28 @@ document.getElementById("workoutForm").addEventListener("submit", (e)=>{
     log[editingWorkoutDate] = log[editingWorkoutDate].filter(en=>en.id!==editingWorkoutId);
     if(log[editingWorkoutDate].length === 0) delete log[editingWorkoutDate];
   }
-  const entry = {id: wasEditing ? editingWorkoutId : genWorkoutId(), splitId, splitName, category, exercise, sets, reps, weightKg};
+  const entry = {id: wasEditing ? editingWorkoutId : genWorkoutId(), splitId, splitName, category, exercise,
+    isCardio, sets, reps, repsList, weightKg, weightLevel, weightKgList, weightLevelList, distanceKm, speedKmh, durationMin, cardioKcal};
   if(!log[date]) log[date] = [];
   log[date].push(entry);
   saveWorkoutLogObj(log);
 
   const keepSplitId = document.getElementById("workoutSplitSelect").value;
+  const keepCategory = document.getElementById("workoutCategory").value;
   e.target.reset();
   document.getElementById("workoutSplitSelect").value = keepSplitId;
+  document.getElementById("workoutCategory").value = keepCategory;
   document.getElementById("workoutSets").value = 3;
+  document.getElementById("workoutSets").readOnly = false;
   document.getElementById("workoutReps").value = 8;
-  populateWorkoutQuickPick(keepSplitId);
+  document.getElementById("workoutWeightType").value = "kg";
+  document.getElementById("workoutDistanceKm").value = "";
+  document.getElementById("workoutSpeedKmh").value = "";
+  document.getElementById("workoutCardioMinutes").value = "";
+  document.getElementById("workoutCardioKcal").value = "";
+  selectedWorkoutCardioMet = null;
+  populateWorkoutQuickPick(keepSplitId, keepCategory);
+  applyWorkoutFormMode();
   exitWorkoutEditMode();
   renderWorkoutsView();
   showToast(wasEditing ? "Set updated" : "Set added");
@@ -6360,14 +6961,26 @@ function renderWorkoutSummary(entries, date){
     return;
   }
   const totalSets = entries.reduce((sum,e)=> sum + (e.sets||0), 0);
-  const totalVolume = entries.reduce((sum,e)=> sum + (e.sets||0)*(e.reps||0)*(e.weightKg||0), 0);
+  const totalVolume = entries.reduce((sum,e)=> sum + workoutEntryVolume(e), 0);
+  const totalCardioKcal = entries.reduce((sum,e)=> sum + (workoutEntryIsCardio(e) ? (e.cardioKcal||0) : 0), 0);
   const categories = [...new Set(entries.map(e=>e.category))];
   wrap.innerHTML = `
     <div class="goal-progress-summary">
-      ${entries.length} exercise${entries.length===1?"":"s"} &nbsp;·&nbsp; ${totalSets} sets total ${totalVolume>0?`&nbsp;·&nbsp; ${Math.round(totalVolume).toLocaleString()} kg total volume`:""}
+      ${entries.length} exercise${entries.length===1?"":"s"} &nbsp;·&nbsp; ${totalSets} sets total ${totalVolume>0?`&nbsp;·&nbsp; ${Math.round(totalVolume).toLocaleString()} kg total volume`:""} ${totalCardioKcal>0?`&nbsp;·&nbsp; ${Math.round(totalCardioKcal).toLocaleString()} kcal burned (cardio)`:""}
     </div>
     <div class="goal-progress-note">${categories.join(", ")}</div>
   `;
+}
+
+// Renders a split name as a pill in that split's own color -- the same color used for it in the
+// Weekly split tracker legend/heatmap, so a glance at either view maps to the same visual identity
+// for "Upper B", "Cardio", etc. Falls back to neutral gray if the split was since deleted (splitName
+// is still shown from the entry's own snapshot even then).
+function splitBadgeHtml(splitName, splitId, splitsById){
+  if(!splitName) return "—";
+  const split = splitId ? splitsById.get(splitId) : null;
+  const color = split ? split.color : "#7a8296";
+  return `<span style="display:inline-block; padding:2px 9px; border-radius:10px; font-size:.78rem; font-weight:700; white-space:nowrap; background:${color}26; color:${color}; border:1px solid ${color}66;">${splitName}</span>`;
 }
 
 function renderWorkoutTable(entries, date){
@@ -6376,18 +6989,26 @@ function renderWorkoutTable(entries, date){
     wrap.innerHTML = "";
     return;
   }
-  const rows = entries.map(e=>`<tr>
-      <td>${e.splitName ? `<span class="badge ok">${e.splitName}</span>` : "—"}</td>
+  const splitsById = new Map(getWorkoutSplits().map(s=>[s.id, s]));
+  const rows = entries.map(e=>{
+    const cardio = workoutEntryIsCardio(e);
+    const detailsCell = cardio ? workoutCardioDurationLabel(e) : `${workoutEntryRepsLabel(e)} ${workoutEntryWeightLabel(e)}`;
+    const metricCell = cardio
+      ? (e.cardioKcal != null ? `${Math.round(e.cardioKcal).toLocaleString()} kcal` : "—")
+      : (workoutEntryVolume(e) > 0 ? `${Math.round(workoutEntryVolume(e)).toLocaleString()} kg` : "—");
+    return `<tr>
+      <td>${splitBadgeHtml(e.splitName, e.splitId, splitsById)}</td>
       <td><span class="badge info">${e.category||"Other"}</span></td>
       <td>${e.exercise}</td>
-      <td>${e.sets} × ${e.reps}${e.weightKg!=null ? ` @ ${e.weightKg} kg` : " (bodyweight)"}</td>
-      <td>${e.weightKg!=null ? Math.round(e.sets*e.reps*e.weightKg).toLocaleString()+" kg" : "—"}</td>
+      <td>${detailsCell}</td>
+      <td>${metricCell}</td>
       <td><button type="button" class="edit-btn" onclick="editWorkoutEntry('${date}','${e.id}')">Edit</button> <button type="button" class="del-btn" onclick="deleteWorkoutEntry('${date}','${e.id}')">Delete</button></td>
-    </tr>`).join("");
+    </tr>`;
+  }).join("");
   wrap.innerHTML = `
     <div class="table-scroll">
       <table class="log-table">
-        <thead><tr><th>Split</th><th>Category</th><th>Exercise</th><th>Sets × reps</th><th>Volume</th><th></th></tr></thead>
+        <thead><tr><th>Split</th><th>Category</th><th>Exercise</th><th>Sets × reps / Duration</th><th>Volume / Calories</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -6398,7 +7019,7 @@ function renderWorkoutTable(entries, date){
 // across every set logged for that exercise), how many sessions, and when it was last done --
 // gives an at-a-glance answer to "am I actually progressing on this lift".
 function computeWorkoutStats(){
-  const all = getAllWorkoutEntries();
+  const all = getAllWorkoutEntries().filter(e=>!workoutEntryIsCardio(e));
   const byExercise = new Map();
   all.forEach(e=>{
     const key = e.exercise.trim().toLowerCase();
@@ -6408,13 +7029,32 @@ function computeWorkoutStats(){
     const stat = byExercise.get(key);
     stat.sessions += 1;
     if(e.date > stat.lastDate) stat.lastDate = e.date;
-    if(e.weightKg != null){
-      if(stat.bestWeight == null || e.weightKg > stat.bestWeight) stat.bestWeight = e.weightKg;
-      const oneRm = estimateOneRepMax(e.weightKg, e.reps);
-      if(oneRm != null && (stat.bestOneRepMax == null || oneRm > stat.bestOneRepMax)) stat.bestOneRepMax = oneRm;
-    }
+    const {bestWeight, bestOneRm} = workoutEntryBestWeightAndOneRm(e);
+    if(bestWeight != null && (stat.bestWeight == null || bestWeight > stat.bestWeight)) stat.bestWeight = bestWeight;
+    if(bestOneRm != null && (stat.bestOneRepMax == null || bestOneRm > stat.bestOneRepMax)) stat.bestOneRepMax = bestOneRm;
   });
   return Array.from(byExercise.values()).sort((a,b)=> new Date(b.lastDate) - new Date(a.lastDate));
+}
+
+// Minimal attribute-safe escaping -- only needed where a value is placed inside a double-quoted
+// HTML attribute (like title="...") rather than as element text, since an exercise name containing
+// a literal " would otherwise break out of the attribute.
+function escAttr(str){
+  return String(str).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// A how-to-video link doesn't need a real video API/key -- a YouTube search for the exercise name
+// gets you there in one click, and results stay current without the app maintaining any mapping.
+function exerciseVideoSearchUrl(exerciseName){
+  return "https://www.youtube.com/results?search_query=" + encodeURIComponent(exerciseName + " exercise proper form tutorial");
+}
+
+// Small inline play-icon link, opened in a new tab -- used next to an exercise name wherever it's
+// useful to jump straight to a demonstration video for it.
+function exerciseVideoLinkHtml(exerciseName){
+  const url = exerciseVideoSearchUrl(exerciseName);
+  const label = `Find a how-to video for ${escAttr(exerciseName)}`;
+  return `<a href="${url}" target="_blank" rel="noopener" class="video-link-icon" title="${label}" aria-label="${label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"></circle><polygon points="10 8.5 16 12 10 15.5 10 8.5" fill="currentColor" stroke="none"></polygon></svg></a>`;
 }
 
 function renderWorkoutStatsTable(){
@@ -6426,7 +7066,7 @@ function renderWorkoutStatsTable(){
   }
   const rows = stats.map(s=>`<tr>
       <td><span class="badge info">${s.category||"Other"}</span></td>
-      <td>${s.exercise}</td>
+      <td>${s.exercise}${exerciseVideoLinkHtml(s.exercise)}</td>
       <td>${s.sessions}</td>
       <td>${s.bestWeight!=null ? s.bestWeight+" kg" : "—"}</td>
       <td>${s.bestOneRepMax!=null ? Math.round(s.bestOneRepMax)+" kg" : "—"}</td>
@@ -6442,13 +7082,61 @@ function renderWorkoutStatsTable(){
   `;
 }
 
-const WEEKDAY_NAMES_SHORT = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-
 let editingWorkoutSplitId = null;
+
+// The split currently being built/edited in the form -- an ordered array of {category, name}, in
+// exactly the order they should appear when logging that split. Kept as a plain module-level draft
+// (mirroring how editingWorkoutSplitId itself works) rather than trying to read it back out of the
+// DOM each time, since ordering/removal need a real array to splice/reorder.
+let draftSplitExercises = [];
+
+function renderDraftSplitExerciseList(){
+  const wrap = document.getElementById("workoutSplitExerciseListWrap");
+  if(!draftSplitExercises.length){
+    wrap.innerHTML = `<div class="empty-note" style="margin-top:0;">No exercises added yet — use Category + Exercise above, in the order you do them.</div>`;
+    return;
+  }
+  const rows = draftSplitExercises.map((x,i)=>`
+    <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:var(--panel2); border:1px solid var(--border); border-radius:8px; margin-bottom:6px;">
+      <span style="color:var(--muted); font-size:.78rem; width:20px;">${i+1}.</span>
+      <span style="flex:1;">${x.name} <span class="badge info" style="font-size:.7rem;">${x.category}</span></span>
+      <button type="button" class="icon-btn" style="width:26px; height:26px;" ${i===0?"disabled":""} onclick="moveDraftSplitExercise(${i},-1)" aria-label="Move up" title="Move up">↑</button>
+      <button type="button" class="icon-btn" style="width:26px; height:26px;" ${i===draftSplitExercises.length-1?"disabled":""} onclick="moveDraftSplitExercise(${i},1)" aria-label="Move down" title="Move down">↓</button>
+      <button type="button" class="del-btn" onclick="removeDraftSplitExercise(${i})">Remove</button>
+    </div>`).join("");
+  wrap.innerHTML = rows;
+}
+
+function moveDraftSplitExercise(i, delta){
+  const j = i + delta;
+  if(j < 0 || j >= draftSplitExercises.length) return;
+  [draftSplitExercises[i], draftSplitExercises[j]] = [draftSplitExercises[j], draftSplitExercises[i]];
+  renderDraftSplitExerciseList();
+}
+window.moveDraftSplitExercise = moveDraftSplitExercise;
+
+function removeDraftSplitExercise(i){
+  draftSplitExercises.splice(i, 1);
+  renderDraftSplitExerciseList();
+}
+window.removeDraftSplitExercise = removeDraftSplitExercise;
+
+document.getElementById("addSplitExerciseBtn").addEventListener("click", ()=>{
+  const category = document.getElementById("workoutSplitExerciseCategory").value || "Other";
+  const nameInput = document.getElementById("workoutSplitExerciseName");
+  const name = nameInput.value.trim();
+  if(!name){ showToast("Type an exercise name first"); return; }
+  draftSplitExercises.push({category, name});
+  nameInput.value = "";
+  nameInput.focus();
+  renderDraftSplitExerciseList();
+});
 
 function exitWorkoutSplitEditMode(){
   editingWorkoutSplitId = null;
-  document.getElementById("workoutSplitFormTitle").textContent = "My split schedule";
+  draftSplitExercises = [];
+  renderDraftSplitExerciseList();
+  document.getElementById("workoutSplitFormTitle").textContent = "My splits";
   document.getElementById("workoutSplitSubmitBtn").textContent = "Save split →";
   document.getElementById("workoutSplitCancelBtn").classList.add("hidden");
 }
@@ -6461,14 +7149,8 @@ function editWorkoutSplit(id){
   document.getElementById("workoutSplitEmoji").value = split.emoji || "";
   document.getElementById("workoutSplitColor").value = split.color || "#4ee1a3";
   document.getElementById("workoutSplitGoal").value = split.goal || "";
-  const weekdays = Array.isArray(split.weekdays) ? split.weekdays.map(String) : [];
-  document.querySelectorAll("#workoutSplitWeekdays input[type=checkbox]").forEach(cb=>{
-    cb.checked = weekdays.includes(cb.value);
-  });
-  const categories = Array.isArray(split.categories) ? split.categories : [];
-  document.querySelectorAll("#workoutSplitCategories input[type=checkbox]").forEach(cb=>{
-    cb.checked = categories.includes(cb.value);
-  });
+  draftSplitExercises = Array.isArray(split.exercises) ? split.exercises.map(x=>Object.assign({}, x)) : [];
+  renderDraftSplitExerciseList();
   document.getElementById("workoutSplitFormTitle").textContent = `Edit split — ${split.name}`;
   document.getElementById("workoutSplitSubmitBtn").textContent = "Update split →";
   document.getElementById("workoutSplitCancelBtn").classList.remove("hidden");
@@ -6504,12 +7186,11 @@ document.getElementById("workoutSplitForm").addEventListener("submit", (e)=>{
   const emoji = document.getElementById("workoutSplitEmoji").value.trim();
   const color = document.getElementById("workoutSplitColor").value || "#4ee1a3";
   const goal = document.getElementById("workoutSplitGoal").value.trim();
-  const weekdays = [...document.querySelectorAll("#workoutSplitWeekdays input[type=checkbox]:checked")].map(cb=>parseInt(cb.value, 10));
-  const categories = [...document.querySelectorAll("#workoutSplitCategories input[type=checkbox]:checked")].map(cb=>cb.value);
+  const exercises = draftSplitExercises.slice();
 
   const arr = getWorkoutSplits();
   const wasEditing = !!editingWorkoutSplitId;
-  const split = {id: wasEditing ? editingWorkoutSplitId : genWorkoutSplitId(), name, emoji, color, goal, weekdays, categories};
+  const split = {id: wasEditing ? editingWorkoutSplitId : genWorkoutSplitId(), name, emoji, color, goal, exercises};
   if(wasEditing){
     const idx = arr.findIndex(s=>s.id===editingWorkoutSplitId);
     if(idx>=0) arr[idx] = split; else arr.push(split);
@@ -6529,28 +7210,24 @@ function renderWorkoutSplitsTable(){
   const splits = getWorkoutSplits();
   const wrap = document.getElementById("workoutSplitTableWrap");
   if(splits.length === 0){
-    wrap.innerHTML = `<div class="empty-note">No splits defined yet — add one above (e.g. Lower A) to get an automatic daily suggestion.</div>`;
+    wrap.innerHTML = `<div class="empty-note">No splits defined yet — add one above (e.g. Lower A) with its exercises in order.</div>`;
     return;
   }
   const rows = splits.map(s=>{
-    const days = Array.isArray(s.weekdays) && s.weekdays.length
-      ? s.weekdays.slice().sort().map(d=>WEEKDAY_NAMES_SHORT[d]).join(", ")
-      : "—";
-    const categories = Array.isArray(s.categories) && s.categories.length
-      ? s.categories.map(c=>`<span class="badge info">${c}</span>`).join(" ")
-      : `<span style="color:var(--muted);">Any (not filtered)</span>`;
+    const exercises = Array.isArray(s.exercises) && s.exercises.length
+      ? `<ol style="margin:0; padding-left:18px;">${s.exercises.map(x=>`<li style="margin-bottom:2px;">${x.name} <span class="badge info" style="font-size:.68rem;">${x.category}</span></li>`).join("")}</ol>`
+      : `<span style="color:var(--muted);">No exercises defined yet</span>`;
     return `<tr>
-      <td><span style="display:inline-block; width:14px; height:14px; border-radius:4px; background:${s.color||"#4ee1a3"}; vertical-align:-2px; margin-right:6px;"></span>${s.emoji?s.emoji+" ":""}${s.name}</td>
-      <td>${s.goal || "—"}</td>
-      <td>${categories}</td>
-      <td>${days}</td>
-      <td><button type="button" class="edit-btn" onclick="editWorkoutSplit('${s.id}')">Edit</button> <button type="button" class="del-btn" onclick="deleteWorkoutSplit('${s.id}')">Delete</button></td>
+      <td style="white-space:nowrap; vertical-align:top;"><span style="display:inline-block; width:14px; height:14px; border-radius:4px; background:${s.color||"#4ee1a3"}; vertical-align:-2px; margin-right:6px;"></span>${s.emoji?s.emoji+" ":""}${s.name}</td>
+      <td style="vertical-align:top;">${s.goal || "—"}</td>
+      <td style="vertical-align:top;">${exercises}</td>
+      <td style="white-space:nowrap; vertical-align:top;"><button type="button" class="edit-btn" onclick="editWorkoutSplit('${s.id}')">Edit</button> <button type="button" class="del-btn" onclick="deleteWorkoutSplit('${s.id}')">Delete</button></td>
     </tr>`;
   }).join("");
   wrap.innerHTML = `
     <div class="table-scroll">
       <table class="log-table">
-        <thead><tr><th>Split</th><th>Goal</th><th>Categories</th><th>Scheduled days</th><th></th></tr></thead>
+        <thead><tr><th>Split</th><th>Goal</th><th>Exercises (in order)</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -6577,6 +7254,10 @@ function editWorkoutPreset(id){
   document.getElementById("workoutPresetCategory").value = preset.category;
   populateWorkoutPresetSplitSelect();
   document.getElementById("workoutPresetSplit").value = preset.splitId || "";
+  document.getElementById("workoutPresetDistanceKm").value = preset.distanceKm != null ? preset.distanceKm : "";
+  document.getElementById("workoutPresetSpeedKmh").value = preset.speedKmh != null ? preset.speedKmh : "";
+  document.getElementById("workoutPresetDurationMin").value = preset.durationMin != null ? preset.durationMin : "";
+  document.getElementById("workoutPresetMet").value = preset.met != null ? preset.met : "";
   document.getElementById("workoutPresetFormTitle").textContent = `Edit exercise — ${preset.name}`;
   document.getElementById("workoutPresetSubmitBtn").textContent = "Update exercise →";
   document.getElementById("workoutPresetCancelBtn").classList.remove("hidden");
@@ -6594,8 +7275,9 @@ function exitWorkoutPresetEditMode(){
 }
 
 function deleteWorkoutPreset(id){
-  const arr = getWorkoutPresets().filter(p=>p.id!==id);
+  const arr = getWorkoutPresetsSavedOnly().filter(p=>p.id!==id);
   saveWorkoutPresetsArr(arr);
+  if(DEFAULT_CARDIO_WORKOUT_PRESET_IDS.includes(id)) dismissDefaultWorkoutPreset(id);
   if(editingWorkoutPresetId === id){
     document.getElementById("workoutPresetForm").reset();
     exitWorkoutPresetEditMode();
@@ -6616,10 +7298,18 @@ document.getElementById("workoutPresetForm").addEventListener("submit", (e)=>{
   if(!name) return;
   const category = document.getElementById("workoutPresetCategory").value || "Other";
   const splitId = document.getElementById("workoutPresetSplit").value || null;
+  const distanceKmRaw = document.getElementById("workoutPresetDistanceKm").value;
+  const speedKmhRaw = document.getElementById("workoutPresetSpeedKmh").value;
+  const durationMinRaw = document.getElementById("workoutPresetDurationMin").value;
+  const metRaw = document.getElementById("workoutPresetMet").value;
+  const distanceKm = distanceKmRaw !== "" ? parseFloat(distanceKmRaw) : null;
+  const speedKmh = speedKmhRaw !== "" ? parseFloat(speedKmhRaw) : null;
+  const durationMin = durationMinRaw !== "" ? parseFloat(durationMinRaw) : null;
+  const met = metRaw !== "" ? parseFloat(metRaw) : null;
 
   const arr = getWorkoutPresets();
   const wasEditing = !!editingWorkoutPresetId;
-  const preset = {id: wasEditing ? editingWorkoutPresetId : genWorkoutPresetId(), name, category, splitId};
+  const preset = {id: wasEditing ? editingWorkoutPresetId : genWorkoutPresetId(), name, category, splitId, distanceKm, speedKmh, durationMin, met};
   if(wasEditing){
     const idx = arr.findIndex(p=>p.id===editingWorkoutPresetId);
     if(idx>=0) arr[idx] = preset; else arr.push(preset);
@@ -6645,10 +7335,16 @@ function renderWorkoutPresetsTable(){
   const splitsById = new Map(getWorkoutSplits().map(s=>[s.id, s]));
   const rows = presets.map(p=>{
     const split = p.splitId ? splitsById.get(p.splitId) : null;
+    let nameCell = p.name;
+    if(p.speedKmh != null){
+      nameCell += p.distanceKm != null
+        ? ` <span class="hint">(${p.distanceKm}km @ ${p.speedKmh}km/h)</span>`
+        : ` <span class="hint">(@ ${p.speedKmh}km/h, enter distance)</span>`;
+    }
     return `<tr>
       <td>${split ? `${split.emoji?split.emoji+" ":""}${split.name}` : "—"}</td>
       <td><span class="badge info">${p.category}</span></td>
-      <td>${p.name}</td>
+      <td>${nameCell}</td>
       <td><button type="button" class="edit-btn" onclick="editWorkoutPreset('${p.id}')">Edit</button> <button type="button" class="del-btn" onclick="deleteWorkoutPreset('${p.id}')">Delete</button></td>
     </tr>`;
   }).join("");
@@ -6667,12 +7363,20 @@ function csvEscapeWorkoutVal(v){ return csvEscapeVal(v); }
 function buildWorkoutCsv(){
   const all = getAllWorkoutEntries().slice().sort((a,b)=> new Date(a.date) - new Date(b.date));
   if(!all.length) return null;
-  const headers = ["Date","Split","Category","Exercise","Sets","Reps","Weight (kg)","Volume (kg)"];
-  const rows = all.map(e=>[
-    e.date, e.splitName || "", e.category||"", e.exercise, e.sets, e.reps,
-    e.weightKg!=null ? e.weightKg : "",
-    e.weightKg!=null ? Math.round(e.sets*e.reps*e.weightKg) : "",
-  ]);
+  const headers = ["Date","Split","Category","Exercise","Sets","Reps","Weight","Weight type","Volume (kg)","Distance (km)","Duration (min)","Calories (kcal)"];
+  const rows = all.map(e=>{
+    if(workoutEntryIsCardio(e)){
+      return [e.date, e.splitName || "", e.category||"", e.exercise, "", "", "", "", "", e.distanceKm!=null?e.distanceKm:"", e.durationMin!=null?e.durationMin:"", e.cardioKcal!=null?Math.round(e.cardioKcal):""];
+    }
+    const repsDisplay = Array.isArray(e.repsList) && e.repsList.length ? e.repsList.join(",") : e.reps;
+    const weightValue = Array.isArray(e.weightKgList) && e.weightKgList.length ? e.weightKgList.join(",")
+      : Array.isArray(e.weightLevelList) && e.weightLevelList.length ? e.weightLevelList.join(",")
+      : e.weightKg != null ? e.weightKg : (e.weightLevel != null ? e.weightLevel : "");
+    const weightType = (e.weightKg != null || (Array.isArray(e.weightKgList) && e.weightKgList.length)) ? "kg"
+      : (e.weightLevel != null || (Array.isArray(e.weightLevelList) && e.weightLevelList.length)) ? "level" : "bodyweight";
+    const volume = workoutEntryVolume(e);
+    return [e.date, e.splitName || "", e.category||"", e.exercise, e.sets, repsDisplay, weightValue, weightType, volume>0 ? Math.round(volume) : "", "", "", ""];
+  });
   return [headers, ...rows].map(r=>r.map(csvEscapeVal).join(",")).join("\r\n");
 }
 
@@ -6701,19 +7405,29 @@ function buildWorkoutHeatmap(weeksCount){
   for(let w = weeksCount - 1; w >= 0; w--){
     const weekMonday = shiftDateStr(thisMonday, -7 * w);
     const days = [];
+    let weekHasLog = false;
     for(let d=0; d<7; d++){
       const dateStr = shiftDateStr(weekMonday, d);
       const entries = log[dateStr] || [];
-      const loggedSplit = entries.find(e=>e.splitId) || null;
-      const split = loggedSplit ? splitsById.get(loggedSplit.splitId) : null;
-      days.push({
-        date: dateStr,
-        color: split ? split.color : (entries.length ? "#7a8296" : null),
-        label: split ? `${split.emoji?split.emoji+" ":""}${split.name}` : (entries.length ? "Workout" : ""),
-        future: dateStr > today,
+      // A day can carry more than one badge -- e.g. a Cardio session AND an Upper B session
+      // logged the same day both show up, rather than only whichever entry happened to be first.
+      const seenSplitIds = [];
+      entries.forEach(e=>{ if(e.splitId && !seenSplitIds.includes(e.splitId)) seenSplitIds.push(e.splitId); });
+      const badges = seenSplitIds.map(id=>{
+        const split = splitsById.get(id);
+        return split
+          ? {id, color: split.color, label: `${split.emoji?split.emoji+" ":""}${split.name}`}
+          : {id, color: "#7a8296", label: "Workout"}; // split since deleted -- fall back to generic
       });
+      if(entries.some(e=>!e.splitId)) badges.push({id:null, color: "#7a8296", label: "Workout"});
+      // Cardio always sorts to the end, regardless of which order things were logged in that day --
+      // otherwise a Cardio+Upper A day flips between "Cardio, Upper A" and "Upper A, Cardio" purely
+      // based on which one you happened to log first, which reads as inconsistent at a glance.
+      badges.sort((a,b)=> (a.id==="split-cardio"?1:0) - (b.id==="split-cardio"?1:0));
+      if(entries.length) weekHasLog = true;
+      days.push({ date: dateStr, badges, future: dateStr > today });
     }
-    weeks.push({weekStart: weekMonday, weekEnd: shiftDateStr(weekMonday, 6), days});
+    weeks.push({weekStart: weekMonday, weekEnd: shiftDateStr(weekMonday, 6), days, hasLog: weekHasLog});
   }
   return weeks; // oldest week first, current week last
 }
@@ -6721,14 +7435,21 @@ function buildWorkoutHeatmap(weeksCount){
 function renderWorkoutHeatmap(){
   const wrap = document.getElementById("workoutHeatmapWrap");
   const weeksCount = 10;
-  const weeks = buildWorkoutHeatmap(weeksCount).slice().reverse(); // most recent week on top
+  // Only weeks that actually have at least one logged set are worth showing -- an entirely blank
+  // week (e.g. before the person started, or a week they skipped) just adds scroll for nothing.
+  const weeks = buildWorkoutHeatmap(weeksCount).filter(w=>w.hasLog).slice().reverse(); // most recent logged week on top
+  if(!weeks.length){
+    wrap.innerHTML = `<div class="empty-note">No workouts logged yet.</div>`;
+    return;
+  }
   const dayHeaders = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-  const shortDate = (d)=> d.slice(5).replace("-", "/");
+  const shortDate = (d)=>{ const [,mm,dd] = d.split("-"); return `${dd}.${mm}`; };
   const rows = weeks.map(week=>{
     const cells = week.days.map(d=>{
       if(d.future) return `<td></td>`;
-      if(!d.color) return `<td style="text-align:center; color:var(--border);">·</td>`;
-      return `<td style="text-align:center;" title="${d.date}"><span style="display:inline-block; padding:3px 9px; border-radius:10px; font-size:.72rem; font-weight:700; white-space:nowrap; background:${d.color}26; color:${d.color}; border:1px solid ${d.color}66;">${d.label}</span></td>`;
+      if(!d.badges.length) return `<td style="text-align:center; color:var(--border);">·</td>`;
+      const chips = d.badges.map(b=>`<span style="display:inline-block; padding:3px 9px; border-radius:10px; font-size:.72rem; font-weight:700; white-space:nowrap; background:${b.color}26; color:${b.color}; border:1px solid ${b.color}66;">${b.label}</span>`).join("");
+      return `<td style="text-align:center;" title="${d.date}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
     }).join("");
     return `<tr><td style="white-space:nowrap; color:var(--muted); font-size:.78rem;">${shortDate(week.weekStart)}–${shortDate(week.weekEnd)}</td>${cells}</tr>`;
   }).join("");
@@ -6736,8 +7457,8 @@ function renderWorkoutHeatmap(){
   const legend = splits.map(s=>`<span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted); margin-right:14px;"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:${s.color};"></span>${s.emoji?s.emoji+" ":""}${s.name}</span>`).join("");
   wrap.innerHTML = `
     <div class="table-scroll">
-      <table class="log-table">
-        <thead><tr><th>Week</th>${dayHeaders.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+      <table class="log-table" style="table-layout:fixed; width:100%; min-width:640px;">
+        <thead><tr><th style="width:13%;">Week</th>${dayHeaders.map(h=>`<th style="width:12.43%;">${h}</th>`).join("")}</tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -6753,11 +7474,14 @@ function renderWorkoutsView(){
   if(dateInput && !dateInput.value) dateInput.value = todayStr();
   refreshDateDayLabel("workoutDate");
   const date = dateInput.value || todayStr();
+  // No weekday schedule to auto-suggest from anymore -- populateWorkoutSplitSelect() already
+  // preserves whatever was previously selected (same as every other field here), so Split just
+  // stays blank / last-used until you pick one yourself.
   populateWorkoutSplitSelect();
-  if(!document.getElementById("workoutSplitSelect").value){
-    document.getElementById("workoutSplitSelect").value = getSuggestedSplitIdForDate(date);
-  }
-  populateWorkoutQuickPick(document.getElementById("workoutSplitSelect").value);
+  const currentSplitId = document.getElementById("workoutSplitSelect").value;
+  populateWorkoutCategorySelect(currentSplitId);
+  populateWorkoutQuickPick(currentSplitId, document.getElementById("workoutCategory").value);
+  applyWorkoutFormMode();
   populateWorkoutPresetSplitSelect();
   const entries = getWorkoutEntriesForDate(date);
   renderWorkoutSummary(entries, date);
@@ -6766,6 +7490,7 @@ function renderWorkoutsView(){
   renderWorkoutHeatmap();
   renderWorkoutSplitsTable();
   renderWorkoutPresetsTable();
+  renderDraftSplitExerciseList();
 }
 
 /* ---------------------------------------------------------
@@ -6901,6 +7626,7 @@ document.getElementById("habitQuickPick").addEventListener("change", (e)=>{
 
 document.getElementById("habitDate").addEventListener("change", renderHabitsView);
 wireDateNav("habitDate", "habitDatePrevBtn", "habitDateNextBtn", renderHabitsView);
+wireStandaloneDatePicker("habitPresetSince");
 
 document.getElementById("habitCategoryFilter").addEventListener("change", renderHabitsView);
 
@@ -7040,7 +7766,7 @@ function exitHabitPresetEditMode(){
   document.getElementById("habitPresetCancelBtn").classList.add("hidden");
   document.getElementById("habitPresetType").value = "build";
   document.getElementById("habitPresetCategory").value = "";
-  document.getElementById("habitPresetSince").value = todayStr();
+  setDateFieldValue("habitPresetSince", todayStr());
 }
 
 function editHabitPreset(id){
@@ -7050,7 +7776,7 @@ function editHabitPreset(id){
   document.getElementById("habitPresetName").value = preset.name;
   document.getElementById("habitPresetType").value = preset.type || "build";
   document.getElementById("habitPresetCategory").value = preset.category || "";
-  document.getElementById("habitPresetSince").value = preset.since || todayStr();
+  setDateFieldValue("habitPresetSince", preset.since || todayStr());
   document.getElementById("habitPresetFormTitle").textContent = `Edit habit — ${preset.name}`;
   document.getElementById("habitPresetSubmitBtn").textContent = "Update habit →";
   document.getElementById("habitPresetCancelBtn").classList.remove("hidden");
@@ -7381,10 +8107,10 @@ function renderHabitsView(){
   populateHabitQuickPick();
   populateHabitCategoryControls();
   const dateInput = document.getElementById("habitDate");
-  if(dateInput && !dateInput.value) dateInput.value = todayStr();
+  if(dateInput && !dateInput.value) setDateFieldValue("habitDate", todayStr());
   refreshDateDayLabel("habitDate");
   const sinceInput = document.getElementById("habitPresetSince");
-  if(sinceInput && !sinceInput.value) sinceInput.value = todayStr();
+  if(sinceInput && !sinceInput.value) setDateFieldValue("habitPresetSince", todayStr());
   habitCategoryFilter = document.getElementById("habitCategoryFilter").value || "";
   const date = dateInput.value || todayStr();
   let entries = getHabitEntriesForDate(date);
@@ -7846,8 +8572,9 @@ function buildReport(){
     scaleLog: logs,
     foodLog: getFoodLog(),
     foodPackages: getFoodPackages(),
-    activityLog: getActivityLog(),
-    activityPresets: getActivityPresets(),
+    workoutLog: getWorkoutLog(),
+    workoutSplits: getWorkoutSplits(),
+    workoutPresets: getWorkoutPresetsSavedOnly(),
     habitLog: getHabitLog(),
     habitPresets: getHabitPresets(),
     metabolic: {
@@ -8219,16 +8946,17 @@ document.getElementById("commitQuickDays").addEventListener("click", (e)=>{
   const days = parseInt(btn.dataset.days, 10);
   const d = new Date(todayStr());
   d.setDate(d.getDate() + days);
-  document.getElementById("commitDeadline").value = d.toISOString().slice(0,10);
+  setDateFieldValue("commitDeadline", d.toISOString().slice(0,10));
   document.querySelectorAll("#commitQuickDays button").forEach(b=>b.classList.toggle("active", b===btn));
 });
+wireStandaloneDatePicker("commitDeadline");
 
 function editCommitment(id){
   const c = getCommitments().find(x=>x.id===id);
   if(!c) return;
   editingCommitId = id;
   document.getElementById("commitTitle").value = c.title;
-  document.getElementById("commitDeadline").value = c.deadline;
+  setDateFieldValue("commitDeadline", c.deadline);
   document.getElementById("commitNotes").value = c.notes || "";
   document.querySelectorAll("#commitQuickDays button").forEach(b=>b.classList.remove("active"));
   document.getElementById("commitFormTitle").textContent = `Edit commitment — ${c.title}`;
@@ -8244,6 +8972,10 @@ function exitCommitEditMode(){
   document.getElementById("commitSubmitBtn").textContent = "Add commitment →";
   document.getElementById("commitCancelBtn").classList.add("hidden");
   document.querySelectorAll("#commitQuickDays button").forEach(b=>b.classList.remove("active"));
+  // commitDeadline is now a <button> (custom date picker), so form.reset() no longer clears it
+  // like it did as a real <input> -- clear it explicitly so renderCommitmentsView's "default to
+  // +7 days" fallback still kicks in for a fresh Add-a-commitment form.
+  setDateFieldValue("commitDeadline", "");
 }
 
 document.getElementById("commitCancelBtn").addEventListener("click", ()=>{
@@ -8322,7 +9054,7 @@ function renderCommitmentsView(){
   if(!editingCommitId && !dateInput.value){
     const d = new Date(todayStr());
     d.setDate(d.getDate() + 7);
-    dateInput.value = d.toISOString().slice(0,10);
+    setDateFieldValue("commitDeadline", d.toISOString().slice(0,10));
   }
 
   const commits = getCommitments();
@@ -8693,27 +9425,42 @@ function activityCoreLabel(label){
   return String(label || "").replace(/\([^)]*\)/g, "").trim();
 }
 
+// Sourced from Workout Log's cardio entries/presets now that the standalone Activity Log is
+// gone -- "history" comes from the person's own past cardio-shaped log entries, "preset" from
+// their saved cardio Workout presets, "database" from the built-in COMMON_ACTIVITIES MET table
+// (kept around specifically to give the AI a way to estimate calories for a generic activity
+// mention, e.g. "went for a walk", that has no matching history or preset yet).
 function buildActivityMatchCandidates(){
   const candidates = [];
-  const log = getActivityLog();
+  const log = getWorkoutLog();
   const historyMap = new Map();
   Object.keys(log).forEach(date=>{
     (log[date] || []).forEach(entry=>{
-      if(!entry || !entry.name || !entry.minutes) return;
-      const norm = normalizeMatchText(activityCoreLabel(entry.name));
+      if(!entry || !entry.exercise || !workoutEntryIsCardio(entry) || !entry.durationMin) return;
+      const norm = normalizeMatchText(activityCoreLabel(entry.exercise));
       if(!norm) return;
-      if(!historyMap.has(norm)) historyMap.set(norm, {name: entry.name, count:0, totalMinutes:0, totalKcal:0});
+      if(!historyMap.has(norm)) historyMap.set(norm, {name: entry.exercise, count:0, totalMinutes:0, totalKcal:0});
       const h = historyMap.get(norm);
-      h.count++; h.totalMinutes += entry.minutes; h.totalKcal += entry.kcal || 0;
+      h.count++; h.totalMinutes += entry.durationMin; h.totalKcal += entry.cardioKcal || 0;
     });
   });
   historyMap.forEach((h, norm)=>{
     if(h.totalMinutes <= 0) return;
     candidates.push({ norm, displayName: h.name, source: "history", priority: 2 + Math.min(h.count, 20) / 20, kcalPerMinute: h.totalKcal / h.totalMinutes });
   });
-  getActivityPresets().forEach(p=>{
-    if(!p.name || !p.minutes) return;
-    candidates.push({ norm: normalizeMatchText(activityCoreLabel(p.name)), displayName: p.name, source: "preset", priority: 1.8, kcalPerMinute: (p.kcal || 0) / p.minutes });
+  const weightKg = effWeightKgForWorkout();
+  getWorkoutPresets().filter(p=>p.category==="Cardio").forEach(p=>{
+    // Presets carry distance/speed/met/duration rather than a fixed minutes+kcal pair -- estimate
+    // a representative kcal-per-minute using the same formulas the Workout Log form itself uses.
+    let kcalPerMinute = null;
+    if(p.distanceKm > 0 && p.speedKmh > 0){
+      const calc = computeDistanceWorkoutCalcs(p.distanceKm, p.speedKmh, weightKg);
+      if(calc && calc.minutes > 0) kcalPerMinute = calc.kcal / calc.minutes;
+    } else if(p.met > 0){
+      kcalPerMinute = p.met * 3.5 * weightKg / 200;
+    }
+    if(kcalPerMinute == null) return;
+    candidates.push({ norm: normalizeMatchText(activityCoreLabel(p.name)), displayName: p.name, source: "preset", priority: 1.8, kcalPerMinute });
   });
   COMMON_ACTIVITIES.forEach(act=>{
     candidates.push({ norm: normalizeMatchText(activityCoreLabel(act.label)), displayName: act.label, source: "database", priority: 1, met: act.met });
@@ -8739,7 +9486,7 @@ function applyActivityMatch(item){
   const minutes = item.minutes > 0 ? item.minutes : 30;
   let kcal = item.kcal;
   if(match.met != null){
-    kcal = Math.round(match.met * 3.5 * effWeightKgForActivity() / 200 * minutes);
+    kcal = Math.round(match.met * 3.5 * effWeightKgForWorkout() / 200 * minutes);
   } else if(match.kcalPerMinute != null){
     kcal = Math.round(match.kcalPerMinute * minutes);
   }
@@ -8880,21 +9627,25 @@ document.getElementById("aiLogCommitBtn").addEventListener("click", ()=>{
   });
   saveFoodLogObj(foodLog);
 
-  const activityLog = getActivityLog();
-  if(!activityLog[date]) activityLog[date] = [];
+  // Activities the AI picked up from the summary now save into Workout Log as cardio-shaped
+  // entries (duration+calories, no sets/reps/weight) -- the standalone Activity Log they used to
+  // go into has been removed.
+  const workoutLogFromAi = getWorkoutLog();
+  if(!workoutLogFromAi[date]) workoutLogFromAi[date] = [];
   aiLogParsedResult.activities.forEach((a,i)=>{
     if(!document.getElementById(`aiActCheck${i}`).checked) return;
     const name = document.getElementById(`aiActName${i}`).value.trim();
     if(!name) return;
-    activityLog[date].push({
-      id: genActivityId(),
-      name,
-      minutes: parseFloat(document.getElementById(`aiActMinutes${i}`).value) || 0,
-      kcal: parseFloat(document.getElementById(`aiActKcal${i}`).value) || 0,
+    workoutLogFromAi[date].push({
+      id: genWorkoutId(), splitId: null, splitName: null, category: guessMigratedWorkoutCategory(name),
+      exercise: name, isCardio: true, sets: null, reps: null, repsList: null, weightKg: null,
+      weightLevel: null, weightKgList: null, weightLevelList: null, distanceKm: null, speedKmh: null,
+      durationMin: parseFloat(document.getElementById(`aiActMinutes${i}`).value) || 0,
+      cardioKcal: parseFloat(document.getElementById(`aiActKcal${i}`).value) || 0,
     });
     addedCount++;
   });
-  saveActivityLogObj(activityLog);
+  saveWorkoutLogObj(workoutLogFromAi);
 
   const habitLog = getHabitLog();
   if(!habitLog[date]) habitLog[date] = [];
@@ -8949,9 +9700,9 @@ function genCoachId(){
 // touching or losing any data in that tab -- it's purely a display preference, toggled from "My
 // Plan" (opened by clicking their name). Scale Log is intentionally not included here: it's the
 // home view you land on after logging in, so it's always shown.
-const HIDEABLE_TABS = ["food", "activities", "workout", "habits", "commitments", "ailog", "coach"];
-const TAB_BUTTON_ID = {food: "viewTabFood", activities: "viewTabActivities", workout: "viewTabWorkout", habits: "viewTabHabits", commitments: "viewTabCommitments", ailog: "viewTabAiLog", coach: "viewTabCoach"};
-const TAB_CHECKBOX_ID = {food: "visTabFood", activities: "visTabActivities", workout: "visTabWorkout", habits: "visTabHabits", commitments: "visTabCommitments", ailog: "visTabAiLog", coach: "visTabCoach"};
+const HIDEABLE_TABS = ["food", "workout", "habits", "commitments", "ailog", "coach"];
+const TAB_BUTTON_ID = {food: "viewTabFood", workout: "viewTabWorkout", habits: "viewTabHabits", commitments: "viewTabCommitments", ailog: "viewTabAiLog", coach: "viewTabCoach"};
+const TAB_CHECKBOX_ID = {food: "visTabFood", workout: "visTabWorkout", habits: "visTabHabits", commitments: "visTabCommitments", ailog: "visTabAiLog", coach: "visTabCoach"};
 
 function getVisibleTabs(){
   const users = getUsers();
@@ -9169,28 +9920,30 @@ function buildCoachExport(userNotes, attachments, skipped){
     }
     lines.push("");
 
-    lines.push("## Activity (last 90 days)");
-    const activityLog = getActivityLog();
-    let actDays=0, actMinutes=0, actKcal=0, actCount=0;
-    last90.forEach(d=>{
-      const entries = activityLog[d] || [];
-      if(entries.length) actDays++;
-      entries.forEach(e=>{ actCount++; actMinutes += (e.minutes||0); actKcal += (e.kcal||0); });
-    });
-    lines.push(`- Days with activity logged: ${actDays}/90 (${actCount} session${actCount===1?"":"s"}, ${Math.round(actMinutes)} min total, ~${Math.round(actKcal)} kcal burned)`);
-    lines.push("");
-
-    lines.push("## Strength training (last 90 days)");
+    lines.push("## Workout (last 90 days)");
+    // Strength sets and cardio sessions both live in Workout Log now (the old, separate Activity
+    // Log has been removed) -- cardio entries carry isCardio:true with duration/kcal instead of
+    // sets/reps/weight, so both get tallied here in one combined section.
     const workoutLog = getWorkoutLog();
-    let workoutDays=0, workoutSetCount=0;
+    let workoutDays=0, workoutSetCount=0, cardioSessions=0, cardioMinutes=0, cardioKcalTotal=0;
     const exercisesLast90 = new Set();
     last90.forEach(d=>{
       const entries = workoutLog[d] || [];
       if(entries.length) workoutDays++;
-      entries.forEach(e=>{ workoutSetCount += (e.sets||0); exercisesLast90.add(e.exercise); });
+      entries.forEach(e=>{
+        exercisesLast90.add(e.exercise);
+        if(workoutEntryIsCardio(e)){
+          cardioSessions++; cardioMinutes += (e.durationMin||0); cardioKcalTotal += (e.cardioKcal||0);
+        } else {
+          workoutSetCount += (e.sets||0);
+        }
+      });
     });
     if(workoutDays){
-      lines.push(`- Days with a workout logged: ${workoutDays}/90 across ${exercisesLast90.size} distinct exercise${exercisesLast90.size===1?"":"s"} (${workoutSetCount} sets total)`);
+      lines.push(`- Days with a workout logged: ${workoutDays}/90 across ${exercisesLast90.size} distinct exercise${exercisesLast90.size===1?"":"s"} (${workoutSetCount} strength sets total)`);
+      if(cardioSessions){
+        lines.push(`- Cardio: ${cardioSessions} session${cardioSessions===1?"":"s"}, ${Math.round(cardioMinutes)} min total, ~${Math.round(cardioKcalTotal)} kcal burned`);
+      }
       const stats = computeWorkoutStats().slice(0, 12);
       if(stats.length){
         lines.push(`- Best weight and estimated one-rep max per exercise (all-time, not just last 90 days):`);
@@ -9203,7 +9956,7 @@ function buildCoachExport(userNotes, attachments, skipped){
         });
       }
     } else {
-      lines.push("- No strength training logged in the last 90 days.");
+      lines.push("- No workouts logged in the last 90 days.");
     }
     lines.push("");
   }
@@ -9703,7 +10456,17 @@ document.getElementById("coachSaveFeedbackBtn").addEventListener("click", ()=>{
         refreshCloudSyncSettingsUI();
         if(user && currentUserEmail && normEmail(user.email) === currentUserEmail){
           const pulled = await pullFromCloud(currentUserEmail);
-          if(pulled) showToast("Synced latest data from the cloud — switch tabs to see it");
+          if(pulled){
+            // Same reasoning as the login-flow pull: an older cloud snapshot can silently
+            // reintroduce un-migrated Activity Log rows, so re-run the migration right after.
+            migrateLegacyActivityEntriesToWorkout(true);
+            cleanupDuplicateWorkoutPresets(true);
+            // Not forced here (see the comment on its call in enterApp) -- forcing it on every
+            // sync would undo a preset you'd deliberately deleted since the last time it ran.
+            applyPresetAdjustmentsV2();
+            seedDefaultSplitExercisePatterns();
+            showToast("Synced latest data from the cloud — switch tabs to see it");
+          }
         }
       });
     });
