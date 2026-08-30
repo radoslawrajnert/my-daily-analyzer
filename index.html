@@ -2875,20 +2875,38 @@ function setDateFieldValue(id, iso){
   el.textContent = formatDateDisplay(iso);
 }
 
+// Every date field wired via wireDateNav (Scale Log/Nutrition Log/Workout Log/Habits/AI Log)
+// shares one "which day am I looking at" state: stepping the arrows or picking a day from the
+// calendar popup on ANY of them updates ALL of them and re-renders each one's view, so switching
+// tabs never lands you back on a different day than the one you were just looking at. (Standalone
+// fields like a habit's "since" date or a commitment's deadline are NOT part of this -- those are
+// per-form values, not "which day am I viewing", so wireStandaloneDatePicker below deliberately
+// stays independent of this registry.)
+const dateNavRegistry = [];
+
+// Updates every registered date-nav field to the same date and fires each one's own onChange
+// (re-render) callback. Shared by wireDateNav's day-nav arrows/calendar popup AND by jumpToDate
+// (chart date-label clicks), so both paths keep every tab showing the same day.
+function syncDateNavFields(iso){
+  dateNavRegistry.forEach(({inputId, onChange})=>{
+    if(!document.getElementById(inputId)) return;
+    setDateFieldValue(inputId, iso);
+    refreshDateDayLabel(inputId);
+    if(onChange) onChange();
+  });
+}
+
 // Wires ‹ / › buttons next to a date field to step it back/forward one day at a time, and gives
-// the field itself the custom Monday-first calendar popup -- both paths call onChange (if given)
-// afterwards so the view for the newly-selected date refreshes. Also keeps a "<dayLabelId>"
-// element (if present) showing the weekday name for whatever date is currently selected.
+// the field itself the custom Monday-first calendar popup -- both paths go through
+// syncDateNavFields so every other date-nav field (and its view) updates to match. Also keeps a
+// "<dayLabelId>" element (if present) showing the weekday name for whatever date is selected.
 function wireDateNav(inputId, prevBtnId, nextBtnId, onChange){
   const input = document.getElementById(inputId);
   if(!input) return;
   const prevBtn = prevBtnId ? document.getElementById(prevBtnId) : null;
   const nextBtn = nextBtnId ? document.getElementById(nextBtnId) : null;
-  const setValue = (iso) => {
-    setDateFieldValue(inputId, iso);
-    refreshDateDayLabel(inputId);
-    if(onChange) onChange();
-  };
+  dateNavRegistry.push({inputId, onChange});
+  const setValue = (iso) => syncDateNavFields(iso);
   setDateFieldValue(inputId, input.value || todayStr());
   refreshDateDayLabel(inputId);
   attachDatePickerPopup(input, () => input.value, setValue);
@@ -5149,20 +5167,11 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
 
 // Clicking a date label on a trend chart jumps every date-driven view in the app (Scale Log,
 // Nutrition Log, Workout Log, Habits, AI Log) to that date, so you land straight on that day's
-// details no matter which tab you check next.
+// details no matter which tab you check next. Goes through the same syncDateNavFields path as the
+// day-nav arrows/calendar popup, so both ways of changing the date behave identically.
 function jumpToDate(dateStr){
   if(!dateStr) return;
-  ["logDate", "foodDate", "workoutDate", "habitDate", "aiLogDate"].forEach(id=>{
-    const el = document.getElementById(id);
-    if(!el) return;
-    setDateFieldValue(id, dateStr);
-    refreshDateDayLabel(id);
-  });
-  renderLogView();
-  renderFoodView();
-  renderWorkoutsView();
-  renderHabitsView();
-  if(typeof renderAiLogView === "function") renderAiLogView();
+  syncDateNavFields(dateStr);
   showToast(`Switched the whole app to ${formatShortDate(dateStr)}`);
 }
 
@@ -6999,7 +7008,7 @@ function renderWorkoutTable(entries, date){
     return `<tr>
       <td>${splitBadgeHtml(e.splitName, e.splitId, splitsById)}</td>
       <td><span class="badge info">${e.category||"Other"}</span></td>
-      <td>${e.exercise}</td>
+      <td>${e.exercise}${cardio ? "" : exerciseVideoLinkHtml(e.exercise)}</td>
       <td>${detailsCell}</td>
       <td>${metricCell}</td>
       <td><button type="button" class="edit-btn" onclick="editWorkoutEntry('${date}','${e.id}')">Edit</button> <button type="button" class="del-btn" onclick="deleteWorkoutEntry('${date}','${e.id}')">Delete</button></td>
