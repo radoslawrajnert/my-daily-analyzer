@@ -350,6 +350,18 @@
   .streak-banner-title{font-weight:700; font-size:.86rem; color:var(--text); margin-bottom:2px;}
   .streak-banner-body{font-size:.8rem; color:var(--muted); line-height:1.45;}
 
+  .workout-timer-banner{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px; margin-bottom:18px;}
+  .workout-timer-banner.active{background:rgba(78,225,163,.08); border-color:rgba(78,225,163,.32);}
+  .workout-timer-info{display:flex; align-items:center; gap:14px; min-width:0;}
+  .workout-timer-clock{font-size:1.5rem; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:.02em; color:var(--text);}
+  .workout-timer-banner.active .workout-timer-clock{color:var(--accent);}
+  .workout-timer-text{min-width:0;}
+  .workout-timer-title{font-weight:700; font-size:.86rem; color:var(--text); margin-bottom:2px;}
+  .workout-timer-body{font-size:.8rem; color:var(--muted); line-height:1.4;}
+  .workout-timer-dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); margin-right:6px; animation:workoutTimerPulse 1.6s ease-in-out infinite;}
+  @keyframes workoutTimerPulse{0%,100%{opacity:1;} 50%{opacity:.3;}}
+  .week-medal-icon{display:inline-flex; color:var(--warn); filter:drop-shadow(0 0 4px rgba(240,184,84,.45));}
+
   .photo-timeline{display:flex; gap:14px; overflow-x:auto; padding:4px 2px 10px;}
   .photo-timeline-item{flex:0 0 auto; text-align:center; cursor:pointer; background:none; border:none; padding:0; font:inherit; color:inherit;}
   .photo-timeline-thumb{width:78px; height:104px; object-fit:cover; border-radius:var(--radius-sm); border:1px solid var(--border); display:block; transition:border-color .15s, transform .15s;}
@@ -888,6 +900,7 @@
     </div>
 
     <div id="workoutView" class="hidden">
+      <div id="workoutTimerWrap"></div>
       <div class="card">
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <span id="workoutFormTitle">Log a set</span>
@@ -6139,6 +6152,72 @@ function getWorkoutEntriesForDate(date){
   return log[date] ? log[date].slice() : [];
 }
 
+// --- Workout session timer -- tracks how long an actual gym session ran, independent of whichever
+// date the Workout Log form happens to be showing (you might check yesterday's numbers mid-session
+// without that counting as "starting a new one"). Always keyed to the real calendar date the
+// session started on, not the currently-viewed workoutDate. ---
+function getWorkoutSessions(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  return (u && u.workoutSessions) ? u.workoutSessions : {};
+}
+function saveWorkoutSessionsObj(obj){
+  const users = getUsers();
+  if(!users[currentUserEmail]) return;
+  users[currentUserEmail].workoutSessions = obj;
+  saveUsers(users);
+}
+// The one currently-running session (if any) -- persisted immediately on Start so a page reload or
+// navigating to another tab mid-workout doesn't lose the start time the live clock is counting from.
+function getActiveWorkoutSession(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  return (u && u.activeWorkoutSession) ? u.activeWorkoutSession : null;
+}
+function startWorkoutSession(){
+  if(getActiveWorkoutSession()) return getActiveWorkoutSession(); // already running -- don't reset it
+  const users = getUsers();
+  if(!users[currentUserEmail]) return null;
+  const session = {date: todayStr(), startTime: Date.now()};
+  users[currentUserEmail].activeWorkoutSession = session;
+  saveUsers(users);
+  return session;
+}
+// Stops the running session (if any), saves its start/end/duration under the date it started on,
+// and clears the active flag. Returns the completed session, or null if nothing was running.
+function stopWorkoutSession(){
+  const active = getActiveWorkoutSession();
+  if(!active) return null;
+  const endTime = Date.now();
+  const durationMin = Math.max(0, Math.round((endTime - active.startTime) / 60000));
+  const completed = {startTime: active.startTime, endTime, durationMin};
+  const sessions = getWorkoutSessions();
+  sessions[active.date] = completed;
+  saveWorkoutSessionsObj(sessions);
+  const users = getUsers();
+  if(users[currentUserEmail]){
+    delete users[currentUserEmail].activeWorkoutSession;
+    saveUsers(users);
+  }
+  return completed;
+}
+// HH:MM, using local time and manual zero-padding rather than toLocaleTimeString() so it's
+// consistent regardless of the browser's locale settings (same reasoning as the rest of the app's
+// date formatting -- see formatDateDisplay).
+function formatClockTime(ms){
+  const d = new Date(ms);
+  return `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+// H:MM:SS (or MM:SS under an hour) elapsed, for the live-ticking display.
+function formatElapsedClock(ms){
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const mm = String(m).padStart(2,"0"), ss = String(s).padStart(2,"0");
+  return h > 0 ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
 // Flattens every logged day into one array, newest first -- used by stats/CSV/Coach export,
 // which all need to look across the whole history rather than a single date.
 function getAllWorkoutEntries(){
@@ -6926,6 +7005,9 @@ function findLastLoggedExercise(exerciseName, beforeDate){
 document.getElementById("copyLastExercisesBtn").addEventListener("click", ()=>{
   const splitId = document.getElementById("workoutSplitSelect").value;
   if(!splitId){ showToast("Pick a Split above first, then Copy last exercises"); return; }
+  // The natural "I've just walked into the gym" moment -- auto-starts the session timer if one
+  // isn't already running (a no-op if it already is), so there's no separate step to remember.
+  startWorkoutSession();
   const split = getWorkoutSplits().find(s=>s.id===splitId);
   if(!split || !Array.isArray(split.exercises) || !split.exercises.length){
     showToast(`${split ? split.name : "This split"} has no exercise list defined yet — add one in "My splits" below first`);
@@ -7026,6 +7108,10 @@ document.getElementById("workoutForm").addEventListener("submit", (e)=>{
 
   const log = getWorkoutLog();
   const wasEditing = !!editingWorkoutId;
+  // Fallback for days you don't use "Copy last exercises" first -- logging your first brand-new
+  // set of the day still starts the session timer if it isn't already running. Editing an existing
+  // entry (e.g. filling in a pending/tbd row, or correcting a past day) never counts as "starting."
+  if(!wasEditing) startWorkoutSession();
   if(wasEditing && log[editingWorkoutDate]){
     log[editingWorkoutDate] = log[editingWorkoutDate].filter(en=>en.id!==editingWorkoutId);
     if(log[editingWorkoutDate].length === 0) delete log[editingWorkoutDate];
@@ -7059,8 +7145,15 @@ document.getElementById("workoutForm").addEventListener("submit", (e)=>{
 
 function renderWorkoutSummary(entries, date){
   const wrap = document.getElementById("workoutSummaryWrap");
+  // A stopped session for this date shows as "Trained HH:MM–HH:MM (NN min)" -- whether or not any
+  // sets ended up logged that day, since the session timer and the exercise log are tracked
+  // independently (you might stop the clock, then log everything from memory a minute later).
+  const session = getWorkoutSessions()[date];
+  const sessionNote = session
+    ? `<div class="goal-progress-note">Trained ${formatClockTime(session.startTime)}–${formatClockTime(session.endTime)} (${session.durationMin} min)</div>`
+    : "";
   if(entries.length === 0){
-    wrap.innerHTML = `<div class="empty-note">No sets logged for ${date} yet — add your first one above.</div>`;
+    wrap.innerHTML = `<div class="empty-note">No sets logged for ${date} yet — add your first one above.</div>${sessionNote}`;
     return;
   }
   const totalSets = entries.reduce((sum,e)=> sum + (e.sets||0), 0);
@@ -7072,6 +7165,7 @@ function renderWorkoutSummary(entries, date){
       ${entries.length} exercise${entries.length===1?"":"s"} &nbsp;·&nbsp; ${totalSets} sets total ${totalVolume>0?`&nbsp;·&nbsp; ${Math.round(totalVolume).toLocaleString()} kg total volume`:""} ${totalCardioKcal>0?`&nbsp;·&nbsp; ${Math.round(totalCardioKcal).toLocaleString()} kcal burned (cardio)`:""}
     </div>
     <div class="goal-progress-note">${categories.join(", ")}</div>
+    ${sessionNote}
   `;
 }
 
@@ -7514,6 +7608,10 @@ function buildWorkoutHeatmap(weeksCount){
     const weekMonday = shiftDateStr(thisMonday, -7 * w);
     const days = [];
     let weekHasLog = false;
+    // Tracks every split id actually logged (non-pending) anywhere across the whole week, so we can
+    // tell afterward whether the person completed their FULL current split roster that week -- the
+    // "weekly medal" -- regardless of which day of the week each split happened to land on.
+    const weekSplitIds = new Set();
     for(let d=0; d<7; d++){
       const dateStr = shiftDateStr(weekMonday, d);
       const entries = log[dateStr] || [];
@@ -7523,7 +7621,12 @@ function buildWorkoutHeatmap(weeksCount){
       // is a to-do, not a completed set -- weight/reps are literally "tbd" -- so it must never
       // light up the split's badge here until it's actually been edited with real numbers.
       const seenSplitIds = [];
-      entries.forEach(e=>{ if(e.splitId && !e.pending && !seenSplitIds.includes(e.splitId)) seenSplitIds.push(e.splitId); });
+      entries.forEach(e=>{
+        if(e.splitId && !e.pending){
+          if(!seenSplitIds.includes(e.splitId)) seenSplitIds.push(e.splitId);
+          weekSplitIds.add(e.splitId);
+        }
+      });
       const badges = seenSplitIds.map(id=>{
         const split = splitsById.get(id);
         return split
@@ -7538,7 +7641,13 @@ function buildWorkoutHeatmap(weeksCount){
       if(entries.length) weekHasLog = true;
       days.push({ date: dateStr, badges, future: dateStr > today });
     }
-    weeks.push({weekStart: weekMonday, weekEnd: shiftDateStr(weekMonday, 6), days, hasLog: weekHasLog});
+    // The medal only counts against the CURRENT split roster (getWorkoutSplits(), captured in
+    // splitsById above) -- so if a split gets renamed/removed, past weeks are judged by today's
+    // list, not a snapshot of whatever existed back then. An empty roster never vacuously earns
+    // a medal (.every() on an empty array is true, so that's guarded explicitly).
+    const currentSplitIds = Array.from(splitsById.keys());
+    const allSplitsLogged = currentSplitIds.length > 0 && currentSplitIds.every(id=>weekSplitIds.has(id));
+    weeks.push({weekStart: weekMonday, weekEnd: shiftDateStr(weekMonday, 6), days, hasLog: weekHasLog, allSplitsLogged});
   }
   return weeks; // oldest week first, current week last
 }
@@ -7555,6 +7664,8 @@ function renderWorkoutHeatmap(){
   }
   const dayHeaders = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   const shortDate = (d)=>{ const [,mm,dd] = d.split("-"); return `${dd}.${mm}`; };
+  // Same medal glyph as the Scale Log's milestone banner, for visual consistency across the app.
+  const medalIconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="8" r="6"></circle><path d="M9 14.5 7 22l5-3 5 3-2-7.5"></path></svg>`;
   const rows = weeks.map(week=>{
     const cells = week.days.map(d=>{
       if(d.future) return `<td></td>`;
@@ -7562,14 +7673,19 @@ function renderWorkoutHeatmap(){
       const chips = d.badges.map(b=>`<span style="display:inline-block; padding:3px 9px; border-radius:10px; font-size:.72rem; font-weight:700; white-space:nowrap; background:${b.color}26; color:${b.color}; border:1px solid ${b.color}66;">${b.label}</span>`).join("");
       return `<td style="text-align:center;" title="${d.date}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
     }).join("");
-    return `<tr><td style="white-space:nowrap; color:var(--muted); font-size:.78rem;">${shortDate(week.weekStart)}–${shortDate(week.weekEnd)}</td>${cells}</tr>`;
+    // Weekly medal: lights up the moment every currently-defined split has been logged at least
+    // once that week -- doesn't wait for the week to finish, so a Tuesday sweep still earns it.
+    const medalCell = week.allSplitsLogged
+      ? `<td style="text-align:center;" title="All your splits logged this week!"><span class="week-medal-icon">${medalIconSvg}</span></td>`
+      : `<td style="text-align:center; color:var(--border);">·</td>`;
+    return `<tr><td style="white-space:nowrap; color:var(--muted); font-size:.78rem;">${shortDate(week.weekStart)}–${shortDate(week.weekEnd)}</td>${cells}${medalCell}</tr>`;
   }).join("");
   const splits = getWorkoutSplits();
   const legend = splits.map(s=>`<span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted); margin-right:14px;"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:${s.color};"></span>${s.emoji?s.emoji+" ":""}${s.name}</span>`).join("");
   wrap.innerHTML = `
     <div class="table-scroll">
-      <table class="log-table" style="table-layout:fixed; width:100%; min-width:640px;">
-        <thead><tr><th style="width:13%;">Week</th>${dayHeaders.map(h=>`<th style="width:12.43%;">${h}</th>`).join("")}</tr></thead>
+      <table class="log-table" style="table-layout:fixed; width:100%; min-width:700px;">
+        <thead><tr><th style="width:12%;">Week</th>${dayHeaders.map(h=>`<th style="width:11.14%;">${h}</th>`).join("")}<th style="width:9%;" title="All splits logged this week">🏅</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -7580,7 +7696,63 @@ function renderWorkoutHeatmap(){
   `;
 }
 
+// Live-ticking widget for the workout session timer -- shows a running clock + "Stop training"
+// while a session is active, or a "Start training" prompt otherwise. Re-renders itself once a
+// second while active (via its own setInterval, torn down again once stopped) so the elapsed time
+// updates live without needing a full renderWorkoutsView() re-render every tick.
+let workoutTimerIntervalId = null;
+function renderWorkoutTimerWidget(){
+  const wrap = document.getElementById("workoutTimerWrap");
+  if(!wrap) return;
+  const active = getActiveWorkoutSession();
+  if(active){
+    const elapsed = Date.now() - active.startTime;
+    wrap.innerHTML = `
+      <div class="workout-timer-banner active">
+        <div class="workout-timer-info">
+          <div class="workout-timer-clock">${formatElapsedClock(elapsed)}</div>
+          <div class="workout-timer-text">
+            <div class="workout-timer-title"><span class="workout-timer-dot"></span>Training in progress</div>
+            <div class="workout-timer-body">Started at ${formatClockTime(active.startTime)}</div>
+          </div>
+        </div>
+        <button type="button" class="secondary" onclick="stopWorkoutSessionAction()">Stop training →</button>
+      </div>
+    `;
+    if(!workoutTimerIntervalId && typeof setInterval === "function") workoutTimerIntervalId = setInterval(renderWorkoutTimerWidget, 1000);
+  } else {
+    if(workoutTimerIntervalId){ if(typeof clearInterval === "function") clearInterval(workoutTimerIntervalId); workoutTimerIntervalId = null; }
+    wrap.innerHTML = `
+      <div class="workout-timer-banner">
+        <div class="workout-timer-info">
+          <div class="workout-timer-text">
+            <div class="workout-timer-title">Not training right now</div>
+            <div class="workout-timer-body">Starts automatically the moment you use "Copy last exercises" or log your first set of the day — or start it yourself here.</div>
+          </div>
+        </div>
+        <button type="button" class="secondary" onclick="startWorkoutSessionAction()">Start training →</button>
+      </div>
+    `;
+  }
+}
+function startWorkoutSessionAction(){
+  startWorkoutSession();
+  showToast("Training started");
+  renderWorkoutTimerWidget();
+}
+window.startWorkoutSessionAction = startWorkoutSessionAction;
+function stopWorkoutSessionAction(){
+  const completed = stopWorkoutSession();
+  if(completed){
+    showToast(`Training stopped — ${completed.durationMin} min (${formatClockTime(completed.startTime)}–${formatClockTime(completed.endTime)})`);
+  }
+  renderWorkoutTimerWidget();
+  renderWorkoutsView(); // refresh the Day workout log summary in case it's showing the session's date
+}
+window.stopWorkoutSessionAction = stopWorkoutSessionAction;
+
 function renderWorkoutsView(){
+  renderWorkoutTimerWidget();
   const dateInput = document.getElementById("workoutDate");
   if(dateInput && !dateInput.value) dateInput.value = todayStr();
   refreshDateDayLabel("workoutDate");
