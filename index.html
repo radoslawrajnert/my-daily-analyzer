@@ -21,6 +21,12 @@
     --shadow-glow:0 6px 18px rgba(124,156,255,.28);
   }
   *{box-sizing:border-box;}
+  /* iOS Safari runs a "text inflation" algorithm that can boost font sizes above what the CSS
+     actually specifies, purely based on column width heuristics -- this is the classic reason a
+     page's fonts look noticeably bigger on an iPhone than the same CSS renders on desktop or in
+     any other browser/emulator (including this app's own dev tools), with no visible layout bug
+     to point to. Disabling it keeps every element at exactly the size this stylesheet sets. */
+  html{-webkit-text-size-adjust:100%; text-size-adjust:100%;}
   body{
     margin:0; font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     background:
@@ -939,7 +945,7 @@
           </div>
           <div class="step-desc hidden" id="workoutCardioHint" style="margin-top:-6px;">Fill in Distance + Speed to auto-calculate Duration/Calories (jogging, treadmill), or just Duration for a MET-based pick like Swimming.</div>
           <div class="nav" style="justify-content:flex-end;">
-            <button type="button" class="secondary" id="copyLastExercisesBtn" title="Pick a Split above first, then click to pull in every exercise/set/rep/weight from the last time you logged that split">Copy last exercises →</button>
+            <button type="button" class="secondary" id="copyLastExercisesBtn" title="Pick a Split above first, then click to add every exercise from that split's own list, each filled in with your last sets/reps/weight for it -- or marked tbd if you've never logged it before">Copy last exercises →</button>
             <button type="button" class="secondary hidden" id="workoutCancelBtn">Cancel edit</button>
             <button type="submit" id="workoutSubmitBtn">Add set →</button>
           </div>
@@ -2194,6 +2200,7 @@ function enterApp(email, forceMigration){
   // It runs exactly once per account, full stop.
   applyPresetAdjustmentsV2();
   seedDefaultSplitExercisePatterns();
+  seedLowerADefaultExercisesOnce();
   localStorage.setItem(SESSION_KEY, email);
   localStorage.setItem("bodyAnalyzer.lastEmail.v1", email);
   document.getElementById("loginWrap").classList.add("hidden");
@@ -4835,6 +4842,13 @@ document.getElementById("foodForm").addEventListener("submit", (e)=>{
   // log itself (see computePackageUsage), so this new entry is picked up automatically.
 
   e.target.reset();
+  // Keep whichever Meal was just used rather than snapping back to the time-of-day default (or
+  // the select's first option) -- logging several items in a row for the same meal (e.g. Dinner)
+  // should offer that same meal again next, not make you re-pick it every time. Also mark the
+  // time-of-day auto-default as already applied so renderFoodView() below doesn't immediately
+  // override this with defaultMealByTime() again.
+  document.getElementById("foodMeal").value = meal;
+  foodMealDefaulted = true;
   selectedFoodIndex = null;
   selectedPackageId = null;
   populateFoodUnitOptions(true);
@@ -5947,6 +5961,7 @@ const COMMON_EXERCISES = [
   {name:"Romanian Deadlift", category:"Legs"},
   {name:"Walking Lunge", category:"Legs"},
   {name:"Calf Raise", category:"Legs"},
+  {name:"Hip Thrust", category:"Legs"},
   {name:"Bench Press", category:"Chest"},
   {name:"Barbell Bench Press", category:"Chest"},
   {name:"Dumbbell Bench Press", category:"Chest"},
@@ -6043,6 +6058,20 @@ function effWeightKgForWorkout(){
 // presets/log entries that reference a default split's id keep resolving correctly right up
 // until the person actually customizes and saves their own list.
 const WORKOUT_SPLIT_COLOR_PALETTE = ["#4ee1a3","#7c9cff","#ffb454","#ff6b6b","#c792ea","#5ec8d8","#f2789f","#a3d977"];
+// The exact ordered pattern requested for Lower A -- also reused by seedDefaultSplitExercisePatterns
+// below, and by the one-time seedLowerADefaultExercisesOnce() retrofit further down for accounts
+// (like the real one this was written for) whose Lower A split already existed with an empty
+// pattern before this exact list was requested.
+const LOWER_A_DEFAULT_EXERCISES = [
+  {category:"Legs", name:"Squat"},
+  {category:"Legs", name:"Romanian Deadlift"},
+  {category:"Legs", name:"Leg Press"},
+  {category:"Legs", name:"Hip Thrust"},
+  {category:"Legs", name:"Walking Lunge"},
+  {category:"Legs", name:"Leg Extension"},
+  {category:"Legs", name:"Leg Curl"},
+  {category:"Legs", name:"Calf Raise"},
+];
 // The exact ordered pattern requested for Upper B -- also reused by seedDefaultSplitExercisePatterns
 // below to retrofit it onto anyone's already-existing Upper B split that predates this feature.
 const UPPER_B_DEFAULT_EXERCISES = [
@@ -6062,7 +6091,7 @@ const CARDIO_SPLIT_DEFAULT_EXERCISES = [{category:"Cardio", name:"Jogging"}];
 
 function getDefaultWorkoutSplits(){
   return [
-    {id:"split-lower-a", name:"Lower A", emoji:"🦵", goal:"Legs + glutes", color:"#4ee1a3", exercises:[]},
+    {id:"split-lower-a", name:"Lower A", emoji:"🦵", goal:"Legs + glutes", color:"#4ee1a3", exercises: LOWER_A_DEFAULT_EXERCISES.slice()},
     {id:"split-upper-a", name:"Upper A", emoji:"💪", goal:"Chest + back + shoulders + arms", color:"#7c9cff", exercises:[]},
     {id:"split-lower-b", name:"Lower B", emoji:"🦵", goal:"Legs + glutes + core", color:"#ffb454", exercises:[]},
     {id:"split-upper-b", name:"Upper B", emoji:"💪", goal:"Back + chest + shoulders + arms", color:"#ff6b6b", exercises: UPPER_B_DEFAULT_EXERCISES.slice()},
@@ -6299,6 +6328,7 @@ function seedDefaultSplitExercisePatterns(force){
   const arr = getWorkoutSplits();
   let changed = false;
   [
+    {match: s=> s.id === "split-lower-a" || s.name.trim().toLowerCase() === "lower a", exercises: LOWER_A_DEFAULT_EXERCISES},
     {match: s=> s.id === "split-upper-b" || s.name.trim().toLowerCase() === "upper b", exercises: UPPER_B_DEFAULT_EXERCISES},
     {match: s=> s.id === "split-cardio" || s.name.trim().toLowerCase() === "cardio", exercises: CARDIO_SPLIT_DEFAULT_EXERCISES},
   ].forEach(({match, exercises})=>{
@@ -6313,6 +6343,32 @@ function seedDefaultSplitExercisePatterns(force){
   const usersAfter = getUsers();
   if(usersAfter[currentUserEmail]){
     usersAfter[currentUserEmail].defaultSplitPatternsSeeded = true;
+    saveUsers(usersAfter);
+  }
+}
+
+// One-time-only retrofit for the specific case of an account whose Lower A split was created
+// (by hand, in the UI) before the exact 8-exercise pattern below was decided on, so
+// seedDefaultSplitExercisePatterns already ran once and marked itself done without ever having
+// this pattern to seed. Exactly the same safety contract as that function: only fills in Lower A
+// if its exercises array is currently empty, so it can never overwrite or resurrect anything
+// already there -- including if Lower A itself gets emptied out again later on purpose. Guarded by
+// its own flag so, like the others, it only ever runs once per account.
+function seedLowerADefaultExercisesOnce(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u || u.lowerADefaultExercisesSeeded) return;
+
+  const arr = getWorkoutSplits();
+  const idx = arr.findIndex(s=> s.id === "split-lower-a" || s.name.trim().toLowerCase() === "lower a");
+  if(idx >= 0 && (!Array.isArray(arr[idx].exercises) || !arr[idx].exercises.length)){
+    arr[idx] = Object.assign({}, arr[idx], {exercises: LOWER_A_DEFAULT_EXERCISES.map(x=>Object.assign({}, x))});
+    saveWorkoutSplitsArr(arr);
+  }
+
+  const usersAfter = getUsers();
+  if(usersAfter[currentUserEmail]){
+    usersAfter[currentUserEmail].lowerADefaultExercisesSeeded = true;
     saveUsers(usersAfter);
   }
 }
@@ -6444,11 +6500,13 @@ function workoutEntryRepsForOneRm(e){
 }
 
 function workoutEntryRepsLabel(e){
+  if(e.pending) return "tbd";
   if(Array.isArray(e.repsList) && e.repsList.length) return `${e.repsList.length} × (${e.repsList.join(",")})`;
   return `${e.sets} × ${e.reps}`;
 }
 
 function workoutEntryWeightLabel(e){
+  if(e.pending) return "tbd";
   if(Array.isArray(e.weightKgList) && e.weightKgList.length) return `@ ${e.weightKgList.join("/")} kg`;
   if(Array.isArray(e.weightLevelList) && e.weightLevelList.length) return `@ Level ${e.weightLevelList.join("/")}`;
   if(e.weightKg != null) return `@ ${e.weightKg} kg`;
@@ -6484,6 +6542,7 @@ function workoutEntryIsCardio(e){
   return !!e.isCardio;
 }
 function workoutCardioDurationLabel(e){
+  if(e.pending) return "tbd";
   if(e.durationMin == null) return "—";
   return e.distanceKm != null ? `${e.distanceKm}km in ${e.durationMin} min` : `${e.durationMin} min`;
 }
@@ -6846,30 +6905,65 @@ document.getElementById("workoutCancelBtn").addEventListener("click", ()=>{
   renderWorkoutsView();
 });
 
-// Duplicates every entry from the last day this exact split was logged into whichever date the
-// Workout Log is currently showing -- same "find the last real day, not necessarily yesterday"
-// logic as Nutrition Log's "Copy yesterday's log", except scoped to one split so a Cardio session
-// logged the same day as Upper B doesn't get pulled in too. Uses the Split field's current
-// selection rather than a separate picker -- you'd already pick it before logging anyway.
+// Finds the most recent time this exact exercise (by name, same identity Workout stats uses --
+// case/whitespace-insensitive, regardless of which split or date it was logged under) was actually
+// logged with real numbers -- "pending" placeholder rows (see below) are skipped since they carry
+// no real data to copy. Returns null if it's genuinely never been logged before targetDate.
+function findLastLoggedExercise(exerciseName, beforeDate){
+  const key = exerciseName.trim().toLowerCase();
+  return getAllWorkoutEntries().find(e => !e.pending && e.date < beforeDate && e.exercise.trim().toLowerCase() === key) || null;
+}
+
+// Always builds the row list straight from the split's own defined, ordered exercise pattern (see
+// "My splits" below) -- not whatever happened to get logged the last time you did this split, which
+// might have skipped or ad-libbed something and so drifted from what the split actually says today.
+// For each exercise in that pattern, the most recent time you logged that exact exercise (anywhere)
+// supplies its sets/reps/weight (or distance/duration for Cardio); one you've never logged before is
+// added as a "pending" placeholder instead -- rendered as "tbd" everywhere (see
+// workoutEntryRepsLabel/WeightLabel/workoutCardioDurationLabel) -- ready to Edit with real numbers
+// once you've actually done it. Uses the Split field's current selection rather than a separate
+// picker -- you'd already pick it before logging anyway.
 document.getElementById("copyLastExercisesBtn").addEventListener("click", ()=>{
   const splitId = document.getElementById("workoutSplitSelect").value;
   if(!splitId){ showToast("Pick a Split above first, then Copy last exercises"); return; }
   const split = getWorkoutSplits().find(s=>s.id===splitId);
+  if(!split || !Array.isArray(split.exercises) || !split.exercises.length){
+    showToast(`${split ? split.name : "This split"} has no exercise list defined yet — add one in "My splits" below first`);
+    return;
+  }
   const targetDate = document.getElementById("workoutDate").value.trim() || todayStr();
   const log = getWorkoutLog();
-  const sourceDate = Object.keys(log)
-    .filter(d => d < targetDate && log[d] && log[d].some(en=>en.splitId===splitId))
-    .sort()
-    .pop();
-  if(!sourceDate){ showToast(`No previous ${split ? split.name : "matching"} session to copy`); return; }
-  const sourceEntries = log[sourceDate].filter(en=>en.splitId===splitId);
   if(!log[targetDate]) log[targetDate] = [];
-  sourceEntries.forEach(entry=>{
-    log[targetDate].push(Object.assign({}, entry, {id: genWorkoutId()}));
+  const splitName = `${split.emoji ? split.emoji+" " : ""}${split.name}`;
+  let filledCount = 0, pendingCount = 0;
+  split.exercises.forEach(ex=>{
+    const isCardio = ex.category === "Cardio";
+    const last = findLastLoggedExercise(ex.name, targetDate);
+    if(last){
+      filledCount++;
+      log[targetDate].push({
+        id: genWorkoutId(), splitId: split.id, splitName, category: ex.category, exercise: ex.name, isCardio,
+        sets: last.sets, reps: last.reps, repsList: last.repsList, weightKg: last.weightKg, weightLevel: last.weightLevel,
+        weightKgList: last.weightKgList, weightLevelList: last.weightLevelList,
+        distanceKm: last.distanceKm, speedKmh: last.speedKmh, durationMin: last.durationMin, cardioKcal: last.cardioKcal,
+      });
+    } else {
+      pendingCount++;
+      log[targetDate].push({
+        id: genWorkoutId(), splitId: split.id, splitName, category: ex.category, exercise: ex.name,
+        isCardio, pending: true,
+        sets: null, reps: null, repsList: null, weightKg: null, weightLevel: null,
+        weightKgList: null, weightLevelList: null,
+        distanceKm: null, speedKmh: null, durationMin: null, cardioKcal: null,
+      });
+    }
   });
   saveWorkoutLogObj(log);
-  const n = sourceEntries.length;
-  showToast(`Copied ${n} exercise${n===1?"":"s"} from ${formatShortDate(sourceDate)}`);
+  const total = split.exercises.length;
+  const msg = pendingCount
+    ? `Added all ${total} ${split.name} exercises — ${filledCount} filled in from your last time, ${pendingCount} marked tbd (never logged before)`
+    : `Added all ${total} ${split.name} exercises, filled in from your last time on each`;
+  showToast(msg);
   renderWorkoutsView();
 });
 
@@ -7028,7 +7122,10 @@ function renderWorkoutTable(entries, date){
 // across every set logged for that exercise), how many sessions, and when it was last done --
 // gives an at-a-glance answer to "am I actually progressing on this lift".
 function computeWorkoutStats(){
-  const all = getAllWorkoutEntries().filter(e=>!workoutEntryIsCardio(e));
+  // A "pending" entry (the Copy last exercises checklist fallback) hasn't actually been done yet --
+  // sets/reps/weight are literally "tbd" -- so it must never count as a real session, PR, or
+  // "last done" date until it's been edited with real numbers.
+  const all = getAllWorkoutEntries().filter(e=>!workoutEntryIsCardio(e) && !e.pending);
   const byExercise = new Map();
   all.forEach(e=>{
     const key = e.exercise.trim().toLowerCase();
@@ -7375,8 +7472,10 @@ function buildWorkoutCsv(){
   const headers = ["Date","Split","Category","Exercise","Sets","Reps","Weight","Weight type","Volume (kg)","Distance (km)","Duration (min)","Calories (kcal)"];
   const rows = all.map(e=>{
     if(workoutEntryIsCardio(e)){
+      if(e.pending) return [e.date, e.splitName || "", e.category||"", e.exercise, "", "", "", "", "", "tbd", "tbd", ""];
       return [e.date, e.splitName || "", e.category||"", e.exercise, "", "", "", "", "", e.distanceKm!=null?e.distanceKm:"", e.durationMin!=null?e.durationMin:"", e.cardioKcal!=null?Math.round(e.cardioKcal):""];
     }
+    if(e.pending) return [e.date, e.splitName || "", e.category||"", e.exercise, "tbd", "tbd", "tbd", "", "", "", "", ""];
     const repsDisplay = Array.isArray(e.repsList) && e.repsList.length ? e.repsList.join(",") : e.reps;
     const weightValue = Array.isArray(e.weightKgList) && e.weightKgList.length ? e.weightKgList.join(",")
       : Array.isArray(e.weightLevelList) && e.weightLevelList.length ? e.weightLevelList.join(",")
@@ -7420,8 +7519,11 @@ function buildWorkoutHeatmap(weeksCount){
       const entries = log[dateStr] || [];
       // A day can carry more than one badge -- e.g. a Cardio session AND an Upper B session
       // logged the same day both show up, rather than only whichever entry happened to be first.
+      // A "pending" entry (Copy last exercises' checklist fallback, see the click handler above)
+      // is a to-do, not a completed set -- weight/reps are literally "tbd" -- so it must never
+      // light up the split's badge here until it's actually been edited with real numbers.
       const seenSplitIds = [];
-      entries.forEach(e=>{ if(e.splitId && !seenSplitIds.includes(e.splitId)) seenSplitIds.push(e.splitId); });
+      entries.forEach(e=>{ if(e.splitId && !e.pending && !seenSplitIds.includes(e.splitId)) seenSplitIds.push(e.splitId); });
       const badges = seenSplitIds.map(id=>{
         const split = splitsById.get(id);
         return split
@@ -9937,7 +10039,10 @@ function buildCoachExport(userNotes, attachments, skipped){
     let workoutDays=0, workoutSetCount=0, cardioSessions=0, cardioMinutes=0, cardioKcalTotal=0;
     const exercisesLast90 = new Set();
     last90.forEach(d=>{
-      const entries = workoutLog[d] || [];
+      // "pending" checklist rows (Copy last exercises with no prior session -- sets/reps/weight
+      // literally "tbd") haven't actually been done yet, so they're excluded here too -- otherwise
+      // the Coach would be told about a workout day/exercise/session that never really happened.
+      const entries = (workoutLog[d] || []).filter(e=>!e.pending);
       if(entries.length) workoutDays++;
       entries.forEach(e=>{
         exercisesLast90.add(e.exercise);
