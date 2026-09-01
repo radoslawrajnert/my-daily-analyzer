@@ -362,6 +362,11 @@
   @keyframes workoutTimerPulse{0%,100%{opacity:1;} 50%{opacity:.3;}}
   .week-medal-icon{display:inline-flex; color:var(--warn); filter:drop-shadow(0 0 4px rgba(240,184,84,.45));}
 
+  .workout-rest-banner{background:rgba(241,107,131,.1); border:1px solid rgba(241,107,131,.4); border-radius:var(--radius); padding:14px 18px; margin-bottom:18px;}
+  .workout-rest-banner-title{font-weight:700; font-size:.92rem; color:var(--danger); margin-bottom:3px;}
+  .workout-rest-banner-body{font-size:.82rem; color:var(--text); line-height:1.45;}
+  .workout-rest-chip{display:inline-block; padding:3px 9px; border-radius:10px; font-size:.7rem; font-weight:700; white-space:nowrap; background:rgba(241,107,131,.15); color:var(--danger); border:1px solid rgba(241,107,131,.5);}
+
   .photo-timeline{display:flex; gap:14px; overflow-x:auto; padding:4px 2px 10px;}
   .photo-timeline-item{flex:0 0 auto; text-align:center; cursor:pointer; background:none; border:none; padding:0; font:inherit; color:inherit;}
   .photo-timeline-thumb{width:78px; height:104px; object-fit:cover; border-radius:var(--radius-sm); border:1px solid var(--border); display:block; transition:border-color .15s, transform .15s;}
@@ -900,6 +905,7 @@
     </div>
 
     <div id="workoutView" class="hidden">
+      <div id="workoutRestBannerWrap"></div>
       <div id="workoutTimerWrap"></div>
       <div class="card">
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
@@ -1009,6 +1015,11 @@
                   <option value="Full Body">Full Body</option>
                   <option value="Cardio">Cardio</option>
                   <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="field"><label>Quick pick</label>
+                <select id="workoutSplitExerciseQuickPick">
+                  <option value="">— custom / type your own —</option>
                 </select>
               </div>
               <div class="field" style="flex:2;"><label>Exercise</label><input type="text" id="workoutSplitExerciseName" placeholder="e.g. Bench Press"></div>
@@ -1383,6 +1394,23 @@
           <button type="button" class="secondary" id="foodEditCancelBtn">Cancel</button>
           <button type="submit" id="foodEditSaveBtn">Save →</button>
         </span>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="workoutSessionEditOverlay">
+  <div class="modal-box" style="max-width:420px;">
+    <h3><span>Edit strength training time</span><button type="button" class="close-x" id="workoutSessionEditCloseBtn">✕</button></h3>
+    <div class="step-desc" style="margin-top:0;">Fix the start/end time if the stopwatch under- or over-counted, or forgot to stop. This is just for strength training — cardio's time is calculated automatically from its own entries and doesn't need editing here.</div>
+    <form id="workoutSessionEditForm" autocomplete="off">
+      <div class="row-inline">
+        <div class="field"><label>Start time</label><input type="time" id="workoutSessionEditStart" required></div>
+        <div class="field"><label>End time</label><input type="time" id="workoutSessionEditEnd" required></div>
+      </div>
+      <div class="nav" style="justify-content:flex-end;">
+        <button type="button" class="secondary" id="workoutSessionEditCancelBtn">Cancel</button>
+        <button type="submit">Save →</button>
       </div>
     </form>
   </div>
@@ -2214,6 +2242,7 @@ function enterApp(email, forceMigration){
   applyPresetAdjustmentsV2();
   seedDefaultSplitExercisePatterns();
   seedLowerADefaultExercisesOnce();
+  seedLowerBDefaultExercisesOnce();
   localStorage.setItem(SESSION_KEY, email);
   localStorage.setItem("bodyAnalyzer.lastEmail.v1", email);
   document.getElementById("loginWrap").classList.add("hidden");
@@ -6085,6 +6114,20 @@ const LOWER_A_DEFAULT_EXERCISES = [
   {category:"Legs", name:"Leg Curl"},
   {category:"Legs", name:"Calf Raise"},
 ];
+// The exact ordered pattern requested for Lower B -- same treatment as Lower A above: reused by
+// seedDefaultSplitExercisePatterns below, and by the one-time seedLowerBDefaultExercisesOnce()
+// retrofit further down for the account whose Lower B split already existed (empty) before this
+// exact list was requested.
+const LOWER_B_DEFAULT_EXERCISES = [
+  {category:"Legs", name:"Leg Press"},
+  {category:"Legs", name:"Romanian Deadlift"},
+  {category:"Legs", name:"Walking Lunge"},
+  {category:"Legs", name:"Hip Thrust"},
+  {category:"Legs", name:"Leg Curl"},
+  {category:"Legs", name:"Calf Raise"},
+  {category:"Core", name:"Hanging Leg Raise"},
+  {category:"Core", name:"Cable Crunch"},
+];
 // The exact ordered pattern requested for Upper B -- also reused by seedDefaultSplitExercisePatterns
 // below to retrofit it onto anyone's already-existing Upper B split that predates this feature.
 const UPPER_B_DEFAULT_EXERCISES = [
@@ -6106,7 +6149,7 @@ function getDefaultWorkoutSplits(){
   return [
     {id:"split-lower-a", name:"Lower A", emoji:"🦵", goal:"Legs + glutes", color:"#4ee1a3", exercises: LOWER_A_DEFAULT_EXERCISES.slice()},
     {id:"split-upper-a", name:"Upper A", emoji:"💪", goal:"Chest + back + shoulders + arms", color:"#7c9cff", exercises:[]},
-    {id:"split-lower-b", name:"Lower B", emoji:"🦵", goal:"Legs + glutes + core", color:"#ffb454", exercises:[]},
+    {id:"split-lower-b", name:"Lower B", emoji:"🦵", goal:"Legs + glutes + core", color:"#ffb454", exercises: LOWER_B_DEFAULT_EXERCISES.slice()},
     {id:"split-upper-b", name:"Upper B", emoji:"💪", goal:"Back + chest + shoulders + arms", color:"#ff6b6b", exercises: UPPER_B_DEFAULT_EXERCISES.slice()},
     {id:"split-cardio", name:"Cardio", emoji:"🏃", goal:"Jogging, treadmill, swimming — conditioning", color:"#5ec8d8", exercises: CARDIO_SPLIT_DEFAULT_EXERCISES.slice()},
   ];
@@ -6150,6 +6193,34 @@ function saveWorkoutLogObj(obj){
 function getWorkoutEntriesForDate(date){
   const log = getWorkoutLog();
   return log[date] ? log[date].slice() : [];
+}
+
+// --- Rest-day nudge -- an intentional guardrail against overtraining, not a schedule feature.
+// Three CONSECUTIVE calendar days with any real (non-pending) strength set logged, regardless of
+// which split, is treated as the point where another rest day is due; the day right after gets
+// flagged. Cardio never counts toward the streak and is never restricted -- physiologically a
+// different kind of stress on the body, and this is about protecting recovery, not discouraging
+// activity altogether. ---
+function isStrengthTrainedDate(date){
+  return getWorkoutEntriesForDate(date).some(e => !workoutEntryIsCardio(e) && !e.pending);
+}
+// Consecutive strength-trained days counting backward from (and including) endDate, stopping at
+// the first day with no strength set logged.
+function strengthTrainingStreakEndingOn(endDate){
+  let streak = 0;
+  let d = endDate;
+  while(isStrengthTrainedDate(d)){
+    streak++;
+    d = shiftDateStr(d, -1);
+  }
+  return streak;
+}
+// True once the 3 days immediately before `date` were ALL strength-trained -- i.e. `date` itself
+// is the recommended rest day. Works for a future date too (e.g. "tomorrow"), so the heatmap and
+// the Workout Log banner can flag a rest day before it even arrives, the moment the 3rd
+// consecutive day gets logged.
+function shouldRestFromStrength(date){
+  return strengthTrainingStreakEndingOn(shiftDateStr(date, -1)) >= 3;
 }
 
 // --- Workout session timer -- tracks how long an actual gym session ran, independent of whichever
@@ -6408,6 +6479,7 @@ function seedDefaultSplitExercisePatterns(force){
   let changed = false;
   [
     {match: s=> s.id === "split-lower-a" || s.name.trim().toLowerCase() === "lower a", exercises: LOWER_A_DEFAULT_EXERCISES},
+    {match: s=> s.id === "split-lower-b" || s.name.trim().toLowerCase() === "lower b", exercises: LOWER_B_DEFAULT_EXERCISES},
     {match: s=> s.id === "split-upper-b" || s.name.trim().toLowerCase() === "upper b", exercises: UPPER_B_DEFAULT_EXERCISES},
     {match: s=> s.id === "split-cardio" || s.name.trim().toLowerCase() === "cardio", exercises: CARDIO_SPLIT_DEFAULT_EXERCISES},
   ].forEach(({match, exercises})=>{
@@ -6448,6 +6520,28 @@ function seedLowerADefaultExercisesOnce(){
   const usersAfter = getUsers();
   if(usersAfter[currentUserEmail]){
     usersAfter[currentUserEmail].lowerADefaultExercisesSeeded = true;
+    saveUsers(usersAfter);
+  }
+}
+
+// Same one-time-only retrofit, for Lower B's requested 8-exercise pattern -- same safety contract
+// as seedLowerADefaultExercisesOnce: only fills in Lower B if its exercises array is currently
+// empty, and only ever runs once per account.
+function seedLowerBDefaultExercisesOnce(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u || u.lowerBDefaultExercisesSeeded) return;
+
+  const arr = getWorkoutSplits();
+  const idx = arr.findIndex(s=> s.id === "split-lower-b" || s.name.trim().toLowerCase() === "lower b");
+  if(idx >= 0 && (!Array.isArray(arr[idx].exercises) || !arr[idx].exercises.length)){
+    arr[idx] = Object.assign({}, arr[idx], {exercises: LOWER_B_DEFAULT_EXERCISES.map(x=>Object.assign({}, x))});
+    saveWorkoutSplitsArr(arr);
+  }
+
+  const usersAfter = getUsers();
+  if(usersAfter[currentUserEmail]){
+    usersAfter[currentUserEmail].lowerBDefaultExercisesSeeded = true;
     saveUsers(usersAfter);
   }
 }
@@ -7057,6 +7151,24 @@ document.getElementById("workoutForm").addEventListener("submit", (e)=>{
   if(!exercise) return;
   const isCardio = workoutFormIsCardioMode();
 
+  // Rest-day nudge: logging a fresh non-cardio set on a day that's due for strength rest requires
+  // an explicit confirmation first. "Fresh" specifically means a brand-new entry, or finalizing a
+  // pending/"tbd" placeholder with real numbers -- both represent actually training that day.
+  // Correcting a number on an already-real (non-pending) past entry is exempt, since that's a data
+  // fix, not new training volume.
+  if(!isCardio){
+    const alreadyEditing = !!editingWorkoutId;
+    const originalEntry = alreadyEditing ? (getWorkoutLog()[editingWorkoutDate] || []).find(en=>en.id===editingWorkoutId) : null;
+    const isNewTrainingActivity = !alreadyEditing || (originalEntry && originalEntry.pending);
+    if(isNewTrainingActivity && shouldRestFromStrength(date)){
+      const streak = strengthTrainingStreakEndingOn(shiftDateStr(date, -1));
+      const proceed = (typeof confirm === "function")
+        ? confirm(`You've trained ${streak} days in a row — today is a recommended rest day for strength training. Cardio is fine, but log this strength set anyway?`)
+        : true;
+      if(!proceed) return;
+    }
+  }
+
   let sets = null, reps = null, repsList = null, weightKg = null, weightLevel = null;
   let weightKgList = null, weightLevelList = null;
   let distanceKm = null, speedKmh = null, durationMin = null, cardioKcal = null;
@@ -7143,31 +7255,112 @@ document.getElementById("workoutForm").addEventListener("submit", (e)=>{
   showToast(wasEditing ? "Set updated" : "Set added");
 });
 
+// Sums a cardio-only day's ACTUAL entered numbers (duration/distance/kcal) rather than anything
+// derived from the manual session stopwatch -- the stopwatch just tracks wall-clock time the
+// screen was open with a session running, which can easily undercount (e.g. you start it, then
+// log a run's real 45-minute duration/distance from memory afterward instead of literally
+// standing there watching the clock). This is the source of truth for "how much cardio did I
+// actually do today," always computed straight from what was typed into each cardio entry.
+function workoutCardioTotalsForEntries(entries){
+  const cardioEntries = entries.filter(workoutEntryIsCardio);
+  return {
+    minutes: cardioEntries.reduce((sum,e)=> sum + (e.durationMin||0), 0),
+    km: cardioEntries.reduce((sum,e)=> sum + (e.distanceKm||0), 0),
+    kcal: cardioEntries.reduce((sum,e)=> sum + (e.cardioKcal||0), 0),
+  };
+}
+
 function renderWorkoutSummary(entries, date){
   const wrap = document.getElementById("workoutSummaryWrap");
-  // A stopped session for this date shows as "Trained HH:MM–HH:MM (NN min)" -- whether or not any
-  // sets ended up logged that day, since the session timer and the exercise log are tracked
-  // independently (you might stop the clock, then log everything from memory a minute later).
+  // Two separate times, deliberately never blended together:
+  // - "Trained (strength)" is the manual Start/Stop stopwatch -- there's no other way to know how
+  //   long you spent lifting, so it stays editable (see openWorkoutSessionEditModal below).
+  // - "Cardio" is always calculated automatically straight from cardioTotals.minutes -- whatever
+  //   duration you entered on the cardio form itself -- and never needs a timer or manual edit.
   const session = getWorkoutSessions()[date];
+  const cardioTotals = workoutCardioTotalsForEntries(entries);
   const sessionNote = session
-    ? `<div class="goal-progress-note">Trained ${formatClockTime(session.startTime)}–${formatClockTime(session.endTime)} (${session.durationMin} min)</div>`
+    ? `<div class="goal-progress-note">Trained (strength) ${formatClockTime(session.startTime)}–${formatClockTime(session.endTime)} (${session.durationMin} min) <a href="#" onclick="openWorkoutSessionEditModal('${date}'); return false;" style="margin-left:6px;">Edit</a></div>`
+    : (entries.length > 0
+        ? `<div class="goal-progress-note"><a href="#" onclick="openWorkoutSessionEditModal('${date}'); return false;">Log your strength training time →</a></div>`
+        : "");
+  const cardioTimeNote = cardioTotals.minutes > 0
+    ? `<div class="goal-progress-note">Cardio ${Math.round(cardioTotals.minutes)} min (calculated automatically from your cardio entries)</div>`
     : "";
   if(entries.length === 0){
     wrap.innerHTML = `<div class="empty-note">No sets logged for ${date} yet — add your first one above.</div>${sessionNote}`;
     return;
   }
-  const totalSets = entries.reduce((sum,e)=> sum + (e.sets||0), 0);
+  const totalSets = entries.reduce((sum,e)=> sum + (workoutEntryIsCardio(e) ? 0 : (e.sets||0)), 0);
   const totalVolume = entries.reduce((sum,e)=> sum + workoutEntryVolume(e), 0);
-  const totalCardioKcal = entries.reduce((sum,e)=> sum + (workoutEntryIsCardio(e) ? (e.cardioKcal||0) : 0), 0);
   const categories = [...new Set(entries.map(e=>e.category))];
+  const parts = [`${entries.length} exercise${entries.length===1?"":"s"}`];
+  if(totalSets > 0) parts.push(`${totalSets} sets total`);
+  if(totalVolume > 0) parts.push(`${Math.round(totalVolume).toLocaleString()} kg total volume`);
+  // Cardio's own distance/kcal numbers -- straight from what was entered for each cardio entry
+  // that day -- stay in this top line; the duration moved to its own dedicated line above (see
+  // cardioTimeNote) so it reads as a "time trained" figure, not just another tally item.
+  if(cardioTotals.km > 0) parts.push(`${cardioTotals.km.toLocaleString()} km`);
+  if(cardioTotals.kcal > 0) parts.push(`${Math.round(cardioTotals.kcal).toLocaleString()} kcal burned (cardio)`);
   wrap.innerHTML = `
     <div class="goal-progress-summary">
-      ${entries.length} exercise${entries.length===1?"":"s"} &nbsp;·&nbsp; ${totalSets} sets total ${totalVolume>0?`&nbsp;·&nbsp; ${Math.round(totalVolume).toLocaleString()} kg total volume`:""} ${totalCardioKcal>0?`&nbsp;·&nbsp; ${Math.round(totalCardioKcal).toLocaleString()} kcal burned (cardio)`:""}
+      ${parts.join(" &nbsp;·&nbsp; ")}
     </div>
     <div class="goal-progress-note">${categories.join(", ")}</div>
     ${sessionNote}
+    ${cardioTimeNote}
   `;
 }
+
+// --- Manual edit for a day's "Trained HH:MM–HH:MM" session -- for when the stopwatch under- or
+// over-counts (started it, then logged a cardio session's real duration from memory instead of
+// literally standing there watching the clock; or forgot to hit Stop). This is exclusively for the
+// STRENGTH side of training -- cardio's duration is never entered here, since it's always taken
+// straight from the cardio entries themselves (see workoutCardioTotalsForEntries/cardioTimeNote
+// above) and needs no manual timer or edit at all. Times are edited as plain HH:MM on the
+// session's own date; if the entered end time is earlier than start, it's treated as having
+// crossed midnight (end rolls to the next day) rather than rejected outright. ---
+let editingWorkoutSessionDate = null;
+function openWorkoutSessionEditModal(date){
+  editingWorkoutSessionDate = date;
+  const session = getWorkoutSessions()[date];
+  const startInput = document.getElementById("workoutSessionEditStart");
+  const endInput = document.getElementById("workoutSessionEditEnd");
+  startInput.value = session ? formatClockTime(session.startTime) : "18:00";
+  endInput.value = session ? formatClockTime(session.endTime) : "19:00";
+  document.getElementById("workoutSessionEditOverlay").classList.remove("hidden");
+}
+window.openWorkoutSessionEditModal = openWorkoutSessionEditModal;
+function closeWorkoutSessionEditModal(){
+  document.getElementById("workoutSessionEditOverlay").classList.add("hidden");
+  editingWorkoutSessionDate = null;
+}
+// Parses a plain HH:MM against the session's own calendar date -- local time, same convention as
+// the rest of the app's date handling (see the T00:00:00 pattern used throughout).
+function parseWorkoutSessionClockTime(date, hhmm){
+  const t = new Date(`${date}T${hhmm}:00`);
+  return t.getTime();
+}
+document.getElementById("workoutSessionEditCloseBtn").addEventListener("click", closeWorkoutSessionEditModal);
+document.getElementById("workoutSessionEditCancelBtn").addEventListener("click", closeWorkoutSessionEditModal);
+document.getElementById("workoutSessionEditForm").addEventListener("submit", (e)=>{
+  e.preventDefault();
+  const date = editingWorkoutSessionDate;
+  if(!date) return;
+  const startVal = document.getElementById("workoutSessionEditStart").value;
+  const endVal = document.getElementById("workoutSessionEditEnd").value;
+  if(!startVal || !endVal){ showToast("Enter both a start and end time"); return; }
+  const startMs = parseWorkoutSessionClockTime(date, startVal);
+  let endMs = parseWorkoutSessionClockTime(date, endVal);
+  if(endMs <= startMs) endMs += 24*60*60000; // crossed midnight
+  const durationMin = Math.max(0, Math.round((endMs - startMs) / 60000));
+  const sessions = getWorkoutSessions();
+  sessions[date] = {startTime: startMs, endTime: endMs, durationMin};
+  saveWorkoutSessionsObj(sessions);
+  closeWorkoutSessionEditModal();
+  renderWorkoutsView();
+  showToast(`Training time updated — ${durationMin} min`);
+});
 
 // Renders a split name as a pill in that split's own color -- the same color used for it in the
 // Weekly split tracker legend/heatmap, so a glance at either view maps to the same visual identity
@@ -7321,6 +7514,64 @@ function removeDraftSplitExercise(i){
 }
 window.removeDraftSplitExercise = removeDraftSplitExercise;
 
+// Same source lists as the Log-a-set Quick pick (standard exercises + your own saved presets),
+// filtered by the Category currently selected here -- so building a split's pattern draws from
+// the exact same names you'd pick from later when actually logging sets for it, rather than
+// requiring you to retype/remember exercise names from scratch.
+function populateWorkoutSplitExerciseQuickPick(category){
+  const sel = document.getElementById("workoutSplitExerciseQuickPick");
+  if(!sel) return;
+  const prevValue = sel.value;
+  let opts = `<option value="">— custom / type your own —</option>`;
+
+  const stdNames = new Set(COMMON_EXERCISES.map(ex=>ex.name.trim().toLowerCase()));
+  const presets = getWorkoutPresets().filter(p => {
+    if(stdNames.has(p.name.trim().toLowerCase())) return false;
+    return category ? p.category === category : true;
+  });
+  if(presets.length){
+    opts += `<optgroup label="My exercises">`;
+    presets.forEach(p=>{
+      opts += `<option value="preset:${p.id}">${p.name} (${p.category})</option>`;
+    });
+    opts += `</optgroup>`;
+  }
+
+  const stdExercises = category ? COMMON_EXERCISES.filter(ex=>ex.category===category) : COMMON_EXERCISES;
+  if(stdExercises.length){
+    opts += `<optgroup label="Standard exercises">`;
+    stdExercises.forEach(ex=>{
+      const i = COMMON_EXERCISES.indexOf(ex);
+      opts += `<option value="std:${i}">${ex.name} (${ex.category})</option>`;
+    });
+    opts += `</optgroup>`;
+  }
+  sel.innerHTML = opts;
+  if([...sel.options].some(o=>o.value===prevValue)) sel.value = prevValue;
+}
+
+document.getElementById("workoutSplitExerciseCategory").addEventListener("change", (e)=>{
+  populateWorkoutSplitExerciseQuickPick(e.target.value || "");
+  document.getElementById("workoutSplitExerciseQuickPick").value = "";
+});
+
+document.getElementById("workoutSplitExerciseQuickPick").addEventListener("change", (e)=>{
+  const val = e.target.value;
+  const nameInput = document.getElementById("workoutSplitExerciseName");
+  if(!val){ return; }
+  let picked = null;
+  if(val.startsWith("std:")) picked = COMMON_EXERCISES[parseInt(val.slice(4), 10)];
+  else if(val.startsWith("preset:")) picked = getWorkoutPresets().find(p=>p.id===val.slice(7));
+  if(picked){
+    nameInput.value = picked.name;
+    // The exercise's own category always wins over whatever's currently selected -- e.g. picking
+    // a Cardio exercise while Category still says "Legs" from the previous entry should correct
+    // it, not silently log the exercise under the wrong muscle group.
+    document.getElementById("workoutSplitExerciseCategory").value = picked.category;
+  }
+  nameInput.focus();
+});
+
 document.getElementById("addSplitExerciseBtn").addEventListener("click", ()=>{
   const category = document.getElementById("workoutSplitExerciseCategory").value || "Other";
   const nameInput = document.getElementById("workoutSplitExerciseName");
@@ -7329,6 +7580,7 @@ document.getElementById("addSplitExerciseBtn").addEventListener("click", ()=>{
   draftSplitExercises.push({category, name});
   nameInput.value = "";
   nameInput.focus();
+  document.getElementById("workoutSplitExerciseQuickPick").value = "";
   renderDraftSplitExerciseList();
 });
 
@@ -7639,7 +7891,16 @@ function buildWorkoutHeatmap(weeksCount){
       // based on which one you happened to log first, which reads as inconsistent at a glance.
       badges.sort((a,b)=> (a.id==="split-cardio"?1:0) - (b.id==="split-cardio"?1:0));
       if(entries.length) weekHasLog = true;
-      days.push({ date: dateStr, badges, future: dateStr > today });
+      // This is a forward-looking WARNING, not a historical record -- it must never stick around
+      // once it's moot. Two guards keep it to "just tomorrow" in practice: (1) never shown on a
+      // day that's already in the past (dateStr < today) -- that day already happened, there's
+      // nothing left to warn about; (2) never shown once the day itself already has a real
+      // strength entry -- whether that's because you trained through the warning (your call to
+      // make) or the day simply isn't due anymore. Without guard (2), every day after you overrode
+      // the warning would ALSO show it again (since it still followed 3 trained days), stacking the
+      // chip onto day after day of actual, already-logged training.
+      const restRecommended = dateStr >= today && !isStrengthTrainedDate(dateStr) && shouldRestFromStrength(dateStr);
+      days.push({ date: dateStr, badges, future: dateStr > today, restRecommended });
     }
     // The medal only counts against the CURRENT split roster (getWorkoutSplits(), captured in
     // splitsById above) -- so if a split gets renamed/removed, past weeks are judged by today's
@@ -7668,9 +7929,15 @@ function renderWorkoutHeatmap(){
   const medalIconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="8" r="6"></circle><path d="M9 14.5 7 22l5-3 5 3-2-7.5"></path></svg>`;
   const rows = weeks.map(week=>{
     const cells = week.days.map(d=>{
-      if(d.future) return `<td></td>`;
-      if(!d.badges.length) return `<td style="text-align:center; color:var(--border);">·</td>`;
-      const chips = d.badges.map(b=>`<span style="display:inline-block; padding:3px 9px; border-radius:10px; font-size:.72rem; font-weight:700; white-space:nowrap; background:${b.color}26; color:${b.color}; border:1px solid ${b.color}66;">${b.label}</span>`).join("");
+      // The rest-day chip is deliberately allowed to show even on a FUTURE date -- that's the
+      // whole point (see shouldRestFromStrength) -- so a future cell with a rest recommendation no
+      // longer stays blank the way a plain future cell otherwise would.
+      const restChip = d.restRecommended
+        ? `<span class="workout-rest-chip" title="Recommended rest day for strength -- 3 days in a row before this">🛑 Don't train</span>`
+        : "";
+      if(d.future) return restChip ? `<td style="text-align:center;">${restChip}</td>` : `<td></td>`;
+      if(!d.badges.length) return restChip ? `<td style="text-align:center;">${restChip}</td>` : `<td style="text-align:center; color:var(--border);">·</td>`;
+      const chips = d.badges.map(b=>`<span style="display:inline-block; padding:3px 9px; border-radius:10px; font-size:.72rem; font-weight:700; white-space:nowrap; background:${b.color}26; color:${b.color}; border:1px solid ${b.color}66;">${b.label}</span>`).join("") + restChip;
       return `<td style="text-align:center;" title="${d.date}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
     }).join("");
     // Weekly medal: lights up the moment every currently-defined split has been logged at least
@@ -7751,12 +8018,34 @@ function stopWorkoutSessionAction(){
 }
 window.stopWorkoutSessionAction = stopWorkoutSessionAction;
 
+// Shows the red rest-day banner on Workout Log for whichever date the form is currently pointed
+// at -- so it's visible whether you're looking at today or planning ahead to tomorrow, which is
+// exactly the "I could already see tomorrow's Don't train" scenario this was built for.
+function renderWorkoutRestBanner(date){
+  const wrap = document.getElementById("workoutRestBannerWrap");
+  if(!wrap) return;
+  // Same guards as the heatmap chip (see buildWorkoutHeatmap): never show for a date that's
+  // already in the past, and never once the date itself already has a real strength entry --
+  // whether that's because the warning got overridden or the day just isn't due anymore. Without
+  // this, browsing back to an already-trained day, or one you trained through the warning on,
+  // would keep showing "don't train" for something that already happened.
+  if(date < todayStr() || isStrengthTrainedDate(date) || !shouldRestFromStrength(date)){ wrap.innerHTML = ""; return; }
+  const streak = strengthTrainingStreakEndingOn(shiftDateStr(date, -1));
+  wrap.innerHTML = `
+    <div class="workout-rest-banner">
+      <div class="workout-rest-banner-title">🛑 Don't train (strength) — ${date}</div>
+      <div class="workout-rest-banner-body">You've trained ${streak} days in a row. This is a recommended rest day for lifting so your muscles can recover — cardio is completely fine. Logging a strength set today will ask you to confirm first.</div>
+    </div>
+  `;
+}
+
 function renderWorkoutsView(){
   renderWorkoutTimerWidget();
   const dateInput = document.getElementById("workoutDate");
   if(dateInput && !dateInput.value) dateInput.value = todayStr();
   refreshDateDayLabel("workoutDate");
   const date = dateInput.value || todayStr();
+  renderWorkoutRestBanner(date);
   // No weekday schedule to auto-suggest from anymore -- populateWorkoutSplitSelect() already
   // preserves whatever was previously selected (same as every other field here), so Split just
   // stays blank / last-used until you pick one yourself.
@@ -7766,6 +8055,7 @@ function renderWorkoutsView(){
   populateWorkoutQuickPick(currentSplitId, document.getElementById("workoutCategory").value);
   applyWorkoutFormMode();
   populateWorkoutPresetSplitSelect();
+  populateWorkoutSplitExerciseQuickPick(document.getElementById("workoutSplitExerciseCategory").value || "");
   const entries = getWorkoutEntriesForDate(date);
   renderWorkoutSummary(entries, date);
   renderWorkoutTable(entries, date);
