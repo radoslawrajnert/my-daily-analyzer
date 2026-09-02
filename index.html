@@ -341,6 +341,10 @@
   .plateau-note-title{font-weight:700; font-size:.88rem; margin-bottom:3px; color:var(--text);}
   .plateau-note-body{font-size:.82rem; color:var(--muted); line-height:1.55;}
 
+  .overload-hint{background:rgba(78,225,163,.08); border:1px solid rgba(78,225,163,.25); border-radius:var(--radius-sm); padding:10px 14px; font-size:.82rem; color:var(--text); margin-top:-6px; margin-bottom:16px;}
+  .overload-hint b{color:var(--accent2);}
+  .lift-plateau-note{font-size:.72rem; color:var(--warn); margin-top:2px;}
+
   .streak-banner{display:flex; gap:12px; align-items:center; background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px; margin-bottom:16px;}
   .streak-banner.due{background:rgba(255,183,77,.08); border-color:rgba(255,183,77,.3);}
   .streak-banner.ok{background:rgba(76,201,141,.08); border-color:rgba(76,201,141,.28);}
@@ -365,7 +369,18 @@
   .workout-rest-banner{background:rgba(241,107,131,.1); border:1px solid rgba(241,107,131,.4); border-radius:var(--radius); padding:14px 18px; margin-bottom:18px;}
   .workout-rest-banner-title{font-weight:700; font-size:.92rem; color:var(--danger); margin-bottom:3px;}
   .workout-rest-banner-body{font-size:.82rem; color:var(--text); line-height:1.45;}
-  .workout-rest-chip{display:inline-block; padding:3px 9px; border-radius:10px; font-size:.7rem; font-weight:700; white-space:nowrap; background:rgba(241,107,131,.15); color:var(--danger); border:1px solid rgba(241,107,131,.5);}
+  /* Every heatmap cell chip -- split badges, the off-schedule fallback, and Don't-train -- now
+     shares this one class, so they're all the exact same size regardless of label length. */
+  .workout-chip{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:100px; height:27px; box-sizing:border-box; padding:0 8px;
+    border-radius:8px; font-size:.68rem; font-weight:700; letter-spacing:.01em;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    box-shadow:0 1px 4px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.05);
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .workout-chip:hover{ transform:translateY(-1px); box-shadow:0 3px 8px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06); }
+  .workout-rest-chip{ /* alias kept for the title/semantics -- all sizing/visuals now come from .workout-chip */ }
 
   .photo-timeline{display:flex; gap:14px; overflow-x:auto; padding:4px 2px 10px;}
   .photo-timeline-item{flex:0 0 auto; text-align:center; cursor:pointer; background:none; border:none; padding:0; font:inherit; color:inherit;}
@@ -621,6 +636,8 @@
       <button type="button" id="viewTabAiLog"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/><path d="M9 22h6"/></svg>AI Log</button>
       <button type="button" id="viewTabCoach"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 1 5 5v2a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5z"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>Coach</button>
     </div>
+
+    <div id="backupReminderWrap"></div>
 
     <div id="planView">
       <div class="progress" id="progress"></div>
@@ -963,6 +980,7 @@
             <div class="field"><label>Calories (kcal)</label><input type="number" id="workoutCardioKcal" min="0" max="3000" step="any" placeholder="auto or type your own"></div>
           </div>
           <div class="step-desc hidden" id="workoutCardioHint" style="margin-top:-6px;">Fill in Distance + Speed to auto-calculate Duration/Calories (jogging, treadmill), or just Duration for a MET-based pick like Swimming.</div>
+          <div id="workoutOverloadHintWrap"></div>
           <div class="nav" style="justify-content:flex-end;">
             <button type="button" class="secondary" id="copyLastExercisesBtn" title="Pick a Split above first, then click to add every exercise from that split's own list, each filled in with your last sets/reps/weight for it -- or marked tbd if you've never logged it before">Copy last exercises →</button>
             <button type="button" class="secondary hidden" id="workoutCancelBtn">Cancel edit</button>
@@ -984,6 +1002,9 @@
         <div class="nav" style="justify-content:flex-start; margin-top:10px;">
           <button type="button" class="secondary" id="exportWorkoutCsvBtn">Export CSV</button>
         </div>
+        <h3 style="margin:22px 0 4px; font-size:.95rem;">Weekly training volume by muscle group</h3>
+        <div class="step-desc" style="margin-top:0;">Total weight moved (sets × reps × kg) each week, stacked by category — a steadily shrinking or missing color over time usually means that muscle group is being neglected. Cardio isn't included (no comparable kg figure).</div>
+        <div id="workoutVolumeTrendWrap"></div>
         <h3 style="margin:22px 0 4px; font-size:.95rem;">Weekly split tracker</h3>
         <div class="step-desc" style="margin-top:0;">One row per week, Monday through Sunday — the day you logged a set lights up with the split you did, so you can see at a glance whether you actually hit Lower A, Upper A, etc. that week.</div>
         <div id="workoutHeatmapWrap"></div>
@@ -1405,8 +1426,8 @@
     <div class="step-desc" style="margin-top:0;">Fix the start/end time if the stopwatch under- or over-counted, or forgot to stop. This is just for strength training — cardio's time is calculated automatically from its own entries and doesn't need editing here.</div>
     <form id="workoutSessionEditForm" autocomplete="off">
       <div class="row-inline">
-        <div class="field"><label>Start time</label><input type="time" id="workoutSessionEditStart" required></div>
-        <div class="field"><label>End time</label><input type="time" id="workoutSessionEditEnd" required></div>
+        <div class="field"><label>Start time <span style="font-weight:400; color:var(--muted);">(24h)</span></label><input type="text" id="workoutSessionEditStart" placeholder="HH:MM" inputmode="numeric" maxlength="5" required></div>
+        <div class="field"><label>End time <span style="font-weight:400; color:var(--muted);">(24h)</span></label><input type="text" id="workoutSessionEditEnd" placeholder="HH:MM" inputmode="numeric" maxlength="5" required></div>
       </div>
       <div class="nav" style="justify-content:flex-end;">
         <button type="button" class="secondary" id="workoutSessionEditCancelBtn">Cancel</button>
@@ -2243,6 +2264,7 @@ function enterApp(email, forceMigration){
   seedDefaultSplitExercisePatterns();
   seedLowerADefaultExercisesOnce();
   seedLowerBDefaultExercisesOnce();
+  backfillFirstSeenAtOnce();
   localStorage.setItem(SESSION_KEY, email);
   localStorage.setItem("bodyAnalyzer.lastEmail.v1", email);
   document.getElementById("loginWrap").classList.add("hidden");
@@ -2257,6 +2279,20 @@ function enterApp(email, forceMigration){
   document.getElementById("progress").style.display = "flex";
   switchView("plan");
   renderStep();
+  renderBackupReminderBanner();
+}
+
+// Lazy, one-time backfill for accounts created before the backup-reminder feature existed --
+// baselines the reminder from "now" rather than retroactively treating a long-time account as
+// overdue the instant this ships. Only ever sets firstSeenAt if it's missing; never overwrites a
+// real one, and (unlike the seeding-style migrations above) has no separate "already ran" flag to
+// track since checking for a missing firstSeenAt is itself idempotent.
+function backfillFirstSeenAtOnce(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u || u.firstSeenAt) return;
+  u.firstSeenAt = Date.now();
+  saveUsers(users);
 }
 
 function initials(name){
@@ -2370,6 +2406,68 @@ function sanitizeForBackup(u){
   return clone;
 }
 
+// --- Backup safety net -- a periodic, dismissible reminder to export a fresh JSON backup, since
+// all data lives only in this browser's localStorage (and optionally Firebase, if configured) with
+// no automatic external copy otherwise. Baselines off the last successful export, or off
+// firstSeenAt (when this account was first created/seen) if it's never been exported at all --
+// never off "now", so it can't nag the moment this feature ships for an existing long-time
+// account. A "Remind me later" snooze holds it off for a shorter while without requiring an export.
+const BACKUP_REMINDER_INTERVAL_DAYS = 30;
+const BACKUP_REMINDER_SNOOZE_DAYS = 7;
+
+function daysSinceMs(ms){
+  if(!ms) return null;
+  return Math.floor((Date.now() - ms) / 86400000);
+}
+
+function shouldShowBackupReminder(){
+  if(!currentUserEmail) return false;
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u) return false;
+  const baseline = u.lastBackupExportAt || u.firstSeenAt;
+  const days = daysSinceMs(baseline);
+  if(days == null || days < BACKUP_REMINDER_INTERVAL_DAYS) return false;
+  if(u.backupReminderSnoozedUntil && Date.now() < u.backupReminderSnoozedUntil) return false;
+  return true;
+}
+
+function renderBackupReminderBanner(){
+  const wrap = document.getElementById("backupReminderWrap");
+  if(!wrap) return;
+  if(!shouldShowBackupReminder()){ wrap.innerHTML = ""; return; }
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  const everBackedUp = !!u.lastBackupExportAt;
+  const days = daysSinceMs(u.lastBackupExportAt || u.firstSeenAt);
+  wrap.innerHTML = `
+    <div class="streak-banner due" style="justify-content:space-between;">
+      <div style="display:flex; gap:12px; align-items:flex-start;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3"/><path d="M6 9l6 6 6-6"/><path d="M4 21h16"/></svg>
+        <div>
+          <div class="streak-banner-title">${everBackedUp ? "Time for a fresh backup" : "You haven't backed up your data yet"}</div>
+          <div class="streak-banner-body">It's been ${days} days ${everBackedUp ? "since your last export" : "since you started using this app"} — everything you've logged lives only in this browser. A quick JSON export in Settings protects it.</div>
+        </div>
+      </div>
+      <span style="display:flex; gap:8px; flex:0 0 auto;">
+        <button type="button" class="secondary" id="backupReminderLaterBtn">Remind me later</button>
+        <button type="button" id="backupReminderOpenBtn">Back up now</button>
+      </span>
+    </div>
+  `;
+  document.getElementById("backupReminderLaterBtn").addEventListener("click", ()=>{
+    const users2 = getUsers();
+    if(users2[currentUserEmail]){
+      users2[currentUserEmail].backupReminderSnoozedUntil = Date.now() + BACKUP_REMINDER_SNOOZE_DAYS*86400000;
+      saveUsers(users2);
+    }
+    renderBackupReminderBanner();
+  });
+  document.getElementById("backupReminderOpenBtn").addEventListener("click", ()=>{
+    openSettings();
+  });
+}
+
 document.getElementById("backupExportBtn").addEventListener("click", ()=>{
   if(!currentUserEmail){ showToast("Log in first"); return; }
   const users = getUsers();
@@ -2386,6 +2484,15 @@ document.getElementById("backupExportBtn").addEventListener("click", ()=>{
   link.href = url; link.download = `nutrition-analyzer-backup-${todayStr()}.json`;
   link.click();
   URL.revokeObjectURL(url);
+  // Record the export so the reminder baseline resets from today, and clear any pending snooze
+  // (a fresh export makes the snooze moot either way).
+  const usersAfterExport = getUsers();
+  if(usersAfterExport[currentUserEmail]){
+    usersAfterExport[currentUserEmail].lastBackupExportAt = Date.now();
+    delete usersAfterExport[currentUserEmail].backupReminderSnoozedUntil;
+    saveUsers(usersAfterExport);
+  }
+  renderBackupReminderBanner();
   showToast("Backup downloaded — check your Downloads folder");
 });
 
@@ -2465,7 +2572,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e)=>{
       fbUser = cred.user;
       const users = getUsers();
       if(!users[email]){
-        users[email] = {name: name || email.split("@")[0], email, answers: {}, lastReportJson: null};
+        users[email] = {name: name || email.split("@")[0], email, answers: {}, lastReportJson: null, firstSeenAt: Date.now()};
         localStorage.setItem(USERS_KEY, JSON.stringify(users));
       }
       await pullFromCloud(email);
@@ -2491,7 +2598,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e)=>{
       errEl.textContent = "A profile with this email already exists — switch to Log in.";
       return;
     }
-    users[email] = {name: name || email.split("@")[0], email, password: password || "", answers: {}, lastReportJson: null};
+    users[email] = {name: name || email.split("@")[0], email, password: password || "", answers: {}, lastReportJson: null, firstSeenAt: Date.now()};
     saveUsers(users);
     enterApp(email);
     return;
@@ -6708,6 +6815,111 @@ function workoutEntryBestWeightAndOneRm(e){
   return {bestWeight: e.weightKg, bestOneRm: estimateOneRepMax(e.weightKg, workoutEntryRepsForOneRm(e))};
 }
 
+// --- Progressive overload suggestions -- a small, deterministic nudge for what to try next time
+// on a given exercise, based entirely on your own last logged numbers for it (never invented from
+// nothing, never a generic training program). ---
+
+// Finds the single hardest set within one logged entry -- same "pair each weight with its own rep
+// count" pairing workoutEntryBestWeightAndOneRm uses for 1RM, but also keeps the paired rep count
+// and whether the set was weighted (kg), leveled (machine), or bodyweight-only, since the
+// suggestion logic differs for each.
+function workoutEntryTopSetForOverload(e){
+  if(Array.isArray(e.weightKgList) && e.weightKgList.length){
+    const reps = Array.isArray(e.repsList) && e.repsList.length ? e.repsList : new Array(e.weightKgList.length).fill(e.reps);
+    let best = null;
+    e.weightKgList.forEach((w,i)=>{
+      if(w == null) return;
+      if(!best || w > best.weight) best = {weight: w, reps: reps[i] != null ? reps[i] : reps[reps.length-1]};
+    });
+    return best ? {type:"kg", weight: best.weight, reps: best.reps} : null;
+  }
+  if(Array.isArray(e.weightLevelList) && e.weightLevelList.length){
+    const reps = Array.isArray(e.repsList) && e.repsList.length ? e.repsList : new Array(e.weightLevelList.length).fill(e.reps);
+    let best = null;
+    e.weightLevelList.forEach((lv,i)=>{
+      if(lv == null) return;
+      if(!best || lv > best.weight) best = {weight: lv, reps: reps[i] != null ? reps[i] : reps[reps.length-1]};
+    });
+    return best ? {type:"level", weight: best.weight, reps: best.reps} : null;
+  }
+  if(e.weightKg != null) return {type:"kg", weight: e.weightKg, reps: workoutEntryRepsForOneRm(e)};
+  if(e.weightLevel != null) return {type:"level", weight: e.weightLevel, reps: workoutEntryRepsForOneRm(e)};
+  return {type:"bodyweight", weight: null, reps: workoutEntryRepsForOneRm(e)};
+}
+
+// Every non-cardio, non-pending logged entry for one exercise (matched case/whitespace-insensitively,
+// same identity rule Workout stats uses), newest first.
+function workoutHistoryForExercise(exerciseName){
+  if(!exerciseName || !exerciseName.trim()) return [];
+  const key = exerciseName.trim().toLowerCase();
+  return getAllWorkoutEntries()
+    .filter(e => !workoutEntryIsCardio(e) && !e.pending && e.exercise && e.exercise.trim().toLowerCase() === key)
+    .sort((a,b)=> new Date(b.date) - new Date(a.date));
+}
+
+// A small, fixed increment scheme -- +1kg for lighter/dumbbell-range loads (<=20kg, where 2.5kg
+// would be a disproportionate jump), +2.5kg above that (a standard small barbell-plate increment).
+// For a machine "Level" setting, the level itself usually can't move in fractions, so the
+// suggestion instead asks for one more rep at the same level; bodyweight exercises work the same
+// way. This is a nudge, not a training program -- always based on your own last real top set.
+function suggestNextLoad(exerciseName){
+  const history = workoutHistoryForExercise(exerciseName);
+  if(!history.length) return null;
+  const last = history[0];
+  const top = workoutEntryTopSetForOverload(last);
+  if(!top) return null;
+
+  let suggestion;
+  if(top.type === "kg" && top.weight != null){
+    const increment = top.weight <= 20 ? 1 : 2.5;
+    suggestion = {type:"kg", weight: Math.round((top.weight + increment) * 2) / 2, reps: top.reps};
+  } else if(top.type === "level" && top.weight != null){
+    suggestion = {type:"level", level: top.weight, reps: top.reps != null ? top.reps + 1 : null};
+  } else if(top.type === "bodyweight"){
+    suggestion = {type:"bodyweight", reps: top.reps != null ? top.reps + 1 : null};
+  } else {
+    return null;
+  }
+
+  return {exercise: last.exercise, date: last.date, last: top, suggestion};
+}
+
+// Plain-text description of one top set / suggestion, shared by the form hint and the stats table
+// so the wording never drifts between the two.
+function describeOverloadSet(s){
+  if(!s) return "—";
+  if(s.type === "kg") return `${s.weight} kg × ${s.reps != null ? s.reps : "—"}`;
+  if(s.type === "level") return `Level ${s.level != null ? s.level : s.weight} × ${s.reps != null ? s.reps : "—"}`;
+  return `${s.reps != null ? s.reps : "—"} reps (bodyweight)`;
+}
+
+// --- Plateau detection for individual lifts -- mirrors the Scale Log weight-plateau detector's
+// "compare a recent window against what came before it" approach, but per exercise and based on
+// top-set weight instead of bodyweight. Flags a stall when the best weight hit across the most
+// recent PLATEAU_SESSION_THRESHOLD sessions never exceeds the best weight hit in every session
+// before that window -- i.e. no new PR in a while, not just "today wasn't your best day". Weight
+// (kg) based only: Level (machine) and bodyweight exercises don't have a comparable continuous
+// scale, so they're left out rather than producing a misleading signal. ---
+const PLATEAU_SESSION_THRESHOLD = 4;
+
+function detectLiftPlateau(exerciseName){
+  const history = workoutHistoryForExercise(exerciseName)
+    .map(e => ({date: e.date, top: workoutEntryTopSetForOverload(e)}))
+    .filter(h => h.top && h.top.type === "kg" && h.top.weight != null)
+    .sort((a,b)=> new Date(a.date) - new Date(b.date)); // oldest first for this comparison
+  // Need a real "before" baseline in addition to the recent window itself -- otherwise every
+  // exercise with only a handful of sessions ever logged would trivially look "plateaued".
+  if(history.length < PLATEAU_SESSION_THRESHOLD + 1) return null;
+
+  const recentWindow = history.slice(-PLATEAU_SESSION_THRESHOLD);
+  const before = history.slice(0, history.length - PLATEAU_SESSION_THRESHOLD);
+  const bestBefore = Math.max(...before.map(h=>h.top.weight));
+  const bestRecent = Math.max(...recentWindow.map(h=>h.top.weight));
+  if(bestRecent > bestBefore) return null; // a new PR landed within the recent window -- still progressing
+
+  return {sessions: PLATEAU_SESSION_THRESHOLD, bestWeight: bestBefore, sinceDate: recentWindow[0].date};
+}
+
 // A cardio entry (jogging, treadmill, swimming...) is tracked by duration/distance/calories
 // instead of sets/reps/weight -- the explicit isCardio flag is what distinguishes the two shapes,
 // set once at submit time based on which fields the Log a set form had visible.
@@ -6740,6 +6952,22 @@ function applyWorkoutFormMode(){
   document.getElementById("workoutCardioHint").classList.toggle("hidden", !cardio);
   document.getElementById("workoutSets").required = !cardio;
   document.getElementById("workoutReps").required = !cardio;
+  renderWorkoutOverloadHint(document.getElementById("workoutExercise").value);
+}
+
+// Only shown while logging a brand-new set (never while editing an old one -- you're correcting
+// history there, not planning ahead) and never for cardio (progressive overload doesn't apply to
+// duration/distance-based cardio the same way).
+function renderWorkoutOverloadHint(exerciseName){
+  const wrap = document.getElementById("workoutOverloadHintWrap");
+  if(!wrap) return;
+  if(editingWorkoutId || workoutFormIsCardioMode() || !exerciseName || !exerciseName.trim()){
+    wrap.innerHTML = "";
+    return;
+  }
+  const info = suggestNextLoad(exerciseName);
+  if(!info){ wrap.innerHTML = ""; return; }
+  wrap.innerHTML = `<div class="overload-hint">Last time (${info.date}): ${describeOverloadSet(info.last)}. Try <b>${describeOverloadSet(info.suggestion)}</b> today.</div>`;
 }
 
 let selectedWorkoutCardioMet = null;
@@ -6939,6 +7167,12 @@ document.getElementById("workoutSplitSelect").addEventListener("change", (e)=>{
   autoSetCategoryForSplit(e.target.value);
   populateWorkoutQuickPick(e.target.value, document.getElementById("workoutCategory").value);
   applyWorkoutFormMode();
+});
+
+// Free typing an exercise name (not just picking it from Quick pick) still gets a progressive
+// overload hint the moment it matches something you've logged before.
+document.getElementById("workoutExercise").addEventListener("input", (e)=>{
+  renderWorkoutOverloadHint(e.target.value);
 });
 
 document.getElementById("workoutDistanceKm").addEventListener("input", applyWorkoutDistanceCalc);
@@ -7341,15 +7575,36 @@ function parseWorkoutSessionClockTime(date, hhmm){
   const t = new Date(`${date}T${hhmm}:00`);
   return t.getTime();
 }
+// Strict 24-hour HH:MM check -- 00-23 for the hour, 00-59 for the minute. Used both to validate on
+// submit and (loosely) while auto-formatting as the person types.
+const HHMM_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+function isValidHHMM(str){
+  return HHMM_PATTERN.test(str || "");
+}
+// A plain text field (not the native <input type="time">) is used here deliberately -- the native
+// time picker's displayed format (12h with AM/PM vs 24h) is controlled by the browser/OS locale,
+// not by anything this app can reliably force across all browsers, and the person explicitly wants
+// 24h always. Auto-inserts the colon as digits are typed, so it still feels like a time field
+// rather than a raw text box: "1430" -> "14:30" without the person having to type the ":" itself.
+function autoFormatHHMMInput(el){
+  let digits = el.value.replace(/\D/g, "").slice(0, 4);
+  let out = digits;
+  if(digits.length >= 3) out = digits.slice(0,2) + ":" + digits.slice(2);
+  el.value = out;
+}
+["workoutSessionEditStart", "workoutSessionEditEnd"].forEach(id=>{
+  document.getElementById(id).addEventListener("input", (e)=> autoFormatHHMMInput(e.target));
+});
 document.getElementById("workoutSessionEditCloseBtn").addEventListener("click", closeWorkoutSessionEditModal);
 document.getElementById("workoutSessionEditCancelBtn").addEventListener("click", closeWorkoutSessionEditModal);
 document.getElementById("workoutSessionEditForm").addEventListener("submit", (e)=>{
   e.preventDefault();
   const date = editingWorkoutSessionDate;
   if(!date) return;
-  const startVal = document.getElementById("workoutSessionEditStart").value;
-  const endVal = document.getElementById("workoutSessionEditEnd").value;
+  const startVal = document.getElementById("workoutSessionEditStart").value.trim();
+  const endVal = document.getElementById("workoutSessionEditEnd").value.trim();
   if(!startVal || !endVal){ showToast("Enter both a start and end time"); return; }
+  if(!isValidHHMM(startVal) || !isValidHHMM(endVal)){ showToast("Enter times as 24h HH:MM, e.g. 14:30"); return; }
   const startMs = parseWorkoutSessionClockTime(date, startVal);
   let endMs = parseWorkoutSessionClockTime(date, endVal);
   if(endMs <= startMs) endMs += 24*60*60000; // crossed midnight
@@ -7457,21 +7712,121 @@ function renderWorkoutStatsTable(){
     wrap.innerHTML = `<div class="empty-note">No exercises logged yet.</div>`;
     return;
   }
-  const rows = stats.map(s=>`<tr>
+  const rows = stats.map(s=>{
+    const next = suggestNextLoad(s.exercise);
+    const plateau = detectLiftPlateau(s.exercise);
+    const plateauNote = plateau
+      ? `<div class="lift-plateau-note">⚠ Plateau — no new PR in your last ${plateau.sessions} sessions (best still ${plateau.bestWeight} kg)</div>`
+      : "";
+    return `<tr>
       <td><span class="badge info">${s.category||"Other"}</span></td>
-      <td>${s.exercise}${exerciseVideoLinkHtml(s.exercise)}</td>
+      <td>${s.exercise}${exerciseVideoLinkHtml(s.exercise)}${plateauNote}</td>
       <td>${s.sessions}</td>
       <td>${s.bestWeight!=null ? s.bestWeight+" kg" : "—"}</td>
       <td>${s.bestOneRepMax!=null ? Math.round(s.bestOneRepMax)+" kg" : "—"}</td>
       <td>${s.lastDate}</td>
-    </tr>`).join("");
+      <td>${next ? describeOverloadSet(next.suggestion) : "—"}</td>
+    </tr>`;
+  }).join("");
   wrap.innerHTML = `
     <div class="table-scroll">
       <table class="log-table">
-        <thead><tr><th>Category</th><th>Exercise</th><th>Sessions</th><th>Best weight</th><th>Est. 1RM</th><th>Last done</th></tr></thead>
+        <thead><tr><th>Category</th><th>Exercise</th><th>Sessions</th><th>Best weight</th><th>Est. 1RM</th><th>Last done</th><th>Suggested next</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
+  `;
+}
+
+// --- Weekly training volume trend, per muscle-group category -- mirrors the daily calorie/protein
+// trend charts' "last few weeks at a glance" format, but weekly (a single day's volume swings too
+// much week to week to be a useful unit) and stacked by category, so a muscle group quietly getting
+// neglected over time shows up visually instead of being buried in one blended total. Cardio has no
+// comparable kg-volume figure, so it's excluded -- this is strictly a strength-training view. ---
+const WORKOUT_CATEGORY_COLORS = {
+  Legs: "#4ee1a3", Chest: "#7c9cff", Back: "#ffb454", Shoulders: "#ff8fa3",
+  Arms: "#c792ea", Core: "#f2c744", "Full Body": "#9aa5b1", Other: "#6b7280",
+};
+const WORKOUT_VOLUME_CATEGORIES = ["Legs","Chest","Back","Shoulders","Arms","Core","Full Body","Other"];
+
+// weeksCount Monday-start weeks, oldest first, ending with the current (possibly partial) week --
+// same Monday-anchoring math buildWorkoutHeatmap uses, so this lines up with the weekly split
+// tracker directly above it.
+function computeWeeklyVolumeByCategory(weeksCount){
+  const log = getWorkoutLog();
+  const today = todayStr();
+  const todayDow = new Date(today+"T00:00:00").getDay(); // 0=Sun..6=Sat
+  const daysSinceMonday = (todayDow + 6) % 7;
+  const thisMonday = shiftDateStr(today, -daysSinceMonday);
+
+  const weeks = [];
+  for(let w = weeksCount - 1; w >= 0; w--){
+    const weekMonday = shiftDateStr(thisMonday, -7 * w);
+    const totals = {};
+    WORKOUT_VOLUME_CATEGORIES.forEach(c=> totals[c] = 0);
+    for(let d=0; d<7; d++){
+      const dateStr = shiftDateStr(weekMonday, d);
+      const entries = log[dateStr] || [];
+      entries.forEach(e=>{
+        // Same "not a real completed set yet" exclusion Workout stats and the rest-day guardrail
+        // use for pending checklist rows, plus cardio (no kg volume concept).
+        if(workoutEntryIsCardio(e) || e.pending) return;
+        const cat = WORKOUT_VOLUME_CATEGORIES.includes(e.category) ? e.category : "Other";
+        totals[cat] += workoutEntryVolume(e);
+      });
+    }
+    const total = WORKOUT_VOLUME_CATEGORIES.reduce((s,c)=>s+totals[c], 0);
+    weeks.push({weekStart: weekMonday, totals, total});
+  }
+  return weeks;
+}
+
+function renderWorkoutVolumeTrendChart(){
+  const wrap = document.getElementById("workoutVolumeTrendWrap");
+  if(!wrap) return;
+  const weeksCount = 8;
+  const weeks = computeWeeklyVolumeByCategory(weeksCount);
+  const activeCategories = WORKOUT_VOLUME_CATEGORIES.filter(c => weeks.some(wk=>wk.totals[c] > 0));
+  if(!activeCategories.length){
+    wrap.innerHTML = `<div class="empty-note">Log a few strength sessions to see your weekly volume trend here.</div>`;
+    return;
+  }
+
+  const w = 640, h = 220, pad = 34, chartRight = w - 10, plotTop = 16, plotBottom = h - pad;
+  const maxTotal = Math.max(1, ...weeks.map(wk=>wk.total));
+  const barGap = 10;
+  const plotWidth = chartRight - pad;
+  const barW = (plotWidth / weeksCount) - barGap;
+  const plotHeight = plotBottom - plotTop;
+
+  const bars = weeks.map((wk, i)=>{
+    const x = pad + i * (barW + barGap);
+    let yCursor = plotBottom;
+    const segments = activeCategories.map(cat=>{
+      const val = wk.totals[cat];
+      if(val <= 0) return "";
+      const segH = plotHeight * (val / maxTotal);
+      const y = yCursor - segH;
+      yCursor = y;
+      return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${segH.toFixed(1)}" fill="${WORKOUT_CATEGORY_COLORS[cat]}" rx="2"><title>${cat}: ${Math.round(val).toLocaleString()} kg</title></rect>`;
+    }).join("");
+    const totalLabel = wk.total > 0
+      ? `<text x="${(x+barW/2).toFixed(1)}" y="${(yCursor-4).toFixed(1)}" font-size="9" fill="var(--text)" text-anchor="middle">${Math.round(wk.total).toLocaleString()}</text>`
+      : "";
+    const dateLabel = `<text x="${(x+barW/2).toFixed(1)}" y="${(h-pad+12).toFixed(1)}" font-size="8" fill="var(--muted)" text-anchor="middle">${formatShortDate(wk.weekStart)}</text>`;
+    return segments + totalLabel + dateLabel;
+  }).join("");
+
+  const legend = activeCategories.map(cat=>`<span class="trend-legend-item"><span class="trend-swatch" style="background:${WORKOUT_CATEGORY_COLORS[cat]};"></span>${cat}</span>`).join("");
+  const loggedWeeks = weeks.filter(wk=>wk.total > 0);
+  const avgTotal = loggedWeeks.length ? loggedWeeks.reduce((s,wk)=>s+wk.total,0) / loggedWeeks.length : 0;
+
+  wrap.innerHTML = `
+    <div class="trend-label">Average ${Math.round(avgTotal).toLocaleString()} kg/week over ${loggedWeeks.length} logged week${loggedWeeks.length===1?"":"s"} (week starting)</div>
+    <div class="trend-legend">${legend}</div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
+      ${bars}
+    </svg>
   `;
 }
 
@@ -7933,11 +8288,16 @@ function renderWorkoutHeatmap(){
       // whole point (see shouldRestFromStrength) -- so a future cell with a rest recommendation no
       // longer stays blank the way a plain future cell otherwise would.
       const restChip = d.restRecommended
-        ? `<span class="workout-rest-chip" title="Recommended rest day for strength -- 3 days in a row before this">🛑 Don't train</span>`
+        ? `<span class="workout-chip workout-rest-chip" style="background:linear-gradient(135deg, rgba(241,107,131,.32), rgba(241,107,131,.14)); color:var(--danger); border:1px solid rgba(241,107,131,.6);" title="Recommended rest day for strength -- 3 days in a row before this">🛑 Don't train</span>`
         : "";
       if(d.future) return restChip ? `<td style="text-align:center;">${restChip}</td>` : `<td></td>`;
       if(!d.badges.length) return restChip ? `<td style="text-align:center;">${restChip}</td>` : `<td style="text-align:center; color:var(--border);">·</td>`;
-      const chips = d.badges.map(b=>`<span style="display:inline-block; padding:3px 9px; border-radius:10px; font-size:.72rem; font-weight:700; white-space:nowrap; background:${b.color}26; color:${b.color}; border:1px solid ${b.color}66;">${b.label}</span>`).join("") + restChip;
+      // Don't-train always sorts ABOVE the split badges (Cardio included) in a cell, since it's the
+      // more urgent/attention-grabbing signal -- reading top-to-bottom, "should I rest" comes before
+      // "what did I actually log that day". Every chip shares the .workout-chip class (fixed
+      // size/shape) with only its color varying inline, so Lower A/Upper A/Cardio/etc. always render
+      // as identically-sized boxes instead of auto-sizing to each label's own text length.
+      const chips = restChip + d.badges.map(b=>`<span class="workout-chip" style="background:linear-gradient(135deg, ${b.color}38, ${b.color}16); color:${b.color}; border:1px solid ${b.color}70;" title="${b.label}">${b.label}</span>`).join("");
       return `<td style="text-align:center;" title="${d.date}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
     }).join("");
     // Weekly medal: lights up the moment every currently-defined split has been logged at least
@@ -8060,6 +8420,7 @@ function renderWorkoutsView(){
   renderWorkoutSummary(entries, date);
   renderWorkoutTable(entries, date);
   renderWorkoutStatsTable();
+  renderWorkoutVolumeTrendChart();
   renderWorkoutHeatmap();
   renderWorkoutSplitsTable();
   renderWorkoutPresetsTable();
