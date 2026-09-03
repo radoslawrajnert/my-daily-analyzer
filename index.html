@@ -1002,8 +1002,11 @@
         <div class="nav" style="justify-content:flex-start; margin-top:10px;">
           <button type="button" class="secondary" id="exportWorkoutCsvBtn">Export CSV</button>
         </div>
-        <h3 style="margin:22px 0 4px; font-size:.95rem;">Weekly training volume by muscle group</h3>
-        <div class="step-desc" style="margin-top:0;">Total weight moved (sets × reps × kg) each week, stacked by category — a steadily shrinking or missing color over time usually means that muscle group is being neglected. Cardio isn't included (no comparable kg figure).</div>
+        <h3 style="margin:22px 0 4px; font-size:.95rem;">Training volume by session</h3>
+        <div class="step-desc" style="margin-top:0;">Total weight moved (sets × reps × kg), stacked by category, for the last 10 times you did the split picked below — a steadily shrinking or missing color usually means that muscle group is being neglected within it. Only your currently-defined splits are selectable; Cardio isn't included (no comparable kg figure).</div>
+        <div class="field" style="max-width:260px;"><label>Split</label>
+          <select id="workoutVolumeTrendSplitSelect"></select>
+        </div>
         <div id="workoutVolumeTrendWrap"></div>
         <h3 style="margin:22px 0 4px; font-size:.95rem;">Weekly split tracker</h3>
         <div class="step-desc" style="margin-top:0;">One row per week, Monday through Sunday — the day you logged a set lights up with the split you did, so you can see at a glance whether you actually hit Lower A, Upper A, etc. that week.</div>
@@ -7738,91 +7741,145 @@ function renderWorkoutStatsTable(){
   `;
 }
 
-// --- Weekly training volume trend, per muscle-group category -- mirrors the daily calorie/protein
-// trend charts' "last few weeks at a glance" format, but weekly (a single day's volume swings too
-// much week to week to be a useful unit) and stacked by category, so a muscle group quietly getting
-// neglected over time shows up visually instead of being buried in one blended total. Cardio has no
-// comparable kg-volume figure, so it's excluded -- this is strictly a strength-training view. ---
+// --- Training volume trend, per muscle-group category, for a specific split -- one bar per
+// SESSION (a calendar date that split was actually logged on), not per calendar week, over the
+// split's last N times -- picking a split first and looking at "your last 10 times doing this"
+// gives a much more apples-to-apples comparison than blending whatever was logged that week,
+// since different splits hit different muscle groups by design. Stacked by category so a muscle
+// group quietly getting neglected within the split shows up visually instead of being buried in
+// one blended total. Cardio has no comparable kg-volume figure, so cardio-only splits are excluded
+// from the picker and cardio entries never contribute to any split's volume. ---
 const WORKOUT_CATEGORY_COLORS = {
   Legs: "#4ee1a3", Chest: "#7c9cff", Back: "#ffb454", Shoulders: "#ff8fa3",
   Arms: "#c792ea", Core: "#f2c744", "Full Body": "#9aa5b1", Other: "#6b7280",
 };
 const WORKOUT_VOLUME_CATEGORIES = ["Legs","Chest","Back","Shoulders","Arms","Core","Full Body","Other"];
+const WORKOUT_VOLUME_SESSIONS_COUNT = 10;
 
-// weeksCount Monday-start weeks, oldest first, ending with the current (possibly partial) week --
-// same Monday-anchoring math buildWorkoutHeatmap uses, so this lines up with the weekly split
-// tracker directly above it.
-function computeWeeklyVolumeByCategory(weeksCount){
-  const log = getWorkoutLog();
-  const today = todayStr();
-  const todayDow = new Date(today+"T00:00:00").getDay(); // 0=Sun..6=Sat
-  const daysSinceMonday = (todayDow + 6) % 7;
-  const thisMonday = shiftDateStr(today, -daysSinceMonday);
+// Remembers which split is picked across re-renders within the session (e.g. after logging a new
+// set) -- reset to null only starts a fresh account/login, at which point it falls back to the
+// first eligible current split.
+let selectedVolumeTrendSplitId = null;
 
-  const weeks = [];
-  for(let w = weeksCount - 1; w >= 0; w--){
-    const weekMonday = shiftDateStr(thisMonday, -7 * w);
-    const totals = {};
-    WORKOUT_VOLUME_CATEGORIES.forEach(c=> totals[c] = 0);
-    for(let d=0; d<7; d++){
-      const dateStr = shiftDateStr(weekMonday, d);
-      const entries = log[dateStr] || [];
-      entries.forEach(e=>{
-        // Same "not a real completed set yet" exclusion Workout stats and the rest-day guardrail
-        // use for pending checklist rows, plus cardio (no kg volume concept).
-        if(workoutEntryIsCardio(e) || e.pending) return;
-        const cat = WORKOUT_VOLUME_CATEGORIES.includes(e.category) ? e.category : "Other";
-        totals[cat] += workoutEntryVolume(e);
-      });
-    }
-    const total = WORKOUT_VOLUME_CATEGORIES.reduce((s,c)=>s+totals[c], 0);
-    weeks.push({weekStart: weekMonday, totals, total});
-  }
-  return weeks;
+// A split counts as "cardio-only" (and is left out of the picker entirely, since it can never have
+// a kg-volume figure) only when it HAS a defined exercise pattern and that pattern is 100% Cardio.
+// A split with no pattern defined yet is kept in -- there's no way to tell it's cardio-only, and
+// excluding it by default would be more surprising than showing an empty chart for it.
+function isWorkoutSplitCardioOnly(split){
+  const cats = workoutSplitCategoriesFromExercises(split);
+  return !!(cats && cats.length === 1 && cats[0] === "Cardio");
 }
+
+// Every currently-defined split (the CURRENT roster from getWorkoutSplits(), never a deleted or
+// renamed-away one still sitting on old log entries) that isn't cardio-only.
+function eligibleVolumeTrendSplits(){
+  return getWorkoutSplits().filter(s => !isWorkoutSplitCardioOnly(s));
+}
+
+// The last `sessionsCount` calendar dates on which this exact split id was actually logged with a
+// real (non-cardio, non-pending) strength set, oldest first, each with its own per-category volume
+// breakdown. Scanning the WHOLE log (not a fixed calendar window) is deliberate -- "last 10 times"
+// means the last 10 times, whenever they happened to fall, not the last 10 weeks.
+function computeSplitSessionVolumeByCategory(splitId, sessionsCount){
+  const log = getWorkoutLog();
+  const byDate = new Map();
+  Object.keys(log).forEach(date=>{
+    (log[date] || []).forEach(e=>{
+      if(workoutEntryIsCardio(e) || e.pending) return;
+      if(e.splitId !== splitId) return;
+      if(!byDate.has(date)){
+        const totals = {};
+        WORKOUT_VOLUME_CATEGORIES.forEach(c=> totals[c] = 0);
+        byDate.set(date, totals);
+      }
+      const totals = byDate.get(date);
+      const cat = WORKOUT_VOLUME_CATEGORIES.includes(e.category) ? e.category : "Other";
+      totals[cat] += workoutEntryVolume(e);
+    });
+  });
+  const dates = Array.from(byDate.keys()).sort((a,b)=> new Date(a) - new Date(b));
+  const lastDates = dates.slice(-sessionsCount);
+  return lastDates.map(date=>{
+    const totals = byDate.get(date);
+    const total = WORKOUT_VOLUME_CATEGORIES.reduce((s,c)=>s+totals[c], 0);
+    return {date, totals, total};
+  });
+}
+
+function populateWorkoutVolumeTrendSplitSelect(){
+  const sel = document.getElementById("workoutVolumeTrendSplitSelect");
+  if(!sel) return;
+  const splits = eligibleVolumeTrendSplits();
+  if(!splits.length){
+    sel.innerHTML = `<option value="">— no strength splits defined —</option>`;
+    selectedVolumeTrendSplitId = null;
+    return;
+  }
+  sel.innerHTML = splits.map(s=>`<option value="${s.id}">${s.emoji?s.emoji+" ":""}${s.name}</option>`).join("");
+  // Keep the current selection if it's still valid (e.g. after logging a new set re-renders this),
+  // otherwise fall back to the first eligible split.
+  if(!splits.some(s=>s.id === selectedVolumeTrendSplitId)){
+    selectedVolumeTrendSplitId = splits[0].id;
+  }
+  sel.value = selectedVolumeTrendSplitId;
+}
+
+document.getElementById("workoutVolumeTrendSplitSelect").addEventListener("change", (e)=>{
+  selectedVolumeTrendSplitId = e.target.value || null;
+  renderWorkoutVolumeTrendChart();
+});
 
 function renderWorkoutVolumeTrendChart(){
   const wrap = document.getElementById("workoutVolumeTrendWrap");
   if(!wrap) return;
-  const weeksCount = 8;
-  const weeks = computeWeeklyVolumeByCategory(weeksCount);
-  const activeCategories = WORKOUT_VOLUME_CATEGORIES.filter(c => weeks.some(wk=>wk.totals[c] > 0));
-  if(!activeCategories.length){
-    wrap.innerHTML = `<div class="empty-note">Log a few strength sessions to see your weekly volume trend here.</div>`;
+  populateWorkoutVolumeTrendSplitSelect();
+  if(!selectedVolumeTrendSplitId){
+    wrap.innerHTML = `<div class="empty-note">Define a strength split (Lower A, Upper A, etc.) to see its volume trend here.</div>`;
+    return;
+  }
+  const splits = getWorkoutSplits();
+  const split = splits.find(s=>s.id === selectedVolumeTrendSplitId);
+  const sessions = computeSplitSessionVolumeByCategory(selectedVolumeTrendSplitId, WORKOUT_VOLUME_SESSIONS_COUNT);
+  if(!sessions.length){
+    wrap.innerHTML = `<div class="empty-note">No strength sessions logged for ${split ? split.name : "this split"} yet.</div>`;
     return;
   }
 
+  const activeCategories = WORKOUT_VOLUME_CATEGORIES.filter(c => sessions.some(s=>s.totals[c] > 0));
+  const barCount = sessions.length;
   const w = 640, h = 220, pad = 34, chartRight = w - 10, plotTop = 16, plotBottom = h - pad;
-  const maxTotal = Math.max(1, ...weeks.map(wk=>wk.total));
+  const maxTotal = Math.max(1, ...sessions.map(s=>s.total));
   const barGap = 10;
   const plotWidth = chartRight - pad;
-  const barW = (plotWidth / weeksCount) - barGap;
+  const barW = (plotWidth / WORKOUT_VOLUME_SESSIONS_COUNT) - barGap;
   const plotHeight = plotBottom - plotTop;
+  // Right-align when there are fewer than a full 10 sessions so far, so bars sit next to the most
+  // recent edge of the chart (where "today" is) rather than stranded on the left with empty space.
+  const startOffset = WORKOUT_VOLUME_SESSIONS_COUNT - barCount;
 
-  const bars = weeks.map((wk, i)=>{
-    const x = pad + i * (barW + barGap);
+  const bars = sessions.map((s, i)=>{
+    const x = pad + (startOffset + i) * (barW + barGap);
     let yCursor = plotBottom;
     const segments = activeCategories.map(cat=>{
-      const val = wk.totals[cat];
+      const val = s.totals[cat];
       if(val <= 0) return "";
       const segH = plotHeight * (val / maxTotal);
       const y = yCursor - segH;
       yCursor = y;
       return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${segH.toFixed(1)}" fill="${WORKOUT_CATEGORY_COLORS[cat]}" rx="2"><title>${cat}: ${Math.round(val).toLocaleString()} kg</title></rect>`;
     }).join("");
-    const totalLabel = wk.total > 0
-      ? `<text x="${(x+barW/2).toFixed(1)}" y="${(yCursor-4).toFixed(1)}" font-size="9" fill="var(--text)" text-anchor="middle">${Math.round(wk.total).toLocaleString()}</text>`
+    const totalLabel = s.total > 0
+      ? `<text x="${(x+barW/2).toFixed(1)}" y="${(yCursor-4).toFixed(1)}" font-size="9" fill="var(--text)" text-anchor="middle">${Math.round(s.total).toLocaleString()}</text>`
       : "";
-    const dateLabel = `<text x="${(x+barW/2).toFixed(1)}" y="${(h-pad+12).toFixed(1)}" font-size="8" fill="var(--muted)" text-anchor="middle">${formatShortDate(wk.weekStart)}</text>`;
+    const dateLabel = `<text x="${(x+barW/2).toFixed(1)}" y="${(h-pad+12).toFixed(1)}" font-size="8" fill="var(--muted)" text-anchor="middle" onclick="jumpToDate('${s.date}')" style="cursor:pointer;"><title>Switch the whole app to ${s.date}</title>${formatShortDate(s.date)}</text>`;
     return segments + totalLabel + dateLabel;
   }).join("");
 
   const legend = activeCategories.map(cat=>`<span class="trend-legend-item"><span class="trend-swatch" style="background:${WORKOUT_CATEGORY_COLORS[cat]};"></span>${cat}</span>`).join("");
-  const loggedWeeks = weeks.filter(wk=>wk.total > 0);
-  const avgTotal = loggedWeeks.length ? loggedWeeks.reduce((s,wk)=>s+wk.total,0) / loggedWeeks.length : 0;
+  const avgTotal = sessions.reduce((sum,s)=>sum+s.total, 0) / sessions.length;
 
   wrap.innerHTML = `
-    <div class="trend-label">Average ${Math.round(avgTotal).toLocaleString()} kg/week over ${loggedWeeks.length} logged week${loggedWeeks.length===1?"":"s"} (week starting)</div>
+    <div class="trend-label">Average ${Math.round(avgTotal).toLocaleString()} kg over the last ${sessions.length} ${split ? split.name : ""} session${sessions.length===1?"":"s"}</div>
     <div class="trend-legend">${legend}</div>
     <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
       ${bars}
