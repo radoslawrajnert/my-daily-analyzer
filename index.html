@@ -162,6 +162,7 @@
   .badge.warn{background:rgba(240,184,84,.14); color:var(--warn);}
   .badge.danger{background:rgba(241,107,131,.14); color:var(--danger);}
   .badge.info{background:rgba(124,156,255,.14); color:var(--accent2);}
+  .badge.pr{background:rgba(78,225,163,.14); color:var(--accent);}
   .badge.muted{background:rgba(148,163,184,.14); color:var(--muted);}
 
   .quick-days-row{display:flex; gap:6px; flex-wrap:wrap;}
@@ -354,6 +355,14 @@
   .streak-banner-title{font-weight:700; font-size:.86rem; color:var(--text); margin-bottom:2px;}
   .streak-banner-body{font-size:.8rem; color:var(--muted); line-height:1.45;}
 
+  /* Missing-data warning -- deliberately louder/redder than .streak-banner.due (which is a gentle
+     amber nudge). This one exists specifically because a day with zero data logged is data that's
+     gone for good once it scrolls further into the past, so it's meant to stand out immediately
+     above every tab rather than wait to be noticed on one specific log's own page. */
+  .missing-data-banner{display:flex; align-items:center; gap:12px; background:rgba(241,107,131,.16); border:2px solid var(--danger); border-radius:var(--radius); padding:12px 16px; margin-bottom:16px; box-shadow:0 4px 14px rgba(241,107,131,.18);}
+  .missing-data-banner svg{width:24px; height:24px; flex:0 0 auto; color:var(--danger);}
+  .missing-data-banner-text{font-weight:800; font-size:.92rem; color:var(--danger); line-height:1.4;}
+
   .workout-timer-banner{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px; margin-bottom:18px;}
   .workout-timer-banner.active{background:rgba(78,225,163,.08); border-color:rgba(78,225,163,.32);}
   .workout-timer-info{display:flex; align-items:center; gap:14px; min-width:0;}
@@ -364,7 +373,7 @@
   .workout-timer-body{font-size:.8rem; color:var(--muted); line-height:1.4;}
   .workout-timer-dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); margin-right:6px; animation:workoutTimerPulse 1.6s ease-in-out infinite;}
   @keyframes workoutTimerPulse{0%,100%{opacity:1;} 50%{opacity:.3;}}
-  .week-medal-icon{display:inline-flex; color:var(--warn); filter:drop-shadow(0 0 4px rgba(240,184,84,.45));}
+  .week-medal-icon{display:inline-flex; color:var(--accent); filter:drop-shadow(0 0 4px rgba(78,225,163,.4));}
 
   .workout-rest-banner{background:rgba(241,107,131,.1); border:1px solid rgba(241,107,131,.4); border-radius:var(--radius); padding:14px 18px; margin-bottom:18px;}
   .workout-rest-banner-title{font-weight:700; font-size:.92rem; color:var(--danger); margin-bottom:3px;}
@@ -637,6 +646,7 @@
       <button type="button" id="viewTabCoach"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 1 5 5v2a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5z"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>Coach</button>
     </div>
 
+    <div id="missingDataWarningWrap"></div>
     <div id="backupReminderWrap"></div>
 
     <div id="planView">
@@ -729,7 +739,7 @@
                   <div>Drop image or click to browse</div>
                 </div>
                 <img id="logPhotoFrontPreview" class="dropzone-preview hidden" alt="Front photo preview">
-                <button type="button" class="dropzone-remove hidden" id="logPhotoFrontRemoveBtn" aria-label="Remove front photo">✕</button>
+                <button type="button" class="dropzone-remove hidden" id="logPhotoFrontRemoveBtn" aria-label="Remove front photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
               </div>
             </div>
             <div class="field">
@@ -741,7 +751,7 @@
                   <div>Drop image or click to browse</div>
                 </div>
                 <img id="logPhotoBackPreview" class="dropzone-preview hidden" alt="Back photo preview">
-                <button type="button" class="dropzone-remove hidden" id="logPhotoBackRemoveBtn" aria-label="Remove back photo">✕</button>
+                <button type="button" class="dropzone-remove hidden" id="logPhotoBackRemoveBtn" aria-label="Remove back photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
               </div>
             </div>
           </div>
@@ -868,7 +878,7 @@
         <div class="step-desc">Save a meal, product, or serving you eat often — like reading it off a nutrition label — so you can add the whole thing in one click above instead of retyping it. You can also look up and correct any of the built-in foods used in Quick pick.</div>
         <div class="nav" style="justify-content:flex-start; margin-bottom:12px;">
           <button type="button" class="secondary" id="packageFormToggleBtn">+ Add a meal</button>
-          <button type="button" class="secondary" id="pkgScanBarcodeBtn" title="Scan or enter a barcode to auto-fill a product">📷 Scan barcode</button>
+          <button type="button" class="secondary" id="pkgScanBarcodeBtn" title="Scan or enter a barcode to auto-fill a product"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"></path><circle cx="12" cy="13" r="4"></circle></svg>Scan barcode</button>
         </div>
         <div id="packageFormWrap" class="hidden">
           <form id="packageForm" autocomplete="off">
@@ -1254,7 +1264,7 @@
               <textarea id="aiLogTranscript" rows="5" placeholder="e.g. Had 2 eggs and a slice of vollkorn bread for breakfast, went for a 30 minute run, and stayed off sweets today..."></textarea>
             </div>
             <div class="nav" style="justify-content:flex-start; gap:10px; flex-wrap:wrap;">
-              <button type="button" class="secondary hidden" id="aiLogMicBtn">🎤 Start speaking</button>
+              <button type="button" class="secondary hidden" id="aiLogMicBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>Start speaking</button>
               <button type="button" id="aiLogParseBtn">Parse with AI →</button>
             </div>
             <div id="aiLogStatus" class="step-desc" style="margin-top:10px;"></div>
@@ -1280,7 +1290,7 @@
           <label>Anything you want to say or ask the coach? (optional)</label>
           <textarea id="coachUserNotesInput" rows="3" placeholder="e.g. Why do you think my weight stalled this month? Am I eating enough protein? Be honest about my consistency..."></textarea>
           <div class="nav" style="justify-content:flex-start; margin-top:8px;">
-            <button type="button" class="secondary hidden" id="coachMicBtn">🎤 Start speaking</button>
+            <button type="button" class="secondary hidden" id="coachMicBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>Start speaking</button>
             <button type="button" class="ghost" id="coachClearNotesBtn">Erase</button>
           </div>
         </div>
@@ -1316,14 +1326,14 @@
 
 <div class="modal-overlay hidden" id="helpOverlay">
   <div class="modal-box">
-    <h3><span id="helpTitle"></span><button type="button" class="close-x" id="helpCloseBtn">✕</button></h3>
+    <h3><span id="helpTitle"></span><button type="button" class="close-x" id="helpCloseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></h3>
     <div id="helpBody"></div>
   </div>
 </div>
 
 <div class="modal-overlay hidden" id="settingsOverlay">
   <div class="modal-box">
-    <h3><span>Settings</span><button type="button" class="close-x" id="settingsCloseBtn">✕</button></h3>
+    <h3><span>Settings</span><button type="button" class="close-x" id="settingsCloseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></h3>
 
     <h3 style="margin-top:0;"><span>Language / Idioma</span></h3>
     <div class="field"><label>Language / Idioma</label>
@@ -1371,7 +1381,7 @@
 
 <div class="modal-overlay hidden" id="barcodeScanOverlay">
   <div class="modal-box" style="max-width:420px;">
-    <h3><span>Scan a barcode</span><button type="button" class="close-x" id="barcodeScanCloseBtn">✕</button></h3>
+    <h3><span>Scan a barcode</span><button type="button" class="close-x" id="barcodeScanCloseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></h3>
     <div class="step-desc" style="margin-top:0;">Point your camera at the barcode on a packaged product. Looked up via the free, open <a href="https://world.openfoodfacts.org/" target="_blank" rel="noopener">Open Food Facts</a> database — nothing is sent anywhere except that lookup.</div>
     <video id="barcodeScanVideo" playsinline muted style="width:100%; border-radius:var(--radius-sm); background:#000; aspect-ratio:4/3; object-fit:cover;"></video>
     <div id="barcodeScanStatus" class="step-desc" style="margin-top:10px;">Starting camera…</div>
@@ -1387,14 +1397,14 @@
 
 <div class="modal-overlay hidden" id="bodyZoomOverlay">
   <div class="modal-box" style="max-width:640px;">
-    <h3><span>Photo comparison</span><button type="button" class="close-x" id="bodyZoomCloseBtn">✕</button></h3>
+    <h3><span>Photo comparison</span><button type="button" class="close-x" id="bodyZoomCloseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></h3>
     <div id="bodyZoomBody"></div>
   </div>
 </div>
 
 <div class="modal-overlay hidden" id="foodEditOverlay">
   <div class="modal-box" style="max-width:520px;">
-    <h3><span id="foodEditTitle">Edit food</span><button type="button" class="close-x" id="foodEditCloseBtn">✕</button></h3>
+    <h3><span id="foodEditTitle">Edit food</span><button type="button" class="close-x" id="foodEditCloseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></h3>
     <div class="step-desc" style="margin-top:0;">Values are per 100g, same basis as the built-in entry. Your correction is saved just for you — the built-in database itself isn't changed.</div>
     <form id="foodEditForm" autocomplete="off">
       <div class="row-inline">
@@ -1425,7 +1435,7 @@
 
 <div class="modal-overlay hidden" id="workoutSessionEditOverlay">
   <div class="modal-box" style="max-width:420px;">
-    <h3><span>Edit strength training time</span><button type="button" class="close-x" id="workoutSessionEditCloseBtn">✕</button></h3>
+    <h3><span>Edit strength training time</span><button type="button" class="close-x" id="workoutSessionEditCloseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></h3>
     <div class="step-desc" style="margin-top:0;">Fix the start/end time if the stopwatch under- or over-counted, or forgot to stop. This is just for strength training — cardio's time is calculated automatically from its own entries and doesn't need editing here.</div>
     <form id="workoutSessionEditForm" autocomplete="off">
       <div class="row-inline">
@@ -1437,6 +1447,16 @@
         <button type="submit">Save →</button>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="welcomeBackOverlay">
+  <div class="modal-box" style="max-width:400px; text-align:center;">
+    <h3><span>Welcome back</span><button type="button" class="close-x" id="welcomeBackCloseX"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></h3>
+    <p id="welcomeBackBody" style="font-size:1rem; color:var(--text); margin:6px 0 18px;"></p>
+    <div class="nav" style="justify-content:center;">
+      <button type="button" id="welcomeBackCloseBtn">Continue →</button>
+    </div>
   </div>
 </div>
 
@@ -1538,7 +1558,7 @@ const I18N_STRINGS = {
   "Save a meal, product, or serving you eat often — like reading it off a nutrition label — so you can add the whole thing in one click above instead of retyping it. You can also look up and correct any of the built-in foods used in Quick pick.": "Guarde uma refeição, produto ou dose que come com frequência — como se estivesse a ler o rótulo nutricional — para poder adicionar tudo com um clique em vez de voltar a escrever. Também pode consultar e corrigir qualquer alimento incorporado usado na Seleção rápida.",
   "+ Add a meal": "+ Adicionar uma refeição",
   "Scan or enter a barcode to auto-fill a product": "Digitalize ou introduza um código de barras para preencher um produto automaticamente",
-  "📷 Scan barcode": "📷 Digitalizar código de barras",
+  "Scan barcode": "Digitalizar código de barras",
   "Meal / package name *": "Nome da refeição / produto *",
   "Serving": "Dose",
   "Category": "Categoria",
@@ -1602,7 +1622,7 @@ const I18N_STRINGS = {
   "Done talking about this →": "Terminei de falar sobre isto →",
   "Restart guide": "Reiniciar guia",
   "Your day, in your own words": "O seu dia, por suas palavras",
-  "🎤 Start speaking": "🎤 Começar a falar",
+  "Start speaking": "Começar a falar",
   "Parse with AI →": "Interpretar com IA →",
   "Review before saving": "Rever antes de guardar",
   "Uncheck anything that's wrong or not needed, edit numbers if you want, then add the rest to your logs.": "Desmarque o que estiver errado ou não for necessário, edite os números se quiser, depois adicione o resto aos seus registos.",
@@ -1734,6 +1754,28 @@ if(typeof MutationObserver !== "undefined" && typeof document.createTreeWalker =
 }
 /* ================= end i18n ================= */
 
+/* ================= shared professional icon set (Lucide/Feather-style, matches tab icons) =================
+   Hand-authored to match the existing viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+   stroke-linecap="round" stroke-linejoin="round" convention already used for tab icons and the heatmap
+   celebration icon. Sized small (14px) and inline via vertical-align so they slot into button/badge text.
+   NOTE: only used in places that render via innerHTML -- never inside native <option>/<datalist>/attribute-value
+   text, which can't display markup (that's why food-item, split, and habit-type emoji are left untouched). */
+const ICON_MIC = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
+const ICON_MIC_STOP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><rect x="6" y="6" width="12" height="12" rx="1"></rect></svg>`;
+const ICON_CAMERA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"></path><circle cx="12" cy="13" r="4"></circle></svg>`;
+const ICON_ALERT_TRIANGLE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
+const ICON_CHECK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle; margin-right:3px;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+const ICON_BAN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>`;
+const ICON_FLAME = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>`;
+const ICON_STORE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M2 7l1.5-4h17L22 7"></path><path d="M2 7v13a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V7"></path><path d="M2 7h20"></path><path d="M9 21v-6h6v6"></path></svg>`;
+const ICON_PENCIL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle; margin-right:3px;"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"></path></svg>`;
+const ICON_BOT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle; margin-right:3px;"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8" y2="16.01"></line><line x1="16" y1="16" x2="16" y2="16.01"></line></svg>`;
+const ICON_BOOKMARK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle; margin-right:3px;"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>`;
+const ICON_UTENSILS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><path d="M3 2v7c0 1.1.9 2 2 2h1a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>`;
+const ICON_ACTIVITY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>`;
+const ICON_INFO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`;
+const ICON_SMILEY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>`;
+
 const PRODUCT_CHECKLIST = [
   "Alcohol", "Almond", "Almond butter", "Anchovy", "Apple", "Apricot", "Artichoke", "Artificial sweeteners",
   "Arugula / rocket", "Asparagus", "Aspartame", "Avocado", "Bacon", "Bagel", "Balsamic vinegar", "Banana",
@@ -1854,7 +1896,7 @@ const STEPS = [
         {key:"mealsPerDay", label:"Meals per day", type:"number", min:1, max:8},
       ]},
       {row:[
-        {type:"sectionHeader", label:"🚫 Blacklist — foods you won't eat"},
+        {type:"sectionHeader", label:"Blacklist — foods you won't eat", icon:"ban"},
       ]},
       {row:[
         {key:"avoidedFoodsList", label:"Broad categories to avoid (select all that apply)", type:"checkbox",
@@ -2257,6 +2299,11 @@ function enterApp(email, forceMigration){
   const u = users[email];
   currentUserEmail = email;
   answers = u.answers || {};
+  // firstSeenAt only exists if a PRIOR visit already set it (see backfillFirstSeenAtOnce below) --
+  // captured before that call runs, so a brand-new signup (nothing to welcome them "back" to yet)
+  // is reliably distinguished from every other entry into the app (an explicit login, or the app
+  // just auto-resuming an existing session on page load), which all show the welcome-back popup.
+  const isReturningUser = !!u.firstSeenAt;
   migrateLegacyActivityEntriesToWorkout(forceMigration);
   cleanupDuplicateWorkoutPresets(forceMigration);
   // Never forced: unlike the two migrations above (which only ever merge/move data and can't
@@ -2283,7 +2330,26 @@ function enterApp(email, forceMigration){
   switchView("plan");
   renderStep();
   renderBackupReminderBanner();
+  renderMissingDataWarningBanner();
+  if(isReturningUser) showWelcomeBackPopup(u.name);
 }
+
+// A friendly "welcome back" popup shown every time an existing account enters the app -- an
+// explicit login, or the app auto-resuming an already-logged-in session on page load/reload (see
+// isReturningUser above). Skipped only for a brand-new signup, where "back" wouldn't make sense yet.
+function showWelcomeBackPopup(name){
+  const displayName = (name || "").trim() || "there";
+  document.getElementById("welcomeBackBody").textContent = `Hi ${displayName}, I'm happy to see you back here.`;
+  document.getElementById("welcomeBackOverlay").classList.remove("hidden");
+}
+function closeWelcomeBackPopup(){
+  document.getElementById("welcomeBackOverlay").classList.add("hidden");
+  // Dismissing the welcome-back greeting takes you straight into Nutrition Log, rather than
+  // leaving you on My Plan -- that's the tab actually worth opening the app for most days.
+  switchView("food");
+}
+document.getElementById("welcomeBackCloseBtn").addEventListener("click", closeWelcomeBackPopup);
+document.getElementById("welcomeBackCloseX").addEventListener("click", closeWelcomeBackPopup);
 
 // Lazy, one-time backfill for accounts created before the backup-reminder feature existed --
 // baselines the reminder from "now" rather than retroactively treating a long-time account as
@@ -2469,6 +2535,47 @@ function renderBackupReminderBanner(){
   document.getElementById("backupReminderOpenBtn").addEventListener("click", ()=>{
     openSettings();
   });
+}
+
+/* ---------------------------------------------------------
+   MISSING-DATA WARNING -- a loud, high-alert banner (deliberately redder/stronger than the
+   amber streak-banner.due nudge used elsewhere) that flags when yesterday has NO real nutrition
+   entries and/or NO real workout entries logged at all. Scoped to yesterday specifically -- today
+   is still in progress and shouldn't be flagged as "forgotten" while there's still time left in
+   the day to log it. Unlike the strength rest-day guardrail (which deliberately does NOT nag on
+   legitimate rest/cardio days), this checks every single day without exception, since food is a
+   daily habit and the user has explicitly asked for workout to be treated the same way here.
+--------------------------------------------------------- */
+function yesterdayStr(){
+  return localDateStr(new Date(new Date(todayStr()+"T00:00:00").getTime() - 86400000));
+}
+
+function missingDataStatusForYesterday(){
+  if(!currentUserEmail) return {missingFood:false, missingWorkout:false, date:null};
+  const y = yesterdayStr();
+  const foodLog = getFoodLog();
+  const missingFood = !(foodLog[y] && foodLog[y].length);
+  const workoutLog = getWorkoutLog();
+  // "pending" entries are planned-but-not-yet-done placeholders (see workoutCardioDurationLabel) --
+  // they don't count as the day actually having been logged.
+  const realWorkoutEntries = (workoutLog[y] || []).filter(e => !e.pending);
+  const missingWorkout = realWorkoutEntries.length === 0;
+  return {missingFood, missingWorkout, date:y};
+}
+
+function renderMissingDataWarningBanner(){
+  const wrap = document.getElementById("missingDataWarningWrap");
+  if(!wrap) return;
+  const status = missingDataStatusForYesterday();
+  if(!status.date || (!status.missingFood && !status.missingWorkout)){ wrap.innerHTML = ""; return; }
+  const what = status.missingFood && status.missingWorkout
+    ? "nutrition or workout"
+    : (status.missingFood ? "nutrition" : "workout");
+  wrap.innerHTML = `
+    <div class="missing-data-banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div class="missing-data-banner-text">You forgot to enter ${what} data for yesterday (${formatShortDate(status.date)}).</div>
+    </div>`;
 }
 
 document.getElementById("backupExportBtn").addEventListener("click", ()=>{
@@ -2791,6 +2898,7 @@ document.getElementById("helpOverlay").addEventListener("click", (e)=>{
    user's name in the top-right user bar (see renderUserBar).
 --------------------------------------------------------- */
 function switchView(view){
+  renderMissingDataWarningBanner();
   document.getElementById("viewTabLog").classList.toggle("active", view==="log");
   document.getElementById("viewTabFood").classList.toggle("active", view==="food");
   document.getElementById("viewTabWorkout").classList.toggle("active", view==="workout");
@@ -3967,7 +4075,7 @@ function renderGoalProgress(logs){
 
   let etaText, noteText = "";
   if(goalReached){
-    etaText = "🎉 You've reached your target weight.";
+    etaText = `${ICON_SMILEY}You've reached your target weight.`;
   } else {
     let ratePerWeek = null, source = "";
     if(logs.length >= 2){
@@ -5386,21 +5494,25 @@ function renderProteinTodayNudge(){
   const remainingG = Math.max(0, targetG - eatenG);
   const hour = new Date().getHours();
 
+  const ICON_NFN_CHECK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
+  const ICON_NFN_CLOCK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`;
+  const ICON_NFN_HOURGLASS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"></path><path d="M5 2h14"></path><path d="M17 22v-4.17a2 2 0 0 0-.59-1.42L12 12l-4.41 4.41a2 2 0 0 0-.59 1.42V22"></path><path d="M7 2v4.17a2 2 0 0 0 .59 1.42L12 12l4.41-4.41A2 2 0 0 0 17 6.17V2"></path></svg>`;
+  const ICON_NFN_ALERT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
   let icon, tone, msg;
   if(remainingG <= 0){
-    icon = "✅"; tone = "ok";
+    icon = ICON_NFN_CHECK; tone = "ok";
     msg = `You've hit your protein target for today — nice work.`;
   } else if(hour < 12){
-    icon = "🕗"; tone = "";
+    icon = ICON_NFN_CLOCK; tone = "";
     msg = `Plenty of day left — spread the remaining ${Math.round(remainingG)}g across your next meals.`;
   } else if(hour < 18){
-    icon = "🕑"; tone = "";
+    icon = ICON_NFN_CLOCK; tone = "";
     msg = `A protein-focused lunch or snack — cottage cheese, skyr, eggs — will close most of the ${Math.round(remainingG)}g gap.`;
   } else if(hour < 21){
-    icon = "⏳"; tone = "warn";
+    icon = ICON_NFN_HOURGLASS; tone = "warn";
     msg = `Evening's here and you still need about ${Math.round(remainingG)}g — worth building dinner around a solid protein source.`;
   } else {
-    icon = "⚠️"; tone = "warn";
+    icon = ICON_NFN_ALERT; tone = "warn";
     msg = `Running out of time today — eat about ${Math.round(remainingG)}g of protein now (e.g. skyr, cottage cheese, or a protein shake) to still hit your target.`;
   }
 
@@ -5589,6 +5701,7 @@ function renderFoodView(){
   }
   const entries = getEntriesForDate(date);
   renderFoodStreakBanner();
+  renderMissingDataWarningBanner();
   renderFoodSummary(entries, date);
   renderNutritionFlag(date);
   renderFoodTable(entries, date);
@@ -5938,7 +6051,7 @@ function renderPackagesView(){
       : "Not logged yet";
     const unitsNote = (p.units && p.units.length) ? p.units.map(formatPackageUnit).join(", ") : "—";
     return `<tr>
-      <td>${p.name}${p.category ? `<div class="hint">${p.category}</div>` : ""}${p.store ? `<div class="hint">🏪 ${p.store}</div>` : ""}</td>
+      <td>${p.name}${p.category ? `<div class="hint">${p.category}</div>` : ""}${p.store ? `<div class="hint">${ICON_STORE}${p.store}</div>` : ""}</td>
       <td>${p.kcal} kcal</td>
       <td>${p.serving || "—"}</td>
       <td>${p.proteinG!=null ? p.proteinG+"g" : "—"}</td>
@@ -5958,7 +6071,7 @@ function renderPackagesView(){
         const isOverridden = ef !== f;
         const unitsNote = (ef.units && ef.units.length) ? ef.units.map(formatPackageUnit).join(", ") : "—";
         return `<tr>
-          <td>${f.emoji?f.emoji+" ":""}${f.label}<div class="hint">Built-in${isOverridden ? " · ✏️ edited by you" : ""}</div></td>
+          <td>${f.emoji?f.emoji+" ":""}${f.label}<div class="hint">Built-in${isOverridden ? ` · ${ICON_PENCIL}edited by you` : ""}</div></td>
           <td>${ef.kcal} kcal</td>
           <td>per 100g</td>
           <td>${ef.protein!=null ? ef.protein+"g" : "—"}</td>
@@ -6382,6 +6495,23 @@ function stopWorkoutSession(){
   }
   return completed;
 }
+// Auto-book a straightforward 60-minute strength session the moment "Copy last exercises" is
+// clicked -- replaces an earlier confirm-prompt-based "did you finish?" approach that turned out to
+// be too easy to miss (see the exercise-order/pending-based detection this used to do). Booking the
+// time immediately, with no dialog to answer, is simpler and can't be forgotten. Never overwrites a
+// session that's already recorded for the day, whether that's a previous auto-book or a real
+// manually-timed one -- and the "Edit" link on the Day workout log summary is always there
+// afterward if 60 minutes wasn't quite right.
+const AUTO_SESSION_DEFAULT_MINUTES = 60;
+function autoBookOneHourStrengthSession(date){
+  if(getWorkoutSessions()[date]) return; // already has a real recorded session -- don't clobber it
+  if(getActiveWorkoutSession()) return; // a live manual session is already running -- respect it
+  const startTime = Date.now();
+  const sessions = getWorkoutSessions();
+  sessions[date] = {startTime, endTime: startTime + AUTO_SESSION_DEFAULT_MINUTES*60000, durationMin: AUTO_SESSION_DEFAULT_MINUTES};
+  saveWorkoutSessionsObj(sessions);
+}
+
 // HH:MM, using local time and manual zero-padding rather than toLocaleTimeString() so it's
 // consistent regardless of the browser's locale settings (same reasoning as the rest of the app's
 // date formatting -- see formatDateDisplay).
@@ -7336,15 +7466,16 @@ function findLastLoggedExercise(exerciseName, beforeDate){
 document.getElementById("copyLastExercisesBtn").addEventListener("click", ()=>{
   const splitId = document.getElementById("workoutSplitSelect").value;
   if(!splitId){ showToast("Pick a Split above first, then Copy last exercises"); return; }
-  // The natural "I've just walked into the gym" moment -- auto-starts the session timer if one
-  // isn't already running (a no-op if it already is), so there's no separate step to remember.
-  startWorkoutSession();
   const split = getWorkoutSplits().find(s=>s.id===splitId);
   if(!split || !Array.isArray(split.exercises) || !split.exercises.length){
     showToast(`${split ? split.name : "This split"} has no exercise list defined yet — add one in "My splits" below first`);
     return;
   }
   const targetDate = document.getElementById("workoutDate").value.trim() || todayStr();
+  // The natural "I've just walked into the gym" moment -- immediately books a straightforward
+  // 60-minute strength session (see autoBookOneHourStrengthSession) instead of starting a live
+  // clock you'd have to remember to come back and stop.
+  autoBookOneHourStrengthSession(targetDate);
   const log = getWorkoutLog();
   if(!log[targetDate]) log[targetDate] = [];
   const splitName = `${split.emoji ? split.emoji+" " : ""}${split.name}`;
@@ -7631,6 +7762,45 @@ function splitBadgeHtml(splitName, splitId, splitsById){
   return `<span style="display:inline-block; padding:2px 9px; border-radius:10px; font-size:.78rem; font-weight:700; white-space:nowrap; background:${color}26; color:${color}; border:1px solid ${color}66;">${splitName}</span>`;
 }
 
+// --- "You did better than last time" indicator -- compares today's top set against the previous
+// time this exact exercise was logged (workoutHistoryForExercise, newest-first, same identity rule
+// progressive overload uses), reusing workoutEntryTopSetForOverload's kg/level/bodyweight
+// normalization so every exercise type compares on the same footing. Only ever surfaces a genuine
+// improvement -- returns null for a tie, a decline, a different-type comparison (e.g. logged with a
+// weight one time and bodyweight-only another), or when there's nothing prior to compare against
+// (first time logging it, or a cardio/pending entry).
+function workoutEntryImprovementLabel(entry, date){
+  if(workoutEntryIsCardio(entry) || entry.pending) return null;
+  const history = workoutHistoryForExercise(entry.exercise); // newest-first, includes today's own entry
+  const idx = history.findIndex(e => e.id === entry.id);
+  const prev = idx >= 0 ? history[idx+1] : history.find(e => e.date < date);
+  if(!prev) return null;
+  const todaySet = workoutEntryTopSetForOverload(entry);
+  const prevSet = workoutEntryTopSetForOverload(prev);
+  if(!todaySet || !prevSet || todaySet.type !== prevSet.type) return null;
+
+  if(todaySet.type === "bodyweight"){
+    if(todaySet.reps != null && prevSet.reps != null && todaySet.reps > prevSet.reps){
+      const d = todaySet.reps - prevSet.reps;
+      return `▲ +${d} rep${d===1?"":"s"}`;
+    }
+    return null;
+  }
+
+  if(todaySet.weight == null || prevSet.weight == null) return null;
+  if(todaySet.weight > prevSet.weight){
+    const d = Math.round((todaySet.weight - prevSet.weight) * 100) / 100;
+    if(todaySet.type === "level") return `▲ +${d} level${d===1?"":"s"}`;
+    const pct = prevSet.weight > 0 ? Math.round((d / prevSet.weight) * 100) : null;
+    return `▲ +${d} kg${pct ? ` (+${pct}%)` : ""}`;
+  }
+  if(todaySet.weight === prevSet.weight && todaySet.reps != null && prevSet.reps != null && todaySet.reps > prevSet.reps){
+    const d = todaySet.reps - prevSet.reps;
+    return `▲ +${d} rep${d===1?"":"s"}`;
+  }
+  return null;
+}
+
 function renderWorkoutTable(entries, date){
   const wrap = document.getElementById("workoutTableWrap");
   if(entries.length === 0){
@@ -7644,12 +7814,16 @@ function renderWorkoutTable(entries, date){
     const metricCell = cardio
       ? (e.cardioKcal != null ? `${Math.round(e.cardioKcal).toLocaleString()} kcal` : "—")
       : (workoutEntryVolume(e) > 0 ? `${Math.round(workoutEntryVolume(e)).toLocaleString()} kg` : "—");
+    const improvement = cardio ? null : workoutEntryImprovementLabel(e, date);
+    const improvementHtml = improvement
+      ? ` <span class="badge pr" title="Better than your last logged ${escAttr(e.exercise)}">${improvement}</span>`
+      : "";
     return `<tr>
       <td>${splitBadgeHtml(e.splitName, e.splitId, splitsById)}</td>
       <td><span class="badge info">${e.category||"Other"}</span></td>
       <td>${e.exercise}${cardio ? "" : exerciseVideoLinkHtml(e.exercise)}</td>
       <td>${detailsCell}</td>
-      <td>${metricCell}</td>
+      <td>${metricCell}${improvementHtml}</td>
       <td><button type="button" class="edit-btn" onclick="editWorkoutEntry('${date}','${e.id}')">Edit</button> <button type="button" class="del-btn" onclick="deleteWorkoutEntry('${date}','${e.id}')">Delete</button></td>
     </tr>`;
   }).join("");
@@ -7719,7 +7893,7 @@ function renderWorkoutStatsTable(){
     const next = suggestNextLoad(s.exercise);
     const plateau = detectLiftPlateau(s.exercise);
     const plateauNote = plateau
-      ? `<div class="lift-plateau-note">⚠ Plateau — no new PR in your last ${plateau.sessions} sessions (best still ${plateau.bestWeight} kg)</div>`
+      ? `<div class="lift-plateau-note">${ICON_ALERT_TRIANGLE}Plateau — no new PR in your last ${plateau.sessions} sessions (best still ${plateau.bestWeight} kg)</div>`
       : "";
     return `<tr>
       <td><span class="badge info">${s.category||"Other"}</span></td>
@@ -8337,39 +8511,44 @@ function renderWorkoutHeatmap(){
   }
   const dayHeaders = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   const shortDate = (d)=>{ const [,mm,dd] = d.split("-"); return `${dd}.${mm}`; };
-  // Same medal glyph as the Scale Log's milestone banner, for visual consistency across the app.
-  const medalIconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="8" r="6"></circle><path d="M9 14.5 7 22l5-3 5 3-2-7.5"></path></svg>`;
+  // A clean line-art smiley (same stroke-based icon language as every other icon in this app --
+  // see the tab icons at the top of the page) instead of a medal emoji, which read as a bit
+  // clip-arty next to the rest of the app's flat, professional visual style.
+  const celebrationIconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>`;
   const rows = weeks.map(week=>{
     const cells = week.days.map(d=>{
       // The rest-day chip is deliberately allowed to show even on a FUTURE date -- that's the
       // whole point (see shouldRestFromStrength) -- so a future cell with a rest recommendation no
       // longer stays blank the way a plain future cell otherwise would.
       const restChip = d.restRecommended
-        ? `<span class="workout-chip workout-rest-chip" style="background:linear-gradient(135deg, rgba(241,107,131,.32), rgba(241,107,131,.14)); color:var(--danger); border:1px solid rgba(241,107,131,.6);" title="Recommended rest day for strength -- 3 days in a row before this">🛑 Don't train</span>`
+        ? `<span class="workout-chip workout-rest-chip" style="background:linear-gradient(135deg, rgba(241,107,131,.32), rgba(241,107,131,.14)); color:var(--danger); border:1px solid rgba(241,107,131,.6);" title="Recommended rest day for strength -- 3 days in a row before this">${ICON_BAN}Don't train</span>`
         : "";
-      if(d.future) return restChip ? `<td style="text-align:center;">${restChip}</td>` : `<td></td>`;
-      if(!d.badges.length) return restChip ? `<td style="text-align:center;">${restChip}</td>` : `<td style="text-align:center; color:var(--border);">·</td>`;
+      if(d.future) return restChip ? `<td style="text-align:center; vertical-align:top;">${restChip}</td>` : `<td></td>`;
+      if(!d.badges.length) return restChip ? `<td style="text-align:center; vertical-align:top;">${restChip}</td>` : `<td style="text-align:center; vertical-align:top; color:var(--border);">·</td>`;
       // Don't-train always sorts ABOVE the split badges (Cardio included) in a cell, since it's the
       // more urgent/attention-grabbing signal -- reading top-to-bottom, "should I rest" comes before
       // "what did I actually log that day". Every chip shares the .workout-chip class (fixed
       // size/shape) with only its color varying inline, so Lower A/Upper A/Cardio/etc. always render
       // as identically-sized boxes instead of auto-sizing to each label's own text length.
       const chips = restChip + d.badges.map(b=>`<span class="workout-chip" style="background:linear-gradient(135deg, ${b.color}38, ${b.color}16); color:${b.color}; border:1px solid ${b.color}70;" title="${b.label}">${b.label}</span>`).join("");
-      return `<td style="text-align:center;" title="${d.date}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
+      return `<td style="text-align:center; vertical-align:top;" title="${d.date}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
     }).join("");
     // Weekly medal: lights up the moment every currently-defined split has been logged at least
     // once that week -- doesn't wait for the week to finish, so a Tuesday sweep still earns it.
     const medalCell = week.allSplitsLogged
-      ? `<td style="text-align:center;" title="All your splits logged this week!"><span class="week-medal-icon">${medalIconSvg}</span></td>`
-      : `<td style="text-align:center; color:var(--border);">·</td>`;
-    return `<tr><td style="white-space:nowrap; color:var(--muted); font-size:.78rem;">${shortDate(week.weekStart)}–${shortDate(week.weekEnd)}</td>${cells}${medalCell}</tr>`;
+      ? `<td style="text-align:center; vertical-align:top;" title="All your splits logged this week!"><span class="week-medal-icon">${celebrationIconSvg}</span></td>`
+      : `<td style="text-align:center; vertical-align:top; color:var(--border);">·</td>`;
+    // vertical-align:top on the week label too, so its date range lines up with the FIRST chip
+    // line in each day cell (the split-name badge -- see the ordering note above) rather than
+    // floating centered across the full height of a row where some days stack two chips.
+    return `<tr><td style="white-space:nowrap; color:var(--muted); font-size:.78rem; vertical-align:top;">${shortDate(week.weekStart)}–${shortDate(week.weekEnd)}</td>${cells}${medalCell}</tr>`;
   }).join("");
   const splits = getWorkoutSplits();
   const legend = splits.map(s=>`<span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted); margin-right:14px;"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:${s.color};"></span>${s.emoji?s.emoji+" ":""}${s.name}</span>`).join("");
   wrap.innerHTML = `
     <div class="table-scroll">
       <table class="log-table" style="table-layout:fixed; width:100%; min-width:700px;">
-        <thead><tr><th style="width:12%;">Week</th>${dayHeaders.map(h=>`<th style="width:11.14%;">${h}</th>`).join("")}<th style="width:9%;" title="All splits logged this week">🏅</th></tr></thead>
+        <thead><tr><th style="width:12%;">Week</th>${dayHeaders.map(h=>`<th style="width:11.14%; text-align:center;">${h}</th>`).join("")}<th style="width:9%; text-align:center;" title="All splits logged this week">${celebrationIconSvg.replace('width="20" height="20"', 'width="16" height="16"')}</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -8450,13 +8629,14 @@ function renderWorkoutRestBanner(date){
   const streak = strengthTrainingStreakEndingOn(shiftDateStr(date, -1));
   wrap.innerHTML = `
     <div class="workout-rest-banner">
-      <div class="workout-rest-banner-title">🛑 Don't train (strength) — ${date}</div>
+      <div class="workout-rest-banner-title">${ICON_BAN}Don't train (strength) — ${date}</div>
       <div class="workout-rest-banner-body">You've trained ${streak} days in a row. This is a recommended rest day for lifting so your muscles can recover — cardio is completely fine. Logging a strength set today will ask you to confirm first.</div>
     </div>
   `;
 }
 
 function renderWorkoutsView(){
+  renderMissingDataWarningBanner();
   renderWorkoutTimerWidget();
   const dateInput = document.getElementById("workoutDate");
   if(dateInput && !dateInput.value) dateInput.value = todayStr();
@@ -8728,8 +8908,8 @@ function renderHabitTable(entries, date){
   }
   const rows = entries.map(e=>{
     const isAvoid = e.type === "avoid";
-    const status = !isAvoid ? `<span class="badge ok">✓ Done</span>`
-      : (e.exception ? `<span class="badge warn">🟠 Exception</span>` : `<span class="badge danger">⚠ Slip</span>`);
+    const status = !isAvoid ? `<span class="badge ok">${ICON_CHECK}Done</span>`
+      : (e.exception ? `<span class="badge warn">${ICON_INFO}Exception</span>` : `<span class="badge danger">${ICON_ALERT_TRIANGLE}Slip</span>`);
     return `<tr>
       <td>${status}</td>
       <td>${e.name}</td>
@@ -8824,7 +9004,7 @@ function renderHabitPresetsTable(){
     return;
   }
   const rows = presets.map(p=>`<tr>
-      <td>${p.type==="avoid" ? `<span class="badge warn">🚫 Avoid</span>` : `<span class="badge ok">✅ Build</span>`}</td>
+      <td>${p.type==="avoid" ? `<span class="badge warn">${ICON_BAN}Avoid</span>` : `<span class="badge ok">${ICON_CHECK}Build</span>`}</td>
       <td>${p.name}</td>
       <td>${p.category || "—"}</td>
       <td>${p.type==="avoid" ? (p.since || "—") : "—"}</td>
@@ -9053,7 +9233,7 @@ function renderHabitStatsTable(){
     const type = typeMap[name] || "build";
     const category = categoryMap[name] || "—";
     const dates = datesForHabit(name);
-    const typeBadge = type==="avoid" ? `<span class="badge warn">🚫 Avoid</span>` : `<span class="badge ok">✅ Build</span>`;
+    const typeBadge = type==="avoid" ? `<span class="badge warn">${ICON_BAN}Avoid</span>` : `<span class="badge ok">${ICON_CHECK}Build</span>`;
     const strip = buildHabitMiniGrid(name, type, sinceMap[name]);
 
     if(type === "avoid"){
@@ -9063,7 +9243,7 @@ function renderHabitStatsTable(){
         return `<tr><td>${typeBadge}</td><td>${name}</td><td>${category}</td><td colspan="2" class="hint">Save as a preset with a "Tracking since" date to see a streak.</td></tr>`;
       }
       checkAndCelebrateMilestone(name, current);
-      const currentLabel = current > 0 ? `<span class="streak-flame">🔥</span> Day ${current}` : `<span style="color:var(--danger);">Reset — Day 0</span>`;
+      const currentLabel = current > 0 ? `<span class="streak-flame">${ICON_FLAME}</span> Day ${current}` : `<span style="color:var(--danger);">Reset — Day 0</span>`;
       return `<tr>
         <td>${typeBadge}</td>
         <td>${name}<div class="hint">Best: ${best} day${best===1?"":"s"} clean</div></td>
@@ -9080,7 +9260,7 @@ function renderHabitStatsTable(){
       <td>${typeBadge}</td>
       <td>${name}<div class="hint">Best: ${best} day${best===1?"":"s"} · ${rate30}% last 30 days</div></td>
       <td>${category}</td>
-      <td>${current > 0 ? `<span class="streak-flame">🔥</span> ${current} day${current===1?"":"s"}` : "—"}</td>
+      <td>${current > 0 ? `<span class="streak-flame">${ICON_FLAME}</span> ${current} day${current===1?"":"s"}` : "—"}</td>
       <td>${strip}</td>
     </tr>`;
   }).join("");
@@ -9144,7 +9324,7 @@ function fieldHTML(f){
   const val = answers[f.key];
   const req = f.required ? "required" : "";
   if(f.type==="sectionHeader"){
-    return `<div class="section-header">${f.label}</div>`;
+    return `<div class="section-header">${f.icon==="ban" ? ICON_BAN : ""}${f.label}</div>`;
   }
   if(f.type==="subhead"){
     return `<div class="subhead">${f.label}</div>`;
@@ -10128,7 +10308,7 @@ function renderAiLogGuide(){
     const done = i < aiLogGuideStepIndex;
     const current = i === aiLogGuideStepIndex;
     return `<div class="ai-log-guide-item ${current?"current":""} ${done?"done":""}">
-      <span class="ai-log-guide-num">${done ? "✓" : (i+1)}</span>
+      <span class="ai-log-guide-num">${done ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" width="11" height="11" style="vertical-align:middle;"><polyline points="20 6 9 17 4 12"></polyline></svg>` : (i+1)}</span>
       <span>${label}</span>
     </div>`;
   }).join("");
@@ -10205,7 +10385,7 @@ function setupAiSpeechRecognition(){
     if(event && (event.error === "not-allowed" || event.error === "audio-capture" || event.error === "service-not-allowed")){
       aiSpeechUserStopped = true;
       aiSpeechListening = false;
-      document.getElementById("aiLogMicBtn").textContent = "🎤 Start speaking";
+      document.getElementById("aiLogMicBtn").innerHTML = ICON_MIC + "Start speaking";
       showToast("Voice input stopped: " + event.error.replace(/-/g, " "));
     }
   };
@@ -10216,14 +10396,14 @@ function setupAiSpeechRecognition(){
   rec.onend = ()=>{
     if(aiSpeechUserStopped){
       aiSpeechListening = false;
-      document.getElementById("aiLogMicBtn").textContent = "🎤 Start speaking";
+      document.getElementById("aiLogMicBtn").innerHTML = ICON_MIC + "Start speaking";
       return;
     }
     try{
       rec.start();
     }catch(e){
       aiSpeechListening = false;
-      document.getElementById("aiLogMicBtn").textContent = "🎤 Start speaking";
+      document.getElementById("aiLogMicBtn").innerHTML = ICON_MIC + "Start speaking";
       showToast("Voice input stopped unexpectedly — click Start speaking to resume");
     }
   };
@@ -10238,7 +10418,7 @@ document.getElementById("aiLogMicBtn").addEventListener("click", ()=>{
     aiSpeechUserStopped = true;
     aiSpeechRecognition.stop();
     aiSpeechListening = false;
-    btn.textContent = "🎤 Start speaking";
+    btn.innerHTML = ICON_MIC + "Start speaking";
   } else {
     aiSpeechBaseText = document.getElementById("aiLogTranscript").value.trim();
     aiSpeechCommittedText = "";
@@ -10246,7 +10426,7 @@ document.getElementById("aiLogMicBtn").addEventListener("click", ()=>{
     try{
       aiSpeechRecognition.start();
       aiSpeechListening = true;
-      btn.textContent = "⏹ Stop speaking";
+      btn.innerHTML = ICON_MIC_STOP + "Stop speaking";
     }catch(e){
       aiSpeechUserStopped = true;
       showToast("Couldn't start voice input: " + e.message);
@@ -10540,10 +10720,10 @@ document.getElementById("aiLogParseBtn").addEventListener("click", async ()=>{
 });
 
 function aiMatchBadge(source){
-  if(source === "history") return `<span class="ai-match-badge" title="Matched to a food/activity you've logged before — numbers come from your own data">📌 your usual</span>`;
-  if(source === "preset" || source === "package") return `<span class="ai-match-badge" title="Matched to one of your saved presets/packages">📌 saved</span>`;
-  if(source === "database") return `<span class="ai-match-badge ai-match-database" title="Matched to the built-in food/activity database">✓ matched</span>`;
-  return `<span class="ai-match-badge ai-match-none" title="No confident match — this is the AI's own estimate, double-check it">🤖 AI estimate</span>`;
+  if(source === "history") return `<span class="ai-match-badge" title="Matched to a food/activity you've logged before — numbers come from your own data">${ICON_BOOKMARK}your usual</span>`;
+  if(source === "preset" || source === "package") return `<span class="ai-match-badge" title="Matched to one of your saved presets/packages">${ICON_BOOKMARK}saved</span>`;
+  if(source === "database") return `<span class="ai-match-badge ai-match-database" title="Matched to the built-in food/activity database">${ICON_CHECK}matched</span>`;
+  return `<span class="ai-match-badge ai-match-none" title="No confident match — this is the AI's own estimate, double-check it">${ICON_BOT}AI estimate</span>`;
 }
 
 function renderAiLogReview(){
@@ -10552,7 +10732,7 @@ function renderAiLogReview(){
   const foodRows = aiLogParsedResult.food.map((f,i)=>`
     <div class="meal-builder-row">
       <input type="checkbox" id="aiFoodCheck${i}" checked>
-      <span>🍽️</span>
+      <span>${ICON_UTENSILS}</span>
       <input type="text" id="aiFoodName${i}" value="${(f.name||"").replace(/"/g,'&quot;')}" style="flex:1;">
       ${aiMatchBadge(f.matchSource)}
       <select id="aiFoodMeal${i}">
@@ -10567,7 +10747,7 @@ function renderAiLogReview(){
   const actRows = aiLogParsedResult.activities.map((a,i)=>`
     <div class="meal-builder-row">
       <input type="checkbox" id="aiActCheck${i}" checked>
-      <span>🏃</span>
+      <span>${ICON_ACTIVITY}</span>
       <input type="text" id="aiActName${i}" value="${(a.name||"").replace(/"/g,'&quot;')}" style="flex:1;">
       ${aiMatchBadge(a.matchSource)}
       <input type="number" id="aiActMinutes${i}" value="${Math.round(a.minutes||0)}" style="width:70px;" title="minutes">min
@@ -10576,7 +10756,7 @@ function renderAiLogReview(){
   const habitRows = aiLogParsedResult.habits.map((h,i)=>`
     <div class="meal-builder-row">
       <input type="checkbox" id="aiHabitCheck${i}" checked>
-      <span>${h.type==="avoid" ? "🚫" : "✓"}</span>
+      <span>${h.type==="avoid" ? ICON_BAN : ICON_CHECK}</span>
       <input type="text" id="aiHabitName${i}" value="${(h.name||"").replace(/"/g,'&quot;')}" style="flex:1;">
       ${aiMatchBadge(h.matchSource)}
       <select id="aiHabitType${i}">
@@ -11158,21 +11338,21 @@ function setupCoachSpeechRecognition(){
     if(event && (event.error === "not-allowed" || event.error === "audio-capture" || event.error === "service-not-allowed")){
       coachSpeechUserStopped = true;
       coachSpeechListening = false;
-      document.getElementById("coachMicBtn").textContent = "🎤 Start speaking";
+      document.getElementById("coachMicBtn").innerHTML = ICON_MIC + "Start speaking";
       showToast("Voice input stopped: " + event.error.replace(/-/g, " "));
     }
   };
   rec.onend = ()=>{
     if(coachSpeechUserStopped){
       coachSpeechListening = false;
-      document.getElementById("coachMicBtn").textContent = "🎤 Start speaking";
+      document.getElementById("coachMicBtn").innerHTML = ICON_MIC + "Start speaking";
       return;
     }
     try{
       rec.start();
     }catch(e){
       coachSpeechListening = false;
-      document.getElementById("coachMicBtn").textContent = "🎤 Start speaking";
+      document.getElementById("coachMicBtn").innerHTML = ICON_MIC + "Start speaking";
       showToast("Voice input stopped unexpectedly — click Start speaking to resume");
     }
   };
@@ -11187,7 +11367,7 @@ document.getElementById("coachMicBtn").addEventListener("click", ()=>{
     coachSpeechUserStopped = true;
     coachSpeechRecognition.stop();
     coachSpeechListening = false;
-    btn.textContent = "🎤 Start speaking";
+    btn.innerHTML = ICON_MIC + "Start speaking";
   } else {
     coachSpeechBaseText = document.getElementById("coachUserNotesInput").value.trim();
     coachSpeechCommittedText = "";
@@ -11195,7 +11375,7 @@ document.getElementById("coachMicBtn").addEventListener("click", ()=>{
     try{
       coachSpeechRecognition.start();
       coachSpeechListening = true;
-      btn.textContent = "⏹ Stop speaking";
+      btn.innerHTML = ICON_MIC_STOP + "Stop speaking";
     }catch(e){
       coachSpeechUserStopped = true;
       showToast("Couldn't start voice input: " + e.message);
@@ -11208,7 +11388,7 @@ document.getElementById("coachClearNotesBtn").addEventListener("click", ()=>{
     coachSpeechUserStopped = true;
     coachSpeechRecognition.stop();
     coachSpeechListening = false;
-    document.getElementById("coachMicBtn").textContent = "🎤 Start speaking";
+    document.getElementById("coachMicBtn").innerHTML = ICON_MIC + "Start speaking";
   }
   document.getElementById("coachUserNotesInput").value = "";
   showToast("Cleared");
