@@ -878,7 +878,7 @@
         <div class="step-desc">Save a meal, product, or serving you eat often — like reading it off a nutrition label — so you can add the whole thing in one click above instead of retyping it. You can also look up and correct any of the built-in foods used in Quick pick.</div>
         <div class="nav" style="justify-content:flex-start; margin-bottom:12px;">
           <button type="button" class="secondary" id="packageFormToggleBtn">+ Add a meal</button>
-          <button type="button" class="secondary" id="pkgScanBarcodeBtn" title="Scan or enter a barcode to auto-fill a product"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"></path><circle cx="12" cy="13" r="4"></circle></svg>Scan barcode</button>
+          <button type="button" class="secondary" id="pkgScanBarcodeBtn" title="Scan or enter a barcode to auto-fill a product"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M16.043 3.691L17.52 6H21.75C22.1478 6 22.5294 6.15804 22.8107 6.43934C23.092 6.72064 23.25 7.10218 23.25 7.5V19.5C23.25 19.8978 23.092 20.2794 22.8107 20.5607C22.5294 20.842 22.1478 21 21.75 21H2.25C1.85218 21 1.47064 20.842 1.18934 20.5607C0.908035 20.2794 0.75 19.8978 0.75 19.5V7.5C0.75 7.10218 0.908035 6.72064 1.18934 6.43934C1.47064 6.15804 1.85218 6 2.25 6H6.48L7.958 3.691C8.09369 3.47915 8.28048 3.30482 8.50118 3.18407C8.72189 3.06332 8.96942 3.00002 9.221 3H14.779C15.0307 2.99986 15.2785 3.06308 15.4994 3.18383C15.7203 3.30459 15.9072 3.479 16.043 3.691Z"></path><path d="M4 6V4.5"></path><path d="M12 17C14.2091 17 16 15.2091 16 13C16 10.7909 14.2091 9 12 9C9.79086 9 8 10.7909 8 13C8 15.2091 9.79086 17 12 17Z"></path></svg>Scan barcode</button>
         </div>
         <div id="packageFormWrap" class="hidden">
           <form id="packageForm" autocomplete="off">
@@ -1760,21 +1760,21 @@ if(typeof MutationObserver !== "undefined" && typeof document.createTreeWalker =
    celebration icon. Sized small (14px) and inline via vertical-align so they slot into button/badge text.
    NOTE: only used in places that render via innerHTML -- never inside native <option>/<datalist>/attribute-value
    text, which can't display markup (that's why food-item, split, and habit-type emoji are left untouched). */
-const ICON_MIC = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>`;
-const ICON_MIC_STOP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><rect x="6" y="6" width="12" height="12" rx="1"></rect></svg>`;
-const ICON_CAMERA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"></path><circle cx="12" cy="13" r="4"></circle></svg>`;
-const ICON_ALERT_TRIANGLE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>`;
-const ICON_CHECK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle; margin-right:3px;"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+const ICON_MIC = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M19 10V12C19 15.866 15.866 19 12 19M5 10V12C5 15.866 8.13401 19 12 19M12 19V22M8 22H16M15 6H13M15 10H13M12 15C10.3431 15 9 13.6569 9 12V5C9 3.34315 10.3431 2 12 2C13.6569 2 15 3.34315 15 5V12C15 13.6569 13.6569 15 12 15Z"></path></svg>`;
+const ICON_MIC_STOP = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M15 9.4V5C15 3.34315 13.6569 2 12 2C10.8224 2 9.80325 2.67852 9.3122 3.66593M12 19V22M8 22H16M3 3L21 21M5.00043 10C5.00043 10 3.50062 19 12.0401 19C14.51 19 16.1333 18.2471 17.1933 17.1768M19.0317 13C19.2365 11.3477 19 10 19 10M15 6H13M12 15C10.3431 15 9 13.6569 9 12V9L14.1226 14.12C13.5796 14.6637 12.8291 15 12 15Z"></path></svg>`;
+const ICON_CAMERA = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M16.043 3.691L17.52 6H21.75C22.1478 6 22.5294 6.15804 22.8107 6.43934C23.092 6.72064 23.25 7.10218 23.25 7.5V19.5C23.25 19.8978 23.092 20.2794 22.8107 20.5607C22.5294 20.842 22.1478 21 21.75 21H2.25C1.85218 21 1.47064 20.842 1.18934 20.5607C0.908035 20.2794 0.75 19.8978 0.75 19.5V7.5C0.75 7.10218 0.908035 6.72064 1.18934 6.43934C1.47064 6.15804 1.85218 6 2.25 6H6.48L7.958 3.691C8.09369 3.47915 8.28048 3.30482 8.50118 3.18407C8.72189 3.06332 8.96942 3.00002 9.221 3H14.779C15.0307 2.99986 15.2785 3.06308 15.4994 3.18383C15.7203 3.30459 15.9072 3.479 16.043 3.691Z"></path><path d="M4 6V4.5"></path><path d="M12 17C14.2091 17 16 15.2091 16 13C16 10.7909 14.2091 9 12 9C9.79086 9 8 10.7909 8 13C8 15.2091 9.79086 17 12 17Z"></path></svg>`;
+const ICON_ALERT_TRIANGLE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M12 14.5V6"></path><path d="M12 18V18.5001"></path><path d="M12 23.25C18.2132 23.25 23.25 18.2132 23.25 12C23.25 5.7868 18.2132 0.75 12 0.75C5.7868 0.75 0.75 5.7868 0.75 12C0.75 18.2132 5.7868 23.25 12 23.25Z"></path></svg>`;
+const ICON_CHECK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle; margin-right:3px;"><path d="M5 11L10 16L18 7"></path></svg>`;
 const ICON_BAN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>`;
 const ICON_FLAME = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>`;
 const ICON_STORE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M2 7l1.5-4h17L22 7"></path><path d="M2 7v13a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V7"></path><path d="M2 7h20"></path><path d="M9 21v-6h6v6"></path></svg>`;
-const ICON_PENCIL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle; margin-right:3px;"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"></path></svg>`;
+const ICON_PENCIL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle; margin-right:3px;"><path d="M21.9629 2.03677C21.6299 1.70512 21.2344 1.44275 20.7993 1.26481C20.3643 1.08688 19.8983 0.9969 19.4283 1.00008C18.9583 1.00326 18.4936 1.09954 18.061 1.28335C17.6284 1.46716 17.2365 1.73486 16.908 2.07099L2.73061 16.2485L1 23L7.75135 21.2684L21.9287 7.09082C22.2649 6.76243 22.5327 6.37064 22.7166 5.93812C22.9004 5.50559 22.9967 5.04091 22.9999 4.57094C23.0031 4.10096 22.9131 3.63502 22.7351 3.20004C22.5571 2.76507 22.2946 2.36969 21.9629 2.03677V2.03677Z"></path></svg>`;
 const ICON_BOT = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle; margin-right:3px;"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8" y2="16.01"></line><line x1="16" y1="16" x2="16" y2="16.01"></line></svg>`;
-const ICON_BOOKMARK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle; margin-right:3px;"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>`;
+const ICON_BOOKMARK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle; margin-right:3px;"><path d="M3 1H21C21.5523 1 22 1.44772 22 2V23L12.6 15.95C12.2444 15.6833 11.7556 15.6833 11.4 15.95L2 23V2C2 1.44772 2.44772 1 3 1Z"></path></svg>`;
 const ICON_UTENSILS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><path d="M3 2v7c0 1.1.9 2 2 2h1a2 2 0 0 0 2-2V2"></path><path d="M7 2v20"></path><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"></path></svg>`;
 const ICON_ACTIVITY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>`;
-const ICON_INFO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>`;
-const ICON_SMILEY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>`;
+const ICON_INFO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M12 10.5L12 18"></path><path d="M12 6V6.50006"></path><path d="M12 0.75C18.2132 0.75 23.25 5.7868 23.25 12C23.25 18.2132 18.2132 23.25 12 23.25C5.7868 23.25 0.75 18.2132 0.75 12C0.75 5.7868 5.7868 0.75 12 0.75Z"></path></svg>`;
+const ICON_SMILEY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M12 23.25C18.2132 23.25 23.25 18.2132 23.25 12C23.25 5.7868 18.2132 0.75 12 0.75C5.7868 0.75 0.75 5.7868 0.75 12C0.75 18.2132 5.7868 23.25 12 23.25Z"></path><path d="M11.9982 18.7542C13.2563 18.7542 14.4893 18.4027 15.5583 17.7394C16.6202 17.0804 17.4782 16.1399 18.0371 15.0224L5.94824 15C6.50681 16.1273 7.3692 17.076 8.43818 17.7394C9.50715 18.4027 10.7402 18.7542 11.9982 18.7542Z"></path><path d="M18.75 10.5005C18.595 10.0617 18.3077 9.68178 17.9278 9.41305C17.5478 9.14432 17.0939 9.00001 16.6285 9.00001C16.1631 9.00001 15.7092 9.14432 15.3292 9.41305C14.9572 9.67617 14.6741 10.0459 14.5169 10.4731"></path><path d="M5.25004 10.5005C5.40506 10.0617 5.69233 9.68178 6.07228 9.41305C6.45223 9.14432 6.90616 9.00001 7.37154 9.00001C7.83692 9.00001 8.29085 9.14432 8.6708 9.41305C9.04416 9.67713 9.32804 10.0486 9.48486 10.4778"></path></svg>`;
 
 const PRODUCT_CHECKLIST = [
   "Alcohol", "Almond", "Almond butter", "Anchovy", "Apple", "Apricot", "Artichoke", "Artificial sweeteners",
@@ -9801,11 +9801,11 @@ function buildReport(){
 /* ---------------------------------------------------------
    REPORT ACTIONS
 --------------------------------------------------------- */
-function showToast(msg){
+function showToast(msg, durationMs){
   const t = document.getElementById("toast");
   t.textContent = msg;
   t.classList.add("show");
-  setTimeout(()=>t.classList.remove("show"), 1800);
+  setTimeout(()=>t.classList.remove("show"), durationMs || 1800);
 }
 
 document.getElementById("editBtn").addEventListener("click", ()=>{
@@ -11450,25 +11450,45 @@ async function loadJsZip(){
   }
 }
 
+// A browser fetch() failure against a cross-origin URL is deliberately vague -- the browser
+// reports the exact same generic error whether the real cause is "you're offline" or "the server
+// rejected this as a cross-origin request" (CORS), so JS can never tell those apart for certain.
+// But in THIS app, the only https:// URLs ever fetched here are Firebase Storage download links,
+// where a missing/wrong CORS policy on the bucket is by far the most common cause (offline would
+// also fail every other network call, not just this one) -- see mobile-cloud-sync-setup.md's
+// "Fix cross-device photo downloads" section for the one-time fix. Distinguishing "definitely
+// offline" from "likely CORS" still helps show the right hint instead of a generic dead end.
+function classifyPhotoFetchFailure(){
+  if(typeof navigator !== "undefined" && navigator.onLine === false) return "offline";
+  return "cors-likely";
+}
+
 // A scale-log photo field isn't always a local data: URL -- once cloud photo sync is on,
 // mergeScaleLogPhotos() will legitimately leave it as an https:// Firebase Storage URL whenever
 // this device doesn't hold the original upload itself (synced down from another device/session,
 // or a background pull that raced ahead of this device's own upload). Callers that need the
 // actual image bytes -- not just something to point an <img src> at -- have to handle both
 // shapes. Returns {base64} for a local data: URL (no network needed), {blob} for a fetched
-// remote URL, or null if a remote fetch fails (offline, permissions, bucket CORS, etc.) so the
-// caller can skip that one file instead of silently bundling an empty one.
+// remote URL, or {failReason} if every retry fails (offline, permissions, bucket CORS, etc.) so
+// the caller can skip that one file (and say why) instead of silently bundling an empty one.
+// Retries a couple of times with a short, growing delay first -- a photo that just finished
+// uploading from another device can take a moment to actually become fetchable, and this alone
+// clears up a real (if less common) transient cause without needing any CORS fix at all.
 async function resolveAttachmentBytes(dataUrl){
   if(typeof dataUrl !== "string" || !dataUrl) return null;
   if(dataUrl.startsWith("data:")) return {base64: dataUrl.split(",")[1] || ""};
-  try{
-    const res = await fetch(dataUrl);
-    if(!res.ok) throw new Error("HTTP " + res.status);
-    return {blob: await res.blob()};
-  } catch(e){
-    console.error("Failed to fetch remote photo for export", dataUrl, e);
-    return null;
+  const retryDelaysMs = [0, 800, 2000];
+  let lastErr = null;
+  for(let i=0; i<retryDelaysMs.length; i++){
+    if(retryDelaysMs[i]) await new Promise(r=>setTimeout(r, retryDelaysMs[i]));
+    try{
+      const res = await fetch(dataUrl);
+      if(!res.ok) throw new Error("HTTP " + res.status);
+      return {blob: await res.blob()};
+    } catch(e){ lastErr = e; }
   }
+  console.error("Failed to fetch remote photo for export after retries", dataUrl, lastErr);
+  return {failReason: classifyPhotoFetchFailure()};
 }
 
 // Checks every attachment's photo bytes are actually reachable *before* we commit to an export
@@ -11485,8 +11505,8 @@ async function partitionAttachmentsByAvailability(attachments){
   for(const a of attachments){
     if(a.dataUrl && !String(a.dataUrl).startsWith("data:")){
       const resolved = await resolveAttachmentBytes(a.dataUrl);
-      if(resolved){ included.push(Object.assign({}, a, {_resolved: resolved})); }
-      else { skipped.push(a); }
+      if(resolved && (resolved.blob || resolved.base64 != null)){ included.push(Object.assign({}, a, {_resolved: resolved})); }
+      else { skipped.push(Object.assign({}, a, {_failReason: (resolved && resolved.failReason) || "unknown"})); }
     } else {
       included.push(a);
     }
@@ -11529,7 +11549,7 @@ async function downloadFilesAsZip(attachments){
   for(const a of attachments){
     if(a.dataUrl){
       const resolved = a._resolved || await resolveAttachmentBytes(a.dataUrl);
-      if(!resolved) continue; // already reported via partitionAttachmentsByAvailability -- don't warn twice
+      if(!resolved || (!resolved.blob && resolved.base64 == null)) continue; // already reported via partitionAttachmentsByAvailability -- don't warn twice
       if(resolved.blob) zip.file(a.name, resolved.blob);
       else zip.file(a.name, resolved.base64, {base64: true});
     } else if(a.text != null){
@@ -11573,8 +11593,16 @@ document.getElementById("coachGenerateBtn").addEventListener("click", async ()=>
   document.getElementById("coachExportWrap").classList.remove("hidden");
   document.getElementById("coachCopyBtn").classList.remove("hidden");
 
+  // If any skip looks like a CORS-blocked bucket rather than a one-off network blip, say so
+  // directly (to the person, not just buried in a note meant for the coach) -- this is a one-time
+  // setup step that permanently fixes it, not something worth re-discovering every export.
+  const corsLikelySkip = skipped.some(f => f._failReason === "cors-likely");
+  const skipHint = corsLikelySkip
+    ? ` — this usually means your Firebase Storage bucket needs its CORS setting fixed (one-time, see "Fix cross-device photo downloads" in the setup guide)`
+    : (skipped.length ? ", see the note in the export" : "");
+
   if(!attachments.length){
-    showToast(skipped.length ? `Export ready — but ${skipped.length} photo(s) couldn't be reached right now, see the note in the export` : "Export ready — no photos or logs to attach yet");
+    showToast(skipped.length ? `Export ready — but ${skipped.length} photo(s) couldn't be reached right now${skipHint}` : "Export ready — no photos or logs to attach yet", corsLikelySkip ? 6000 : 1800);
   } else if(attachments.length === 1){
     await downloadAttachment(attachments[0]);
     showToast("Export ready — downloading your file");
@@ -11582,8 +11610,8 @@ document.getElementById("coachGenerateBtn").addEventListener("click", async ()=>
     showToast(`Export ready — zipping ${attachments.length} files...`);
     await downloadFilesAsZip(attachments);
     showToast(skipped.length
-      ? `Downloaded coach-export-files.zip (${attachments.length} files) — ${skipped.length} photo(s) couldn't be reached, see the note in the export`
-      : `Downloaded coach-export-files.zip (${attachments.length} files) — unzip it, then attach what you need to your chat`);
+      ? `Downloaded coach-export-files.zip (${attachments.length} files) — ${skipped.length} photo(s) couldn't be reached${skipHint}`
+      : `Downloaded coach-export-files.zip (${attachments.length} files) — unzip it, then attach what you need to your chat`, corsLikelySkip ? 6000 : 1800);
   }
 });
 
