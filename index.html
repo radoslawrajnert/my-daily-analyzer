@@ -11750,6 +11750,9 @@ document.getElementById("coachSaveFeedbackBtn").addEventListener("click", ()=>{
             // reintroduce un-migrated Activity Log rows, so re-run the migration right after.
             migrateLegacyActivityEntriesToWorkout(true);
             cleanupDuplicateWorkoutPresets(true);
+            // Same reasoning again: an older cloud snapshot can silently reintroduce a split's
+            // pre-migration default color, so force this migration to re-check every time too.
+            migrateLegacyDefaultSplitColorsOnce(true);
             // Not forced here (see the comment on its call in enterApp) -- forcing it on every
             // sync would undo a preset you'd deliberately deleted since the last time it ran.
             applyPresetAdjustmentsV2();
