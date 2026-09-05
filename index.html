@@ -11100,6 +11100,7 @@ function buildCoachExport(userNotes, attachments, skipped){
   lines.push("3. What to Watch Out For — specific concerns, risks, or patterns working against my goal. Be blunt.");
   lines.push(`4. Data Quality Flags — anything that looks like a likely data-entry mistake or a genuine outlier (an implausible jump in weight, a measurement that doesn't fit the trend, a day's numbers that look mistyped). Say "Nothing stood out" if there's nothing to flag.`);
   lines.push(`5. Answers to My Questions — only if I've added something in the section below; treat it as supplementary to the report above, not the main focus. If I didn't add anything, write "No question this time."`);
+  lines.push(`6. Exercise Progression Guidance — only if workout data is included below; otherwise write "No workout data this time." For each main lift listed, give a one-line verdict: increase the weight/reps, hold at the current load for another session or two, or back off (deload) -- and say briefly why, based on the last top set, the suggested next load, and whether it's flagged as plateaued. Group by movement pattern rather than restating every single exercise line by line if several are clearly telling the same story.`);
   lines.push("");
   lines.push(`Formatting rules for the reply itself: put each section title on its own line, written exactly as "1. Overall Assessment" etc. (a number, a period, a space, then just the short title — nothing else on that line); use "* " at the start of a line for bullet points; use **double asterisks** around anything you want bolded. Don't use markdown # headers instead of the numbered titles above, and don't merge two sections onto one line.`);
   lines.push("");
@@ -11218,6 +11219,23 @@ function buildCoachExport(userNotes, attachments, skipped){
           bits.push(`${s.sessions} session${s.sessions===1?"":"s"}, last on ${s.lastDate}`);
           lines.push(`  - ${s.exercise} (${s.category}): ${bits.join(", ")}`);
         });
+        // Same deterministic progressive-overload nudge and plateau flag already shown in the
+        // Workout Log tab's own stats table (see suggestNextLoad/detectLiftPlateau) -- reused here
+        // rather than asking the reviewing AI to invent a suggestion from just best-weight/1RM
+        // alone, so its Exercise Progression Guidance section is grounded in the app's own numbers.
+        const progressionLines = [];
+        stats.forEach(s=>{
+          const next = suggestNextLoad(s.exercise);
+          if(!next) return;
+          const plateau = detectLiftPlateau(s.exercise);
+          let line = `  - ${s.exercise}: last top set ${describeOverloadSet(next.last)} on ${next.date}, suggested next ${describeOverloadSet(next.suggestion)}`;
+          if(plateau) line += ` -- PLATEAUED: no new PR in the last ${plateau.sessions} sessions (best still ${plateau.bestWeight} kg, since ${plateau.sinceDate})`;
+          progressionLines.push(line);
+        });
+        if(progressionLines.length){
+          lines.push(`- Progressive overload status per exercise (this device's own deterministic suggestion, not a guess -- use it to inform section 6 below):`);
+          lines.push(...progressionLines);
+        }
       }
     } else {
       lines.push("- No workouts logged in the last 90 days.");
@@ -11284,7 +11302,7 @@ function buildCoachExport(userNotes, attachments, skipped){
 // bare "1. Short Title" line, since that's the exact numbered-section style the export's
 // own instructions ask Claude to reply with) into real HTML instead of showing the raw
 // symbols. Escapes everything else first, so this never introduces new HTML from the text.
-// The five section titles we ask the coach export's prompt for (see buildCoachExport). The AI
+// The six section titles we ask the coach export's prompt for (see buildCoachExport). The AI
 // reading that prompt doesn't always follow the "1. Title" formatting to the letter -- it may
 // drop the leading number, or bold the title instead of using our numbered-line convention --
 // so besides the generic numbered-heading heuristic below, we also recognize these exact titles
@@ -11296,6 +11314,7 @@ const COACH_SECTION_TITLES = [
   "What to Watch Out For",
   "Data Quality Flags",
   "Answers to My Questions",
+  "Exercise Progression Guidance",
 ];
 const HEADING_STYLE = "margin:22px 0 8px; padding-top:14px; border-top:1px solid var(--border); font-size:1.05rem; color:var(--accent2);";
 const FIRST_HEADING_STYLE = "margin:0 0 8px; padding-top:0; border-top:none; font-size:1.05rem; color:var(--accent2);";
