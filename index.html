@@ -1788,6 +1788,36 @@ const ICON_RUN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 function splitChipIcon(split){
   return split && split.emoji === "🏃" ? ICON_RUN : ICON_DUMBBELL;
 }
+// A split's own color (green/blue/amber/whatever) is meant to be the chip's SOLID fill -- so the
+// label text needs a dark shade of that same hue to stay readable, rather than the vivid color
+// itself (which is what made the old low-alpha-tint chips blend into the app's dark background).
+// Works for any hex a split happens to have, including custom colors from the color picker, not
+// just the 5 seeded defaults -- computed at render time rather than a hardcoded lookup table.
+function darkTextForFill(hex){
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if(!m) return "#1a1a1a";
+  const n = parseInt(m[1], 16);
+  const r = (n>>16 & 255)/255, g = (n>>8 & 255)/255, b = (n & 255)/255;
+  const max = Math.max(r,g,b), min = Math.min(r,g,b);
+  let h = 0; const d = max-min;
+  if(d !== 0){
+    switch(max){
+      case r: h = ((g-b)/d) % 6; break;
+      case g: h = (b-r)/d + 2; break;
+      default: h = (r-g)/d + 4;
+    }
+    h *= 60; if(h < 0) h += 360;
+  }
+  const s = 0.55, l = 0.17; // fixed dark, fairly saturated -- readable on any of the split's own hue
+  const c = (1 - Math.abs(2*l - 1)) * s;
+  const x = c * (1 - Math.abs((h/60) % 2 - 1));
+  const mm = l - c/2;
+  let rr,gg,bb;
+  if(h<60){[rr,gg,bb]=[c,x,0];} else if(h<120){[rr,gg,bb]=[x,c,0];} else if(h<180){[rr,gg,bb]=[0,c,x];}
+  else if(h<240){[rr,gg,bb]=[0,x,c];} else if(h<300){[rr,gg,bb]=[x,0,c];} else {[rr,gg,bb]=[c,0,x];}
+  const toHex = v => Math.round((v+mm)*255).toString(16).padStart(2,"0");
+  return `#${toHex(rr)}${toHex(gg)}${toHex(bb)}`;
+}
 
 const PRODUCT_CHECKLIST = [
   "Alcohol", "Almond", "Almond butter", "Anchovy", "Apple", "Apricot", "Artichoke", "Artificial sweeteners",
@@ -6383,11 +6413,14 @@ const CARDIO_SPLIT_DEFAULT_EXERCISES = [{category:"Cardio", name:"Jogging"}];
 
 function getDefaultWorkoutSplits(){
   return [
+    // Lower A/B share one green family (A lighter, B deeper) and Upper A/B share one blue family
+    // (same idea), so the A/B pairing reads as "same muscle group, different day" at a glance --
+    // Cardio gets its own amber, clearly outside either family.
     {id:"split-lower-a", name:"Lower A", emoji:"🦵", goal:"Legs + glutes", color:"#4ee1a3", exercises: LOWER_A_DEFAULT_EXERCISES.slice()},
     {id:"split-upper-a", name:"Upper A", emoji:"💪", goal:"Chest + back + shoulders + arms", color:"#7c9cff", exercises:[]},
-    {id:"split-lower-b", name:"Lower B", emoji:"🦵", goal:"Legs + glutes + core", color:"#ffb454", exercises: LOWER_B_DEFAULT_EXERCISES.slice()},
-    {id:"split-upper-b", name:"Upper B", emoji:"💪", goal:"Back + chest + shoulders + arms", color:"#ff6b6b", exercises: UPPER_B_DEFAULT_EXERCISES.slice()},
-    {id:"split-cardio", name:"Cardio", emoji:"🏃", goal:"Jogging, treadmill, swimming — conditioning", color:"#5ec8d8", exercises: CARDIO_SPLIT_DEFAULT_EXERCISES.slice()},
+    {id:"split-lower-b", name:"Lower B", emoji:"🦵", goal:"Legs + glutes + core", color:"#2eb787", exercises: LOWER_B_DEFAULT_EXERCISES.slice()},
+    {id:"split-upper-b", name:"Upper B", emoji:"💪", goal:"Back + chest + shoulders + arms", color:"#5470e0", exercises: UPPER_B_DEFAULT_EXERCISES.slice()},
+    {id:"split-cardio", name:"Cardio", emoji:"🏃", goal:"Jogging, treadmill, swimming — conditioning", color:"#ffb454", exercises: CARDIO_SPLIT_DEFAULT_EXERCISES.slice()},
   ];
 }
 function getWorkoutSplits(){
@@ -7772,7 +7805,9 @@ function splitBadgeHtml(splitName, splitId, splitsById){
   if(!splitName) return "—";
   const split = splitId ? splitsById.get(splitId) : null;
   const color = split ? split.color : "#7a8296";
-  return `<span style="display:inline-block; padding:2px 9px; border-radius:10px; font-size:.78rem; font-weight:700; white-space:nowrap; background:${color}26; color:${color}; border:1px solid ${color}66;">${splitName}</span>`;
+  // Solid fill + a dark shade of the same hue for the text -- same treatment as the heatmap's
+  // workout-chip, so this badge doesn't blend into the dark page background either.
+  return `<span style="display:inline-block; padding:2px 9px; border-radius:10px; font-size:.78rem; font-weight:700; white-space:nowrap; background:${color}; color:${darkTextForFill(color)};">${splitName}</span>`;
 }
 
 // --- "You did better than last time" indicator -- compares today's top set against the previous
@@ -8534,7 +8569,7 @@ function renderWorkoutHeatmap(){
       // whole point (see shouldRestFromStrength) -- so a future cell with a rest recommendation no
       // longer stays blank the way a plain future cell otherwise would.
       const restChip = d.restRecommended
-        ? `<span class="workout-chip workout-rest-chip" style="background:linear-gradient(135deg, rgba(241,107,131,.32), rgba(241,107,131,.14)); color:var(--danger); border:1px solid rgba(241,107,131,.6);" title="Recommended rest day for strength -- 3 days in a row before this">${ICON_BAN}Don't train</span>`
+        ? `<span class="workout-chip workout-rest-chip" style="background:#f16b83; color:${darkTextForFill("#f16b83")};" title="Recommended rest day for strength -- 3 days in a row before this">${ICON_BAN}Don't train</span>`
         : "";
       if(d.future) return restChip ? `<td style="text-align:center; vertical-align:top;">${restChip}</td>` : `<td></td>`;
       if(!d.badges.length) return restChip ? `<td style="text-align:center; vertical-align:top;">${restChip}</td>` : `<td style="text-align:center; vertical-align:top; color:var(--border);">·</td>`;
@@ -8543,7 +8578,7 @@ function renderWorkoutHeatmap(){
       // "what did I actually log that day". Every chip shares the .workout-chip class (fixed
       // size/shape) with only its color varying inline, so Lower A/Upper A/Cardio/etc. always render
       // as identically-sized boxes instead of auto-sizing to each label's own text length.
-      const chips = restChip + d.badges.map(b=>`<span class="workout-chip" style="background:linear-gradient(135deg, ${b.color}38, ${b.color}16); color:${b.color}; border:1px solid ${b.color}70;" title="${b.label}">${b.icon||""}${b.label}</span>`).join("");
+      const chips = restChip + d.badges.map(b=>`<span class="workout-chip" style="background:${b.color}; color:${darkTextForFill(b.color)};" title="${b.label}">${b.icon||""}${b.label}</span>`).join("");
       return `<td style="text-align:center; vertical-align:top;" title="${d.date}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
     }).join("");
     // Weekly medal: lights up the moment every currently-defined split has been logged at least
