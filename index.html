@@ -6414,16 +6414,17 @@ const CARDIO_SPLIT_DEFAULT_EXERCISES = [{category:"Cardio", name:"Jogging"}];
 
 function getDefaultWorkoutSplits(){
   return [
-    // Lower A/B share one deep-emerald family (A lighter, B deeper) and Upper A/B share one indigo
+    // Lower A/B share one teal-navy family (A lighter, B deeper) and Upper A/B share one mauve
     // family (same idea), so the A/B pairing reads as "same muscle group, different day" at a
-    // glance -- both families are muted/jewel-tone rather than flat-saturated. Cardio is a muted
-    // gray-slate on purpose: it shows up almost every day in the heatmap, so it should recede
-    // rather than compete with the actual strength splits for attention.
-    {id:"split-lower-a", name:"Lower A", emoji:"🦵", goal:"Legs + glutes", color:"#3f9d6f", exercises: LOWER_A_DEFAULT_EXERCISES.slice()},
-    {id:"split-upper-a", name:"Upper A", emoji:"💪", goal:"Chest + back + shoulders + arms", color:"#7381c4", exercises:[]},
-    {id:"split-lower-b", name:"Lower B", emoji:"🦵", goal:"Legs + glutes + core", color:"#2a7350", exercises: LOWER_B_DEFAULT_EXERCISES.slice()},
-    {id:"split-upper-b", name:"Upper B", emoji:"💪", goal:"Back + chest + shoulders + arms", color:"#4f5a9c", exercises: UPPER_B_DEFAULT_EXERCISES.slice()},
-    {id:"split-cardio", name:"Cardio", emoji:"🏃", goal:"Jogging, treadmill, swimming — conditioning", color:"#5b6270", exercises: CARDIO_SPLIT_DEFAULT_EXERCISES.slice()},
+    // glance -- both families are muted/jewel-tone rather than flat-saturated. Cardio gets a muted
+    // terracotta rather than plain gray -- gray already means "no split logged" elsewhere (the
+    // off-schedule/no-split fallback badge), so Cardio needs its own identity while still staying
+    // calm and not competing with the strength splits (it shows up almost every day).
+    {id:"split-lower-a", name:"Lower A", emoji:"🦵", goal:"Legs + glutes", color:"#4d8ea1", exercises: LOWER_A_DEFAULT_EXERCISES.slice()},
+    {id:"split-upper-a", name:"Upper A", emoji:"💪", goal:"Chest + back + shoulders + arms", color:"#b285a0", exercises:[]},
+    {id:"split-lower-b", name:"Lower B", emoji:"🦵", goal:"Legs + glutes + core", color:"#2f6577", exercises: LOWER_B_DEFAULT_EXERCISES.slice()},
+    {id:"split-upper-b", name:"Upper B", emoji:"💪", goal:"Back + chest + shoulders + arms", color:"#8a577a", exercises: UPPER_B_DEFAULT_EXERCISES.slice()},
+    {id:"split-cardio", name:"Cardio", emoji:"🏃", goal:"Jogging, treadmill, swimming — conditioning", color:"#a3714f", exercises: CARDIO_SPLIT_DEFAULT_EXERCISES.slice()},
   ];
 }
 function getWorkoutSplits(){
@@ -6445,11 +6446,11 @@ function saveWorkoutSplitsArr(arr){
 // on one of ITS OWN past default colors -- a color the person picked themselves via the color picker
 // never matches any of these, so it's never touched.
 const LEGACY_DEFAULT_SPLIT_COLORS = {
-  "split-lower-a": ["#4ee1a3", "#3ddc84"],
-  "split-lower-b": ["#ffb454", "#2eb787", "#1fae63"],
-  "split-upper-a": ["#7c9cff", "#5ec2ff"],
-  "split-upper-b": ["#ff6b6b", "#5470e0", "#2f9ce8"],
-  "split-cardio": ["#5ec8d8", "#ffb454", "#ff9d3f"],
+  "split-lower-a": ["#4ee1a3", "#3ddc84", "#3f9d6f"],
+  "split-lower-b": ["#ffb454", "#2eb787", "#1fae63", "#2a7350"],
+  "split-upper-a": ["#7c9cff", "#5ec2ff", "#7381c4"],
+  "split-upper-b": ["#ff6b6b", "#5470e0", "#2f9ce8", "#4f5a9c"],
+  "split-cardio": ["#5ec8d8", "#ffb454", "#ff9d3f", "#5b6270"],
 };
 function migrateLegacyDefaultSplitColorsOnce(force){
   const users = getUsers();
