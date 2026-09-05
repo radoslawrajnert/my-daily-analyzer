@@ -1775,6 +1775,19 @@ const ICON_UTENSILS = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 const ICON_ACTIVITY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>`;
 const ICON_INFO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M12 10.5L12 18"></path><path d="M12 6V6.50006"></path><path d="M12 0.75C18.2132 0.75 23.25 5.7868 23.25 12C23.25 18.2132 18.2132 23.25 12 23.25C5.7868 23.25 0.75 18.2132 0.75 12C0.75 5.7868 5.7868 0.75 12 0.75Z"></path></svg>`;
 const ICON_SMILEY = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M12 23.25C18.2132 23.25 23.25 18.2132 23.25 12C23.25 5.7868 18.2132 0.75 12 0.75C5.7868 0.75 0.75 5.7868 0.75 12C0.75 18.2132 5.7868 23.25 12 23.25Z"></path><path d="M11.9982 18.7542C13.2563 18.7542 14.4893 18.4027 15.5583 17.7394C16.6202 17.0804 17.4782 16.1399 18.0371 15.0224L5.94824 15C6.50681 16.1273 7.3692 17.076 8.43818 17.7394C9.50715 18.4027 10.7402 18.7542 11.9982 18.7542Z"></path><path d="M18.75 10.5005C18.595 10.0617 18.3077 9.68178 17.9278 9.41305C17.5478 9.14432 17.0939 9.00001 16.6285 9.00001C16.1631 9.00001 15.7092 9.14432 15.3292 9.41305C14.9572 9.67617 14.6741 10.0459 14.5169 10.4731"></path><path d="M5.25004 10.5005C5.40506 10.0617 5.69233 9.68178 6.07228 9.41305C6.45223 9.14432 6.90616 9.00001 7.37154 9.00001C7.83692 9.00001 8.29085 9.14432 8.6708 9.41305C9.04416 9.67713 9.32804 10.0486 9.48486 10.4778"></path></svg>`;
+// Split-type icons: a generic dumbbell for strength splits (Lower/Upper, whatever they're named),
+// a running figure for the Cardio split specifically -- replaces the raw 🦵/💪/🏃 emoji everywhere
+// they're actually rendered as markup (chips, legend, tables). The emoji itself is untouched in the
+// underlying split data/native form input -- see splitChipIcon below and its call sites.
+const ICON_DUMBBELL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle; margin-right:3px;"><path d="M15.5 9L15.5 15C15.5 15.465 15.5 15.6975 15.5511 15.8882C15.6898 16.4059 16.0941 16.8102 16.6118 16.9489C16.8025 17 17.035 17 17.5 17C17.965 17 18.1975 17 18.3882 16.9489C18.9059 16.8102 19.3102 16.4059 19.4489 15.8882C19.5 15.6975 19.5 15.465 19.5 15V9C19.5 8.53501 19.5 8.30252 19.4489 8.11177C19.3102 7.59413 18.9059 7.18981 18.3882 7.05111C18.1975 7 17.965 7 17.5 7C17.035 7 16.8025 7 16.6118 7.05111C16.0941 7.18981 15.6898 7.59413 15.5511 8.11177C15.5 8.30252 15.5 8.53501 15.5 9Z"></path><path d="M4.5 9L4.5 15C4.5 15.465 4.5 15.6975 4.55111 15.8882C4.68981 16.4059 5.09413 16.8102 5.61177 16.9489C5.80252 17 6.03501 17 6.5 17C6.96499 17 7.19748 17 7.38823 16.9489C7.90587 16.8102 8.31019 16.4059 8.44889 15.8882C8.5 15.6975 8.5 15.465 8.5 15V9C8.5 8.53501 8.5 8.30252 8.44889 8.11177C8.31019 7.59413 7.90587 7.18981 7.38823 7.05111C7.19748 7 6.96499 7 6.5 7C6.03501 7 5.80252 7 5.61177 7.05111C5.09413 7.18981 4.68981 7.59413 4.55111 8.11177C4.5 8.30252 4.5 8.53501 4.5 9Z"></path><path d="M5 10H4C2.89543 10 2 10.8954 2 12C2 13.1046 2.89543 14 4 14H5M9 12H15M19 14H20C21.1046 14 22 13.1046 22 12C22 10.8954 21.1046 10 20 10H19"></path></svg>`;
+const ICON_RUN = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="13" height="13" style="vertical-align:middle; margin-right:3px;"><circle cx="18.5" cy="4.5" r="2.5"></circle><path d="M14.4 21.9998V21.1948C14.4 21.117 14.4 21.0781 14.3996 21.0411C14.377 18.9018 13.3773 16.8903 11.6857 15.5804C11.6565 15.5578 11.6255 15.5343 11.5635 15.4873C11.5235 15.457 11.5035 15.4419 11.4877 15.4294C10.5309 14.6738 10.467 13.2453 11.3524 12.4073C11.367 12.3935 11.3857 12.3765 11.4227 12.3428L12.4628 11.3973C14.0898 9.91821 13.5945 7.24444 11.5457 6.4462C10.8122 6.16044 9.99522 6.17841 9.27504 6.49613L8.75335 6.72629M5.43897 8.61147L4 9.63619"></path><path d="M9 17L8.74064 17.3112C7.32089 19.0149 5.21773 20 3 20"></path><path d="M16 12C17.3131 12.3283 18.6869 12.3283 20 12"></path></svg>`;
+// Which icon a split gets when rendering its chip/legend/table entry -- the only signal we have is
+// its emoji (name is free text), so this keys off the built-in Cardio split's default emoji. A split
+// the user has renamed away from "🏃" just falls back to the generic dumbbell, same as any custom
+// strength split -- a reasonable default, not a bug.
+function splitChipIcon(split){
+  return split && split.emoji === "🏃" ? ICON_RUN : ICON_DUMBBELL;
+}
 
 const PRODUCT_CHECKLIST = [
   "Alcohol", "Almond", "Almond butter", "Anchovy", "Apple", "Apricot", "Artichoke", "Artificial sweeteners",
@@ -8256,7 +8269,7 @@ function renderWorkoutSplitsTable(){
       ? `<ol style="margin:0; padding-left:18px;">${s.exercises.map(x=>`<li style="margin-bottom:2px;">${x.name} <span class="badge info" style="font-size:.68rem;">${x.category}</span></li>`).join("")}</ol>`
       : `<span style="color:var(--muted);">No exercises defined yet</span>`;
     return `<tr>
-      <td style="white-space:nowrap; vertical-align:top;"><span style="display:inline-block; width:14px; height:14px; border-radius:4px; background:${s.color||"#4ee1a3"}; vertical-align:-2px; margin-right:6px;"></span>${s.emoji?s.emoji+" ":""}${s.name}</td>
+      <td style="white-space:nowrap; vertical-align:top;"><span style="display:inline-block; width:14px; height:14px; border-radius:4px; background:${s.color||"#4ee1a3"}; vertical-align:-2px; margin-right:6px;"></span>${splitChipIcon(s)}${s.name}</td>
       <td style="vertical-align:top;">${s.goal || "—"}</td>
       <td style="vertical-align:top;">${exercises}</td>
       <td style="white-space:nowrap; vertical-align:top;"><button type="button" class="edit-btn" onclick="editWorkoutSplit('${s.id}')">Edit</button> <button type="button" class="del-btn" onclick="deleteWorkoutSplit('${s.id}')">Delete</button></td>
@@ -8380,7 +8393,7 @@ function renderWorkoutPresetsTable(){
         : ` <span class="hint">(@ ${p.speedKmh}km/h, enter distance)</span>`;
     }
     return `<tr>
-      <td>${split ? `${split.emoji?split.emoji+" ":""}${split.name}` : "—"}</td>
+      <td>${split ? `${splitChipIcon(split)}${split.name}` : "—"}</td>
       <td><span class="badge info">${p.category}</span></td>
       <td>${nameCell}</td>
       <td><button type="button" class="edit-btn" onclick="editWorkoutPreset('${p.id}')">Edit</button> <button type="button" class="del-btn" onclick="deleteWorkoutPreset('${p.id}')">Delete</button></td>
@@ -8468,10 +8481,10 @@ function buildWorkoutHeatmap(weeksCount){
       const badges = seenSplitIds.map(id=>{
         const split = splitsById.get(id);
         return split
-          ? {id, color: split.color, label: `${split.emoji?split.emoji+" ":""}${split.name}`}
-          : {id, color: "#7a8296", label: "Workout"}; // split since deleted -- fall back to generic
+          ? {id, color: split.color, label: split.name, icon: splitChipIcon(split)}
+          : {id, color: "#7a8296", label: "Workout", icon: ""}; // split since deleted -- fall back to generic
       });
-      if(entries.some(e=>!e.splitId)) badges.push({id:null, color: "#7a8296", label: "Workout"});
+      if(entries.some(e=>!e.splitId)) badges.push({id:null, color: "#7a8296", label: "Workout", icon: ""});
       // Cardio always sorts to the end, regardless of which order things were logged in that day --
       // otherwise a Cardio+Upper A day flips between "Cardio, Upper A" and "Upper A, Cardio" purely
       // based on which one you happened to log first, which reads as inconsistent at a glance.
@@ -8530,7 +8543,7 @@ function renderWorkoutHeatmap(){
       // "what did I actually log that day". Every chip shares the .workout-chip class (fixed
       // size/shape) with only its color varying inline, so Lower A/Upper A/Cardio/etc. always render
       // as identically-sized boxes instead of auto-sizing to each label's own text length.
-      const chips = restChip + d.badges.map(b=>`<span class="workout-chip" style="background:linear-gradient(135deg, ${b.color}38, ${b.color}16); color:${b.color}; border:1px solid ${b.color}70;" title="${b.label}">${b.label}</span>`).join("");
+      const chips = restChip + d.badges.map(b=>`<span class="workout-chip" style="background:linear-gradient(135deg, ${b.color}38, ${b.color}16); color:${b.color}; border:1px solid ${b.color}70;" title="${b.label}">${b.icon||""}${b.label}</span>`).join("");
       return `<td style="text-align:center; vertical-align:top;" title="${d.date}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
     }).join("");
     // Weekly medal: lights up the moment every currently-defined split has been logged at least
@@ -8544,7 +8557,7 @@ function renderWorkoutHeatmap(){
     return `<tr><td style="white-space:nowrap; color:var(--muted); font-size:.78rem; vertical-align:top;">${shortDate(week.weekStart)}–${shortDate(week.weekEnd)}</td>${cells}${medalCell}</tr>`;
   }).join("");
   const splits = getWorkoutSplits();
-  const legend = splits.map(s=>`<span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted); margin-right:14px;"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:${s.color};"></span>${s.emoji?s.emoji+" ":""}${s.name}</span>`).join("");
+  const legend = splits.map(s=>`<span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted); margin-right:14px;"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:${s.color};"></span>${splitChipIcon(s)}${s.name}</span>`).join("");
   wrap.innerHTML = `
     <div class="table-scroll">
       <table class="log-table" style="table-layout:fixed; width:100%; min-width:700px;">
