@@ -2349,6 +2349,7 @@ function enterApp(email, forceMigration){
   const isReturningUser = !!u.firstSeenAt;
   migrateLegacyActivityEntriesToWorkout(forceMigration);
   cleanupDuplicateWorkoutPresets(forceMigration);
+  migrateLegacyDefaultSplitColorsOnce(forceMigration);
   // Never forced: unlike the two migrations above (which only ever merge/move data and can't
   // resurrect something you deleted), this one can create presets from scratch when they're
   // missing -- forcing it on every login/sync would bring back a preset you deliberately deleted.
@@ -6433,6 +6434,44 @@ function saveWorkoutSplitsArr(arr){
   if(!users[currentUserEmail]) return;
   users[currentUserEmail].workoutSplits = arr;
   saveUsers(users);
+}
+// The default split *colors* have changed twice since the Workout Split feature first shipped (a
+// color-family grouping pass, then a specific palette swap) -- but someone who already has splits
+// saved is sitting on whatever colors were baked in the moment their profile was created, since a
+// code-only change to getDefaultWorkoutSplits() never reaches data that already exists. This nudges
+// each of the 5 built-in splits forward to the CURRENT default color, but only if it's still sitting
+// on one of ITS OWN past default colors -- a color the person picked themselves via the color picker
+// never matches any of these, so it's never touched.
+const LEGACY_DEFAULT_SPLIT_COLORS = {
+  "split-lower-a": ["#4ee1a3"],
+  "split-lower-b": ["#ffb454", "#2eb787"],
+  "split-upper-a": ["#7c9cff"],
+  "split-upper-b": ["#ff6b6b", "#5470e0"],
+  "split-cardio": ["#5ec8d8", "#ffb454"],
+};
+function migrateLegacyDefaultSplitColorsOnce(force){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u || (u.legacySplitColorsMigrated && !force)) return;
+  if(Array.isArray(u.workoutSplits) && u.workoutSplits.length){
+    const targetColorById = new Map(getDefaultWorkoutSplits().map(s=>[s.id, s.color]));
+    let changed = false;
+    const migrated = u.workoutSplits.map(s=>{
+      const legacyColors = LEGACY_DEFAULT_SPLIT_COLORS[s.id];
+      const target = targetColorById.get(s.id);
+      if(legacyColors && target && legacyColors.includes(s.color) && s.color !== target){
+        changed = true;
+        return Object.assign({}, s, {color: target});
+      }
+      return s;
+    });
+    if(changed) saveWorkoutSplitsArr(migrated);
+  }
+  const usersAfter = getUsers();
+  if(usersAfter[currentUserEmail]){
+    usersAfter[currentUserEmail].legacySplitColorsMigrated = true;
+    saveUsers(usersAfter);
+  }
 }
 function genWorkoutSplitId(){
   return "ws" + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
