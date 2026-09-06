@@ -688,6 +688,92 @@
         </div>
       </div>
 
+      <div class="card">
+        <h2 id="workoutSplitFormTitle">My splits</h2>
+        <div class="step-desc" style="margin-top:0;">Define the splits in your program (e.g. Lower A, Upper B) as an exact, ordered list of exercises — the quick pick in Log a set will offer that list first, in order, and "Copy last exercises" duplicates your last session for whichever split you pick.</div>
+        <form id="workoutSplitForm" autocomplete="off">
+          <div class="row-inline">
+            <div class="field"><label>Split name *</label><input type="text" id="workoutSplitName" required placeholder="e.g. Lower A"></div>
+            <div class="field"><label>Emoji</label><input type="text" id="workoutSplitEmoji" maxlength="4" placeholder="🦵"></div>
+            <div class="field"><label>Color</label><input type="color" id="workoutSplitColor" value="#4ee1a3" style="padding:4px; height:42px;"></div>
+          </div>
+          <div class="row-inline">
+            <div class="field"><label>Goal / target muscles</label><input type="text" id="workoutSplitGoal" placeholder="e.g. Legs + glutes"></div>
+          </div>
+          <div class="field">
+            <label>Exercises in this split <span style="font-weight:400; color:var(--muted);">(in order)</span></label>
+            <div class="row-inline" style="align-items:flex-end;">
+              <div class="field"><label>Category</label>
+                <select id="workoutSplitExerciseCategory">
+                  <option value="Legs">Legs</option>
+                  <option value="Chest">Chest</option>
+                  <option value="Back">Back</option>
+                  <option value="Shoulders">Shoulders</option>
+                  <option value="Arms">Arms</option>
+                  <option value="Core">Core</option>
+                  <option value="Full Body">Full Body</option>
+                  <option value="Cardio">Cardio</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div class="field"><label>Quick pick</label>
+                <select id="workoutSplitExerciseQuickPick">
+                  <option value="">— custom / type your own —</option>
+                </select>
+              </div>
+              <div class="field" style="flex:2;"><label>Exercise</label><input type="text" id="workoutSplitExerciseName" placeholder="e.g. Bench Press"></div>
+              <button type="button" class="secondary" id="addSplitExerciseBtn">+ Add to list</button>
+            </div>
+            <div id="workoutSplitExerciseListWrap" style="margin-top:8px;"></div>
+          </div>
+          <div class="nav" style="justify-content:flex-end;">
+            <button type="button" class="secondary hidden" id="workoutSplitCancelBtn">Cancel edit</button>
+            <button type="submit" id="workoutSplitSubmitBtn">Save split →</button>
+          </div>
+        </form>
+        <div id="workoutSplitTableWrap"></div>
+      </div>
+
+      <div class="card">
+        <h2 id="workoutPresetFormTitle">My exercises</h2>
+        <div class="step-desc" style="margin-top:0;">Save exercises you do often so they show up as a one-click quick pick above instead of retyping the name and category each time. Tag one to a split so it only shows up when that split is selected.</div>
+        <form id="workoutPresetForm" autocomplete="off">
+          <div class="row-inline">
+            <div class="field"><label>Exercise name *</label><input type="text" id="workoutPresetName" required placeholder="e.g. Squat"></div>
+            <div class="field"><label>Category</label>
+              <select id="workoutPresetCategory">
+                <option value="Legs">Legs</option>
+                <option value="Chest">Chest</option>
+                <option value="Back">Back</option>
+                <option value="Shoulders">Shoulders</option>
+                <option value="Arms">Arms</option>
+                <option value="Core">Core</option>
+                <option value="Full Body">Full Body</option>
+                <option value="Cardio">Cardio</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div class="field"><label>Split</label>
+              <select id="workoutPresetSplit">
+                <option value="">Any / unassigned</option>
+              </select>
+            </div>
+          </div>
+          <div class="row-inline" id="workoutPresetCardioRow">
+            <div class="field"><label>Distance (km) <span style="font-weight:400; color:var(--muted);">optional, Cardio only</span></label><input type="number" id="workoutPresetDistanceKm" min="0" max="200" step="any" placeholder="e.g. 8, or leave blank to fill in each time"></div>
+            <div class="field"><label>Speed (km/h) <span style="font-weight:400; color:var(--muted);">optional, Cardio only</span></label><input type="number" id="workoutPresetSpeedKmh" min="0" max="40" step="any" placeholder="e.g. 10"></div>
+            <div class="field"><label>Duration override (min) <span style="font-weight:400; color:var(--muted);">optional</span></label><input type="number" id="workoutPresetDurationMin" min="0" max="600" step="any" placeholder="if your real time differs from distance÷speed"></div>
+            <div class="field"><label>MET <span style="font-weight:400; color:var(--muted);">optional, for no-distance cardio</span></label><input type="number" id="workoutPresetMet" min="0" max="20" step="any" placeholder="e.g. 4.8 for dancing, 6 for swimming"></div>
+          </div>
+          <div class="step-desc" style="margin-top:-6px;">For a Cardio exercise, set Distance + Speed for a fixed route (calories/duration then calculate automatically each time you log it), or just Speed alone for something like treadmill running where you'll enter the distance per session. Add a Duration override if your actual time for that route doesn't match the flat distance÷speed estimate (hills, stops, etc.) — calories will then be based on your real duration instead. For cardio with no distance at all (dancing, swimming), leave Distance/Speed blank and set a MET value instead — combined with a Duration, calories calculate the same way as the standard exercises do.</div>
+          <div class="nav" style="justify-content:flex-end;">
+            <button type="button" class="secondary hidden" id="workoutPresetCancelBtn">Cancel edit</button>
+            <button type="submit" id="workoutPresetSubmitBtn">Save exercise →</button>
+          </div>
+        </form>
+        <div id="workoutPresetTableWrap"></div>
+      </div>
+
       <div class="form-shell" id="formShell">
         <form id="intakeForm" autocomplete="off"></form>
       </div>
@@ -1028,46 +1114,6 @@
         <div class="step-desc" style="margin-top:0;">One row per week, Monday through Sunday — the day you logged a set lights up with the split you did, so you can see at a glance whether you actually hit Lower A, Upper A, etc. that week.</div>
         <div id="workoutHeatmapWrap"></div>
       </div>
-
-      <div class="card">
-        <h2 id="workoutPresetFormTitle">My exercises</h2>
-        <div class="step-desc" style="margin-top:0;">Save exercises you do often so they show up as a one-click quick pick above instead of retyping the name and category each time. Tag one to a split so it only shows up when that split is selected.</div>
-        <form id="workoutPresetForm" autocomplete="off">
-          <div class="row-inline">
-            <div class="field"><label>Exercise name *</label><input type="text" id="workoutPresetName" required placeholder="e.g. Squat"></div>
-            <div class="field"><label>Category</label>
-              <select id="workoutPresetCategory">
-                <option value="Legs">Legs</option>
-                <option value="Chest">Chest</option>
-                <option value="Back">Back</option>
-                <option value="Shoulders">Shoulders</option>
-                <option value="Arms">Arms</option>
-                <option value="Core">Core</option>
-                <option value="Full Body">Full Body</option>
-                <option value="Cardio">Cardio</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div class="field"><label>Split</label>
-              <select id="workoutPresetSplit">
-                <option value="">Any / unassigned</option>
-              </select>
-            </div>
-          </div>
-          <div class="row-inline" id="workoutPresetCardioRow">
-            <div class="field"><label>Distance (km) <span style="font-weight:400; color:var(--muted);">optional, Cardio only</span></label><input type="number" id="workoutPresetDistanceKm" min="0" max="200" step="any" placeholder="e.g. 8, or leave blank to fill in each time"></div>
-            <div class="field"><label>Speed (km/h) <span style="font-weight:400; color:var(--muted);">optional, Cardio only</span></label><input type="number" id="workoutPresetSpeedKmh" min="0" max="40" step="any" placeholder="e.g. 10"></div>
-            <div class="field"><label>Duration override (min) <span style="font-weight:400; color:var(--muted);">optional</span></label><input type="number" id="workoutPresetDurationMin" min="0" max="600" step="any" placeholder="if your real time differs from distance÷speed"></div>
-            <div class="field"><label>MET <span style="font-weight:400; color:var(--muted);">optional, for no-distance cardio</span></label><input type="number" id="workoutPresetMet" min="0" max="20" step="any" placeholder="e.g. 4.8 for dancing, 6 for swimming"></div>
-          </div>
-          <div class="step-desc" style="margin-top:-6px;">For a Cardio exercise, set Distance + Speed for a fixed route (calories/duration then calculate automatically each time you log it), or just Speed alone for something like treadmill running where you'll enter the distance per session. Add a Duration override if your actual time for that route doesn't match the flat distance÷speed estimate (hills, stops, etc.) — calories will then be based on your real duration instead. For cardio with no distance at all (dancing, swimming), leave Distance/Speed blank and set a MET value instead — combined with a Duration, calories calculate the same way as the standard exercises do.</div>
-          <div class="nav" style="justify-content:flex-end;">
-            <button type="button" class="secondary hidden" id="workoutPresetCancelBtn">Cancel edit</button>
-            <button type="submit" id="workoutPresetSubmitBtn">Save exercise →</button>
-          </div>
-        </form>
-        <div id="workoutPresetTableWrap"></div>
-      </div>
     </div>
 
     <div id="habitsView" class="hidden">
@@ -1336,50 +1382,6 @@
         <button type="button" id="cloudSyncSaveBtn">Save & connect</button>
       </span>
     </div>
-
-    <h3 id="workoutSplitFormTitle" style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>My splits</span></h3>
-    <div class="step-desc" style="margin-top:0;">Define the splits in your program (e.g. Lower A, Upper B) as an exact, ordered list of exercises — the quick pick in Log a set will offer that list first, in order, and "Copy last exercises" duplicates your last session for whichever split you pick.</div>
-    <form id="workoutSplitForm" autocomplete="off">
-      <div class="row-inline">
-        <div class="field"><label>Split name *</label><input type="text" id="workoutSplitName" required placeholder="e.g. Lower A"></div>
-        <div class="field"><label>Emoji</label><input type="text" id="workoutSplitEmoji" maxlength="4" placeholder="🦵"></div>
-        <div class="field"><label>Color</label><input type="color" id="workoutSplitColor" value="#4ee1a3" style="padding:4px; height:42px;"></div>
-      </div>
-      <div class="row-inline">
-        <div class="field"><label>Goal / target muscles</label><input type="text" id="workoutSplitGoal" placeholder="e.g. Legs + glutes"></div>
-      </div>
-      <div class="field">
-        <label>Exercises in this split <span style="font-weight:400; color:var(--muted);">(in order)</span></label>
-        <div class="row-inline" style="align-items:flex-end;">
-          <div class="field"><label>Category</label>
-            <select id="workoutSplitExerciseCategory">
-              <option value="Legs">Legs</option>
-              <option value="Chest">Chest</option>
-              <option value="Back">Back</option>
-              <option value="Shoulders">Shoulders</option>
-              <option value="Arms">Arms</option>
-              <option value="Core">Core</option>
-              <option value="Full Body">Full Body</option>
-              <option value="Cardio">Cardio</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div class="field"><label>Quick pick</label>
-            <select id="workoutSplitExerciseQuickPick">
-              <option value="">— custom / type your own —</option>
-            </select>
-          </div>
-          <div class="field" style="flex:2;"><label>Exercise</label><input type="text" id="workoutSplitExerciseName" placeholder="e.g. Bench Press"></div>
-          <button type="button" class="secondary" id="addSplitExerciseBtn">+ Add to list</button>
-        </div>
-        <div id="workoutSplitExerciseListWrap" style="margin-top:8px;"></div>
-      </div>
-      <div class="nav" style="justify-content:flex-end;">
-        <button type="button" class="secondary hidden" id="workoutSplitCancelBtn">Cancel edit</button>
-        <button type="submit" id="workoutSplitSubmitBtn">Save split →</button>
-      </div>
-    </form>
-    <div id="workoutSplitTableWrap"></div>
   </div>
 </div>
 
@@ -2466,12 +2468,6 @@ function openSettings(){
   document.getElementById("aiProviderSelect").value = getAiProvider();
   document.getElementById("aiApiKeyInput").value = getAiApiKey();
   refreshCloudSyncSettingsUI();
-  // "My splits" (moved here from the Workout Log tab) needs its own refresh on open too --
-  // renderWorkoutsView() also keeps it current whenever that tab is visited, but Settings can be
-  // opened without ever having been on Workout Log first (e.g. right after logging in).
-  populateWorkoutSplitExerciseQuickPick(document.getElementById("workoutSplitExerciseCategory").value || "");
-  renderWorkoutSplitsTable();
-  renderDraftSplitExerciseList();
   document.getElementById("settingsOverlay").classList.remove("hidden");
 }
 function closeSettings(){
@@ -2978,7 +2974,18 @@ function switchView(view){
   if(view==="commitments") renderCommitmentsView();
   if(view==="ailog") renderAiLogView();
   if(view==="coach") renderCoachView();
-  if(view==="plan"){ syncCoachFocusUI(); syncVisibleTabsUI(); }
+  if(view==="plan"){
+    syncCoachFocusUI(); syncVisibleTabsUI();
+    // "My splits" and "My exercises" (moved here from the Workout Log tab, reachable now only by
+    // clicking your name) need their own refresh on open -- renderWorkoutsView() also keeps them
+    // current whenever the Workout Log tab itself is visited, but My Plan can be opened without
+    // ever having gone there first (e.g. right after logging in).
+    populateWorkoutSplitExerciseQuickPick(document.getElementById("workoutSplitExerciseCategory").value || "");
+    renderWorkoutSplitsTable();
+    renderDraftSplitExerciseList();
+    populateWorkoutPresetSplitSelect();
+    renderWorkoutPresetsTable();
+  }
 }
 document.getElementById("viewTabLog").addEventListener("click", ()=>switchView("log"));
 document.getElementById("viewTabFood").addEventListener("click", ()=>switchView("food"));
@@ -7594,7 +7601,7 @@ function findLastLoggedExercise(exerciseName, beforeDate){
 }
 
 // Always builds the row list straight from the split's own defined, ordered exercise pattern (see
-// Settings -> "My splits") -- not whatever happened to get logged the last time you did this split, which
+// My Plan -> "My splits") -- not whatever happened to get logged the last time you did this split, which
 // might have skipped or ad-libbed something and so drifted from what the split actually says today.
 // For each exercise in that pattern, the most recent time you logged that exact exercise (anywhere)
 // supplies its sets/reps/weight (or distance/duration for Cardio); one you've never logged before is
@@ -7609,7 +7616,7 @@ function findLastLoggedExercise(exerciseName, beforeDate){
 function beginGuidedWorkoutSession(splitId){
   const split = getWorkoutSplits().find(s=>s.id===splitId);
   if(!split || !Array.isArray(split.exercises) || !split.exercises.length){
-    showToast(`${split ? split.name : "This split"} has no exercise list defined yet — add one in Settings → "My splits" first`);
+    showToast(`${split ? split.name : "This split"} has no exercise list defined yet — add one in My Plan → "My splits" first`);
     return;
   }
   const targetDate = document.getElementById("workoutDate").value.trim() || todayStr();
