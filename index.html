@@ -7551,9 +7551,11 @@ function findLastLoggedExercise(exerciseName, beforeDate){
 // workoutEntryRepsLabel/WeightLabel/workoutCardioDurationLabel) -- ready to Edit with real numbers
 // once you've actually done it. Uses the Split field's current selection rather than a separate
 // picker -- you'd already pick it before logging anyway.
-document.getElementById("copyLastExercisesBtn").addEventListener("click", ()=>{
-  const splitId = document.getElementById("workoutSplitSelect").value;
-  if(!splitId){ showToast("Pick a Split above first, then Copy last exercises"); return; }
+// Shared by both the top "Start Training" banner button and the "Copy last exercises" button
+// below the form -- they're really the same guided action: given a chosen split, book the
+// session time and seed the exercise checklist straight from that split's own defined pattern.
+// Kept as one function so the two entry points can never drift out of sync with each other.
+function beginGuidedWorkoutSession(splitId){
   const split = getWorkoutSplits().find(s=>s.id===splitId);
   if(!split || !Array.isArray(split.exercises) || !split.exercises.length){
     showToast(`${split ? split.name : "This split"} has no exercise list defined yet — add one in "My splits" below first`);
@@ -7597,7 +7599,25 @@ document.getElementById("copyLastExercisesBtn").addEventListener("click", ()=>{
     : `Added all ${total} ${split.name} exercises, filled in from your last time on each`;
   showToast(msg);
   renderWorkoutsView();
+}
+
+document.getElementById("copyLastExercisesBtn").addEventListener("click", ()=>{
+  const splitId = document.getElementById("workoutSplitSelect").value;
+  if(!splitId){ showToast("Pick a Split above first, then Copy last exercises"); return; }
+  beginGuidedWorkoutSession(splitId);
 });
+
+// The prominent "Start Training" banner button at the top of Workout Log -- the first, most
+// obvious click the moment you've picked up your phone at the gym: choose Split, tap this, and it
+// books the session time + fills in today's exercise checklist (still fully adjustable per set)
+// in one go. Same underlying action as "Copy last exercises" above, just surfaced as the guided
+// first step rather than a secondary button.
+function startTrainingAction(){
+  const splitId = document.getElementById("workoutSplitSelect").value;
+  if(!splitId){ showToast("Pick a Split below first, then Start Training"); return; }
+  beginGuidedWorkoutSession(splitId);
+}
+window.startTrainingAction = startTrainingAction;
 
 document.getElementById("workoutForm").addEventListener("submit", (e)=>{
   e.preventDefault();
@@ -8673,20 +8693,40 @@ function renderWorkoutTimerWidget(){
       </div>
     `;
     if(!workoutTimerIntervalId && typeof setInterval === "function") workoutTimerIntervalId = setInterval(renderWorkoutTimerWidget, 1000);
-  } else {
-    if(workoutTimerIntervalId){ if(typeof clearInterval === "function") clearInterval(workoutTimerIntervalId); workoutTimerIntervalId = null; }
+    return;
+  }
+  if(workoutTimerIntervalId){ if(typeof clearInterval === "function") clearInterval(workoutTimerIntervalId); workoutTimerIntervalId = null; }
+  // Whichever date the form below is currently pointed at (today, by default) -- booking or
+  // reviewing a session always applies to that date, same as "Copy last exercises" does, so you
+  // can also use this to pre-fill tomorrow's session if you've navigated the date forward.
+  const dateInputEl = document.getElementById("workoutDate");
+  const formDate = (dateInputEl && dateInputEl.value) || todayStr();
+  const booked = getWorkoutSessions()[formDate];
+  if(booked){
+    const whenLabel = formDate === todayStr() ? "today" : formatDateDisplay(formDate);
     wrap.innerHTML = `
       <div class="workout-timer-banner">
         <div class="workout-timer-info">
           <div class="workout-timer-text">
-            <div class="workout-timer-title">Not training right now</div>
-            <div class="workout-timer-body">Starts automatically the moment you use "Copy last exercises" or log your first set of the day — or start it yourself here.</div>
+            <div class="workout-timer-title">Training logged for ${whenLabel}</div>
+            <div class="workout-timer-body">${formatClockTime(booked.startTime)}–${formatClockTime(booked.endTime)} (${booked.durationMin} min) <a href="#" onclick="openWorkoutSessionEditModal('${formDate}'); return false;" style="margin-left:6px;">Edit</a></div>
           </div>
         </div>
-        <button type="button" class="secondary" onclick="startWorkoutSessionAction()">Start training →</button>
       </div>
     `;
+    return;
   }
+  wrap.innerHTML = `
+    <div class="workout-timer-banner">
+      <div class="workout-timer-info">
+        <div class="workout-timer-text">
+          <div class="workout-timer-title">Not training right now</div>
+          <div class="workout-timer-body">Pick a Split below, then Start Training — books a 1h session and fills in the exercise checklist for it in one go.</div>
+        </div>
+      </div>
+      <button type="button" class="secondary" onclick="startTrainingAction()">Start training →</button>
+    </div>
+  `;
 }
 function startWorkoutSessionAction(){
   startWorkoutSession();
