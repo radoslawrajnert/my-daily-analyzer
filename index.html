@@ -933,70 +933,78 @@
 
     <div id="workoutView" class="hidden">
       <div id="workoutRestBannerWrap"></div>
-      <div id="workoutTimerWrap"></div>
       <div class="card">
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-          <span id="workoutFormTitle">Log a set</span>
+          <span>Workout Log</span>
           <span style="display:flex; align-items:center; gap:8px; font-size:.78rem; font-weight:400; color:var(--muted);">
             Date: <span class="date-nav"><button type="button" class="date-nav-btn" id="workoutDatePrevBtn" aria-label="Previous day">‹</button><button type="button" id="workoutDate" style="width:auto; padding:6px 10px;"></button><button type="button" class="date-nav-btn" id="workoutDateNextBtn" aria-label="Next day">›</button></span> <span class="date-day-label" id="workoutDateDayLabel"></span>
           </span>
         </h2>
-        <div class="step-desc" style="margin-top:0;">Pick your split, then a category, then an exercise — the quick pick narrows to match whatever category you've selected. Add a row each time the weight or rep count changes within the same session.</div>
-        <form id="workoutForm" autocomplete="off">
-          <div class="row-inline">
-            <div class="field"><label>Split</label>
-              <select id="workoutSplitSelect">
-                <option value="">— no split / off-schedule —</option>
-              </select>
-            </div>
-            <div class="field"><label>Category</label>
-              <select id="workoutCategory">
-                <option value="">— All (every category this split covers) —</option>
-                <option value="Legs">Legs</option>
-                <option value="Chest">Chest</option>
-                <option value="Back">Back</option>
-                <option value="Shoulders">Shoulders</option>
-                <option value="Arms">Arms</option>
-                <option value="Core">Core</option>
-                <option value="Full Body">Full Body</option>
-                <option value="Cardio">Cardio</option>
-                <option value="Other">Other</option>
-              </select>
-            </div>
-            <div class="field"><label>Quick pick</label>
-              <select id="workoutQuickPick">
-                <option value="">— custom / type your own —</option>
-              </select>
-            </div>
-            <div class="field"><label>Exercise *</label><input type="text" id="workoutExercise" required placeholder="e.g. Squat"></div>
-          </div>
-          <div class="row-inline" id="workoutStrengthFields">
-            <div class="field"><label>Sets *</label><input type="number" id="workoutSets" min="1" max="30" step="1" value="3" required></div>
-            <div class="field"><label>Reps * <span style="font-weight:400; color:var(--muted);">(e.g. 8 or 8,8,10)</span></label><input type="text" id="workoutReps" required placeholder="8 or 8,8,10" value="8"></div>
-            <div class="field"><label>Weight <span style="font-weight:400; color:var(--muted);">(e.g. 24.5 or 24.5,21,21)</span></label>
-              <div style="display:flex; gap:6px;">
-                <select id="workoutWeightType" style="max-width:88px; flex:0 0 auto;">
-                  <option value="kg">kg</option>
-                  <option value="level">Level</option>
+        <div class="field" style="max-width:280px; margin-bottom:0;"><label>Split</label>
+          <select id="workoutSplitSelect">
+            <option value="">— no split / off-schedule —</option>
+          </select>
+        </div>
+      </div>
+      <div id="workoutTimerWrap"></div>
+      <div class="card">
+        <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+          <span id="workoutFormTitle">Log a set</span>
+          <button type="button" class="secondary" id="workoutManualToggleBtn" onclick="toggleWorkoutManualForm()">+ Log a set manually</button>
+        </h2>
+        <div id="workoutManualFormWrap" class="hidden">
+          <div class="step-desc" style="margin-top:0;">Pick a category, then an exercise — the quick pick narrows to match whatever category your chosen split covers. Add a row each time the weight or rep count changes within the same session.</div>
+          <form id="workoutForm" autocomplete="off">
+            <div class="row-inline">
+              <div class="field"><label>Category</label>
+                <select id="workoutCategory">
+                  <option value="">— All (every category this split covers) —</option>
+                  <option value="Legs">Legs</option>
+                  <option value="Chest">Chest</option>
+                  <option value="Back">Back</option>
+                  <option value="Shoulders">Shoulders</option>
+                  <option value="Arms">Arms</option>
+                  <option value="Core">Core</option>
+                  <option value="Full Body">Full Body</option>
+                  <option value="Cardio">Cardio</option>
+                  <option value="Other">Other</option>
                 </select>
-                <input type="text" id="workoutWeight" placeholder="leave blank for bodyweight" style="flex:1;">
+              </div>
+              <div class="field"><label>Quick pick</label>
+                <select id="workoutQuickPick">
+                  <option value="">— custom / type your own —</option>
+                </select>
+              </div>
+              <div class="field"><label>Exercise *</label><input type="text" id="workoutExercise" required placeholder="e.g. Squat"></div>
+            </div>
+            <div class="row-inline" id="workoutStrengthFields">
+              <div class="field"><label>Sets *</label><input type="number" id="workoutSets" min="1" max="30" step="1" value="3" required></div>
+              <div class="field"><label>Reps * <span style="font-weight:400; color:var(--muted);">(e.g. 8 or 8,8,10)</span></label><input type="text" id="workoutReps" required placeholder="8 or 8,8,10" value="8"></div>
+              <div class="field"><label>Weight <span style="font-weight:400; color:var(--muted);">(e.g. 24.5 or 24.5,21,21)</span></label>
+                <div style="display:flex; gap:6px;">
+                  <select id="workoutWeightType" style="max-width:88px; flex:0 0 auto;">
+                    <option value="kg">kg</option>
+                    <option value="level">Level</option>
+                  </select>
+                  <input type="text" id="workoutWeight" placeholder="leave blank for bodyweight" style="flex:1;">
+                </div>
               </div>
             </div>
-          </div>
-          <div class="row-inline hidden" id="workoutCardioFields">
-            <div class="field"><label>Distance (km) <span style="font-weight:400; color:var(--muted);">optional</span></label><input type="number" id="workoutDistanceKm" min="0" max="200" step="any" placeholder="e.g. 8"></div>
-            <div class="field"><label>Speed (km/h) <span style="font-weight:400; color:var(--muted);">optional</span></label><input type="number" id="workoutSpeedKmh" min="0" max="40" step="any" placeholder="e.g. 10"></div>
-            <div class="field"><label>Duration (min)</label><input type="number" id="workoutCardioMinutes" min="0" max="600" step="any" placeholder="auto or type your own"></div>
-            <div class="field"><label>Calories (kcal)</label><input type="number" id="workoutCardioKcal" min="0" max="3000" step="any" placeholder="auto or type your own"></div>
-          </div>
-          <div class="step-desc hidden" id="workoutCardioHint" style="margin-top:-6px;">Fill in Distance + Speed to auto-calculate Duration/Calories (jogging, treadmill), or just Duration for a MET-based pick like Swimming.</div>
-          <div id="workoutOverloadHintWrap"></div>
-          <div class="nav" style="justify-content:flex-end;">
-            <button type="button" class="secondary" id="copyLastExercisesBtn" title="Pick a Split above first, then click to add every exercise from that split's own list, each filled in with your last sets/reps/weight for it -- or marked tbd if you've never logged it before">Copy last exercises →</button>
-            <button type="button" class="secondary hidden" id="workoutCancelBtn">Cancel edit</button>
-            <button type="submit" id="workoutSubmitBtn">Add set →</button>
-          </div>
-        </form>
+            <div class="row-inline hidden" id="workoutCardioFields">
+              <div class="field"><label>Distance (km) <span style="font-weight:400; color:var(--muted);">optional</span></label><input type="number" id="workoutDistanceKm" min="0" max="200" step="any" placeholder="e.g. 8"></div>
+              <div class="field"><label>Speed (km/h) <span style="font-weight:400; color:var(--muted);">optional</span></label><input type="number" id="workoutSpeedKmh" min="0" max="40" step="any" placeholder="e.g. 10"></div>
+              <div class="field"><label>Duration (min)</label><input type="number" id="workoutCardioMinutes" min="0" max="600" step="any" placeholder="auto or type your own"></div>
+              <div class="field"><label>Calories (kcal)</label><input type="number" id="workoutCardioKcal" min="0" max="3000" step="any" placeholder="auto or type your own"></div>
+            </div>
+            <div class="step-desc hidden" id="workoutCardioHint" style="margin-top:-6px;">Fill in Distance + Speed to auto-calculate Duration/Calories (jogging, treadmill), or just Duration for a MET-based pick like Swimming.</div>
+            <div id="workoutOverloadHintWrap"></div>
+            <div class="nav" style="justify-content:flex-end;">
+              <button type="button" class="secondary" id="copyLastExercisesBtn" title="Pick a Split above first, then click to add every exercise from that split's own list, each filled in with your last sets/reps/weight for it -- or marked tbd if you've never logged it before">Copy last exercises →</button>
+              <button type="button" class="secondary hidden" id="workoutCancelBtn">Cancel edit</button>
+              <button type="submit" id="workoutSubmitBtn">Add set →</button>
+            </div>
+          </form>
+        </div>
       </div>
 
       <div class="card">
@@ -7434,6 +7442,27 @@ document.getElementById("workoutWeightType").addEventListener("change", (e)=>{
   weightInput.placeholder = e.target.value === "level" ? "e.g. 5 (machine level), or 5,4,4" : "leave blank for bodyweight";
 });
 
+// The manual "Log a set" form (category/exercise/sets/reps/weight, plus "Copy last exercises")
+// is collapsed by default -- Start Training up top covers the normal flow now, so this stays out
+// of the way until someone actually needs to hand-add or correct a set. showWorkoutManualForm()
+// is the forced-open version used by editWorkoutEntry (see below), since Edit always needs the
+// fields visible regardless of whatever state the toggle was already in.
+function isWorkoutManualFormOpen(){
+  return !document.getElementById("workoutManualFormWrap").classList.contains("hidden");
+}
+function showWorkoutManualForm(){
+  document.getElementById("workoutManualFormWrap").classList.remove("hidden");
+  document.getElementById("workoutManualToggleBtn").textContent = "− Hide manual entry";
+}
+function hideWorkoutManualForm(){
+  document.getElementById("workoutManualFormWrap").classList.add("hidden");
+  document.getElementById("workoutManualToggleBtn").textContent = "+ Log a set manually";
+}
+function toggleWorkoutManualForm(){
+  if(isWorkoutManualFormOpen()) hideWorkoutManualForm(); else showWorkoutManualForm();
+}
+window.toggleWorkoutManualForm = toggleWorkoutManualForm;
+
 let editingWorkoutId = null, editingWorkoutDate = null;
 
 function exitWorkoutEditMode(){
@@ -7447,6 +7476,7 @@ function exitWorkoutEditMode(){
 function editWorkoutEntry(date, id){
   const entry = getWorkoutEntriesForDate(date).find(e=>e.id===id);
   if(!entry) return;
+  showWorkoutManualForm(); // the fields need to actually be visible before we populate + scroll to them
   editingWorkoutId = id;
   editingWorkoutDate = date;
   document.getElementById("workoutDate").value = date;
@@ -7523,8 +7553,10 @@ document.getElementById("workoutCancelBtn").addEventListener("click", ()=>{
   document.getElementById("workoutSets").readOnly = false;
   document.getElementById("workoutWeightType").value = "kg";
   selectedWorkoutCardioMet = null;
-  // No weekday schedule to fall back on -- form.reset() already clears Split back to
-  // "no split / off-schedule", so Category/quick pick are rebuilt to match that blank state.
+  // Split now lives outside <form id="workoutForm"> (it's the persistent top-of-tab selector Start
+  // Training also reads), so form.reset() above no longer touches it automatically -- reset it by
+  // hand to keep the exact same "back to no split / off-schedule" behavior this always had.
+  document.getElementById("workoutSplitSelect").value = "";
   const splitId = document.getElementById("workoutSplitSelect").value;
   autoSetCategoryForSplit(splitId);
   populateWorkoutQuickPick(splitId, document.getElementById("workoutCategory").value);
@@ -7614,7 +7646,7 @@ document.getElementById("copyLastExercisesBtn").addEventListener("click", ()=>{
 // first step rather than a secondary button.
 function startTrainingAction(){
   const splitId = document.getElementById("workoutSplitSelect").value;
-  if(!splitId){ showToast("Pick a Split below first, then Start Training"); return; }
+  if(!splitId){ showToast("Pick a Split above first, then Start Training"); return; }
   beginGuidedWorkoutSession(splitId);
 }
 window.startTrainingAction = startTrainingAction;
@@ -8721,7 +8753,7 @@ function renderWorkoutTimerWidget(){
       <div class="workout-timer-info">
         <div class="workout-timer-text">
           <div class="workout-timer-title">Not training right now</div>
-          <div class="workout-timer-body">Pick a Split below, then Start Training — books a 1h session and fills in the exercise checklist for it in one go.</div>
+          <div class="workout-timer-body">Pick a Split above, then Start Training — books a 1h session and fills in the exercise checklist for it in one go.</div>
         </div>
       </div>
       <button type="button" class="secondary" onclick="startTrainingAction()">Start training →</button>
