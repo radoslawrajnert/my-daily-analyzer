@@ -1015,9 +1015,7 @@
 
       <div class="card">
         <h2>Workout stats</h2>
-        <div class="step-desc" style="margin-top:0;">Your best-ever weight and estimated one-rep max per exercise, based on everything you've logged.</div>
-        <div id="workoutStatsWrap"></div>
-        <div class="nav" style="justify-content:flex-start; margin-top:10px;">
+        <div class="nav" style="justify-content:flex-start; margin-top:0;">
           <button type="button" class="secondary" id="exportWorkoutCsvBtn">Export CSV</button>
         </div>
         <h3 style="margin:22px 0 4px; font-size:.95rem;">Training volume by session</h3>
@@ -1029,52 +1027,6 @@
         <h3 style="margin:22px 0 4px; font-size:.95rem;">Weekly split tracker</h3>
         <div class="step-desc" style="margin-top:0;">One row per week, Monday through Sunday — the day you logged a set lights up with the split you did, so you can see at a glance whether you actually hit Lower A, Upper A, etc. that week.</div>
         <div id="workoutHeatmapWrap"></div>
-      </div>
-
-      <div class="card">
-        <h2 id="workoutSplitFormTitle">My splits</h2>
-        <div class="step-desc" style="margin-top:0;">Define the splits in your program (e.g. Lower A, Upper B) as an exact, ordered list of exercises — the quick pick in Log a set will offer that list first, in order, and "Copy last exercises" duplicates your last session for whichever split you pick.</div>
-        <form id="workoutSplitForm" autocomplete="off">
-          <div class="row-inline">
-            <div class="field"><label>Split name *</label><input type="text" id="workoutSplitName" required placeholder="e.g. Lower A"></div>
-            <div class="field"><label>Emoji</label><input type="text" id="workoutSplitEmoji" maxlength="4" placeholder="🦵"></div>
-            <div class="field"><label>Color</label><input type="color" id="workoutSplitColor" value="#4ee1a3" style="padding:4px; height:42px;"></div>
-          </div>
-          <div class="row-inline">
-            <div class="field"><label>Goal / target muscles</label><input type="text" id="workoutSplitGoal" placeholder="e.g. Legs + glutes"></div>
-          </div>
-          <div class="field">
-            <label>Exercises in this split <span style="font-weight:400; color:var(--muted);">(in order)</span></label>
-            <div class="row-inline" style="align-items:flex-end;">
-              <div class="field"><label>Category</label>
-                <select id="workoutSplitExerciseCategory">
-                  <option value="Legs">Legs</option>
-                  <option value="Chest">Chest</option>
-                  <option value="Back">Back</option>
-                  <option value="Shoulders">Shoulders</option>
-                  <option value="Arms">Arms</option>
-                  <option value="Core">Core</option>
-                  <option value="Full Body">Full Body</option>
-                  <option value="Cardio">Cardio</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div class="field"><label>Quick pick</label>
-                <select id="workoutSplitExerciseQuickPick">
-                  <option value="">— custom / type your own —</option>
-                </select>
-              </div>
-              <div class="field" style="flex:2;"><label>Exercise</label><input type="text" id="workoutSplitExerciseName" placeholder="e.g. Bench Press"></div>
-              <button type="button" class="secondary" id="addSplitExerciseBtn">+ Add to list</button>
-            </div>
-            <div id="workoutSplitExerciseListWrap" style="margin-top:8px;"></div>
-          </div>
-          <div class="nav" style="justify-content:flex-end;">
-            <button type="button" class="secondary hidden" id="workoutSplitCancelBtn">Cancel edit</button>
-            <button type="submit" id="workoutSplitSubmitBtn">Save split →</button>
-          </div>
-        </form>
-        <div id="workoutSplitTableWrap"></div>
       </div>
 
       <div class="card">
@@ -1384,6 +1336,50 @@
         <button type="button" id="cloudSyncSaveBtn">Save & connect</button>
       </span>
     </div>
+
+    <h3 id="workoutSplitFormTitle" style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>My splits</span></h3>
+    <div class="step-desc" style="margin-top:0;">Define the splits in your program (e.g. Lower A, Upper B) as an exact, ordered list of exercises — the quick pick in Log a set will offer that list first, in order, and "Copy last exercises" duplicates your last session for whichever split you pick.</div>
+    <form id="workoutSplitForm" autocomplete="off">
+      <div class="row-inline">
+        <div class="field"><label>Split name *</label><input type="text" id="workoutSplitName" required placeholder="e.g. Lower A"></div>
+        <div class="field"><label>Emoji</label><input type="text" id="workoutSplitEmoji" maxlength="4" placeholder="🦵"></div>
+        <div class="field"><label>Color</label><input type="color" id="workoutSplitColor" value="#4ee1a3" style="padding:4px; height:42px;"></div>
+      </div>
+      <div class="row-inline">
+        <div class="field"><label>Goal / target muscles</label><input type="text" id="workoutSplitGoal" placeholder="e.g. Legs + glutes"></div>
+      </div>
+      <div class="field">
+        <label>Exercises in this split <span style="font-weight:400; color:var(--muted);">(in order)</span></label>
+        <div class="row-inline" style="align-items:flex-end;">
+          <div class="field"><label>Category</label>
+            <select id="workoutSplitExerciseCategory">
+              <option value="Legs">Legs</option>
+              <option value="Chest">Chest</option>
+              <option value="Back">Back</option>
+              <option value="Shoulders">Shoulders</option>
+              <option value="Arms">Arms</option>
+              <option value="Core">Core</option>
+              <option value="Full Body">Full Body</option>
+              <option value="Cardio">Cardio</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="field"><label>Quick pick</label>
+            <select id="workoutSplitExerciseQuickPick">
+              <option value="">— custom / type your own —</option>
+            </select>
+          </div>
+          <div class="field" style="flex:2;"><label>Exercise</label><input type="text" id="workoutSplitExerciseName" placeholder="e.g. Bench Press"></div>
+          <button type="button" class="secondary" id="addSplitExerciseBtn">+ Add to list</button>
+        </div>
+        <div id="workoutSplitExerciseListWrap" style="margin-top:8px;"></div>
+      </div>
+      <div class="nav" style="justify-content:flex-end;">
+        <button type="button" class="secondary hidden" id="workoutSplitCancelBtn">Cancel edit</button>
+        <button type="submit" id="workoutSplitSubmitBtn">Save split →</button>
+      </div>
+    </form>
+    <div id="workoutSplitTableWrap"></div>
   </div>
 </div>
 
@@ -2470,6 +2466,12 @@ function openSettings(){
   document.getElementById("aiProviderSelect").value = getAiProvider();
   document.getElementById("aiApiKeyInput").value = getAiApiKey();
   refreshCloudSyncSettingsUI();
+  // "My splits" (moved here from the Workout Log tab) needs its own refresh on open too --
+  // renderWorkoutsView() also keeps it current whenever that tab is visited, but Settings can be
+  // opened without ever having been on Workout Log first (e.g. right after logging in).
+  populateWorkoutSplitExerciseQuickPick(document.getElementById("workoutSplitExerciseCategory").value || "");
+  renderWorkoutSplitsTable();
+  renderDraftSplitExerciseList();
   document.getElementById("settingsOverlay").classList.remove("hidden");
 }
 function closeSettings(){
@@ -7592,7 +7594,7 @@ function findLastLoggedExercise(exerciseName, beforeDate){
 }
 
 // Always builds the row list straight from the split's own defined, ordered exercise pattern (see
-// "My splits" below) -- not whatever happened to get logged the last time you did this split, which
+// Settings -> "My splits") -- not whatever happened to get logged the last time you did this split, which
 // might have skipped or ad-libbed something and so drifted from what the split actually says today.
 // For each exercise in that pattern, the most recent time you logged that exact exercise (anywhere)
 // supplies its sets/reps/weight (or distance/duration for Cardio); one you've never logged before is
@@ -7607,7 +7609,7 @@ function findLastLoggedExercise(exerciseName, beforeDate){
 function beginGuidedWorkoutSession(splitId){
   const split = getWorkoutSplits().find(s=>s.id===splitId);
   if(!split || !Array.isArray(split.exercises) || !split.exercises.length){
-    showToast(`${split ? split.name : "This split"} has no exercise list defined yet — add one in "My splits" below first`);
+    showToast(`${split ? split.name : "This split"} has no exercise list defined yet — add one in Settings → "My splits" first`);
     return;
   }
   const targetDate = document.getElementById("workoutDate").value.trim() || todayStr();
@@ -8839,7 +8841,11 @@ function renderWorkoutsView(){
   const entries = getWorkoutEntriesForDate(date);
   renderWorkoutSummary(entries, date);
   renderWorkoutTable(entries, date);
-  renderWorkoutStatsTable();
+  // renderWorkoutStatsTable() (the per-exercise Sessions/Best weight/Est. 1RM/Suggested next
+  // table) is intentionally no longer rendered here -- removed from the visible page per request,
+  // even though the function itself (and computeWorkoutStats/suggestNextLoad/detectLiftPlateau
+  // underneath it) is still very much alive and used elsewhere: the Coach export's own progression
+  // section, and the "Suggested next"/plateau hint already shown right on the Log-a-set form.
   renderWorkoutVolumeTrendChart();
   renderWorkoutHeatmap();
   renderWorkoutSplitsTable();
