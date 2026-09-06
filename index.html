@@ -1450,9 +1450,12 @@
         <div class="field"><label>Start time <span style="font-weight:400; color:var(--muted);">(24h)</span></label><input type="text" id="workoutSessionEditStart" placeholder="HH:MM" inputmode="numeric" maxlength="5" required></div>
         <div class="field"><label>End time <span style="font-weight:400; color:var(--muted);">(24h)</span></label><input type="text" id="workoutSessionEditEnd" placeholder="HH:MM" inputmode="numeric" maxlength="5" required></div>
       </div>
-      <div class="nav" style="justify-content:flex-end;">
-        <button type="button" class="secondary" id="workoutSessionEditCancelBtn">Cancel</button>
-        <button type="submit">Save →</button>
+      <div class="nav" style="justify-content:space-between;">
+        <button type="button" class="del-btn" id="workoutSessionEditDeleteBtn">Delete session</button>
+        <div style="display:flex; gap:10px;">
+          <button type="button" class="secondary" id="workoutSessionEditCancelBtn">Cancel</button>
+          <button type="submit">Save →</button>
+        </div>
       </div>
     </form>
   </div>
@@ -6608,6 +6611,20 @@ function autoBookOneHourStrengthSession(date){
   saveWorkoutSessionsObj(sessions);
 }
 
+// Clears a date's booked/recorded session entirely (not just its time -- the whole record), so
+// Start Training's auto-book guard (above) no longer sees anything there and a fresh click books a
+// brand new one from scratch. This is the "start over" escape hatch the Edit time modal didn't
+// have -- Edit can only nudge an existing time, never remove it outright.
+function deleteWorkoutSessionForDate(date){
+  const sessions = getWorkoutSessions();
+  if(!sessions[date]) return;
+  delete sessions[date];
+  saveWorkoutSessionsObj(sessions);
+  showToast("Training time cleared for this date");
+  renderWorkoutsView();
+}
+window.deleteWorkoutSessionForDate = deleteWorkoutSessionForDate;
+
 // HH:MM, using local time and manual zero-padding rather than toLocaleTimeString() so it's
 // consistent regardless of the browser's locale settings (same reasoning as the rest of the app's
 // date formatting -- see formatDateDisplay).
@@ -7871,6 +7888,12 @@ function autoFormatHHMMInput(el){
 });
 document.getElementById("workoutSessionEditCloseBtn").addEventListener("click", closeWorkoutSessionEditModal);
 document.getElementById("workoutSessionEditCancelBtn").addEventListener("click", closeWorkoutSessionEditModal);
+document.getElementById("workoutSessionEditDeleteBtn").addEventListener("click", ()=>{
+  const date = editingWorkoutSessionDate;
+  if(!date) return;
+  closeWorkoutSessionEditModal();
+  deleteWorkoutSessionForDate(date);
+});
 document.getElementById("workoutSessionEditForm").addEventListener("submit", (e)=>{
   e.preventDefault();
   const date = editingWorkoutSessionDate;
@@ -8734,26 +8757,24 @@ function renderWorkoutTimerWidget(){
   const dateInputEl = document.getElementById("workoutDate");
   const formDate = (dateInputEl && dateInputEl.value) || todayStr();
   const booked = getWorkoutSessions()[formDate];
-  if(booked){
-    const whenLabel = formDate === todayStr() ? "today" : formatDateDisplay(formDate);
-    wrap.innerHTML = `
-      <div class="workout-timer-banner">
-        <div class="workout-timer-info">
-          <div class="workout-timer-text">
-            <div class="workout-timer-title">Training logged for ${whenLabel}</div>
-            <div class="workout-timer-body">${formatClockTime(booked.startTime)}–${formatClockTime(booked.endTime)} (${booked.durationMin} min) <a href="#" onclick="openWorkoutSessionEditModal('${formDate}'); return false;" style="margin-left:6px;">Edit</a></div>
-          </div>
-        </div>
-      </div>
-    `;
-    return;
-  }
+  // The Start Training button always stays visible here, whether or not a session's already
+  // booked for the date -- training twice in a day (e.g. a strength split, then Cardio later) is
+  // completely normal, and each click's own guided-session logic only adds that split's exercises;
+  // it doesn't touch/reset the date's booked time if one already exists (see
+  // autoBookOneHourStrengthSession's own guard). Locking the button away behind a read-only
+  // "logged" state was the bug -- there was no way back to it short of deleting the whole session.
+  const titleHtml = booked
+    ? `Training logged for ${formDate === todayStr() ? "today" : formatDateDisplay(formDate)}`
+    : "Not training right now";
+  const bodyHtml = booked
+    ? `${formatClockTime(booked.startTime)}–${formatClockTime(booked.endTime)} (${booked.durationMin} min) <a href="#" onclick="openWorkoutSessionEditModal('${formDate}'); return false;" style="margin-left:6px;">Edit</a> · <a href="#" onclick="deleteWorkoutSessionForDate('${formDate}'); return false;">Delete</a><br>Training again today? Pick the next Split above and click Start Training again.`
+    : "Pick a Split above, then Start Training — books a 1h session and fills in the exercise checklist for it in one go.";
   wrap.innerHTML = `
     <div class="workout-timer-banner">
       <div class="workout-timer-info">
         <div class="workout-timer-text">
-          <div class="workout-timer-title">Not training right now</div>
-          <div class="workout-timer-body">Pick a Split above, then Start Training — books a 1h session and fills in the exercise checklist for it in one go.</div>
+          <div class="workout-timer-title">${titleHtml}</div>
+          <div class="workout-timer-body">${bodyHtml}</div>
         </div>
       </div>
       <button type="button" class="secondary" onclick="startTrainingAction()">Start training →</button>
