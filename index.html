@@ -3753,11 +3753,20 @@ const MINI_TREND_METRICS = [
 function miniSparklineSvg(points, target){
   const w = 200, h = 46, pad = 4;
   const values = points.map(p=>p.value);
-  // The Y-axis domain covers both the plotted values AND the target range (when there is one), so
-  // the target band is drawn directly on the same chart as the trend line rather than as a separate
-  // strip underneath -- if the target is well outside the plotted range this still keeps both in frame.
+  // The target itself is drawn as TWO nested zones, not one: an inner GREEN band (the exact
+  // [min,max] you're aiming for) and a wider YELLOW halo around it (a "getting close" buffer).
+  // closeMargin controls how far that yellow halo extends beyond the green core on each side.
+  let closeMargin = 0;
+  if(target){
+    const span = target.max - target.min;
+    closeMargin = span > 0 ? span * 0.6 : Math.max(Math.abs(target.max) * 0.15, 0.6);
+  }
+  // The Y-axis domain covers the plotted values AND the full target zone (green core + yellow
+  // halo, when there is one), so both bands are drawn directly on the same chart as the trend line
+  // rather than as a separate strip underneath -- if the target is well outside the plotted range
+  // this still keeps everything in frame.
   let lo = Math.min(...values), hi = Math.max(...values);
-  if(target){ lo = Math.min(lo, target.min); hi = Math.max(hi, target.max); }
+  if(target){ lo = Math.min(lo, target.min - closeMargin); hi = Math.max(hi, target.max + closeMargin); }
   const rawRange = (hi - lo) || 1;
   const rangePad = rawRange > 0 ? rawRange * 0.18 : Math.max(Math.abs(hi) * 0.1, 1);
   lo -= rangePad; hi += rangePad;
@@ -3777,19 +3786,26 @@ function miniSparklineSvg(points, target){
   let targetBand = "";
   let lastColor = "var(--accent2)";
   if(target){
+    // Green core = the actual [min,max] target range (the "aim" zone). Yellow halo = a wider band
+    // around it (min-closeMargin to max+closeMargin) meaning "getting close, not there yet". The
+    // green rect is drawn AFTER the yellow one so it sits visibly on top in the overlapping middle.
+    const GREEN_FILL = "rgba(78,225,163,.16)", GREEN_LINE = "var(--accent)";
+    const YELLOW_FILL = "rgba(244,208,63,.16)", YELLOW_LINE = "#f4d03f";
+    const outerMin = Math.max(target.min - closeMargin, lo), outerMax = Math.min(target.max + closeMargin, hi);
+    const yOuterTop = yFor(outerMax), yOuterBottom = yFor(outerMin);
+    const outerBandH = Math.max(2, yOuterBottom - yOuterTop);
     const yTop = yFor(target.max), yBottom = yFor(target.min);
     const bandH = Math.max(2, yBottom - yTop);
+
     const inRange = lastValue >= target.min && lastValue <= target.max;
-    lastColor = inRange ? "var(--accent)" : "var(--warn)";
-    // The target band itself is always shown in the same yellow as the Target-weight band on the
-    // main Weight trend chart (rgba(244,208,63,.16) fill / #f4d03f guide lines), regardless of
-    // whether the latest reading currently lands inside it -- it's a fixed goalpost on the chart,
-    // not a live status indicator (the dot's color already carries the in/out-of-range signal).
-    const TARGET_FILL = "rgba(244,208,63,.16)", TARGET_LINE = "#f4d03f";
+    const closeToRange = !inRange && lastValue >= outerMin && lastValue <= outerMax;
+    lastColor = inRange ? GREEN_LINE : (closeToRange ? YELLOW_LINE : "var(--warn)");
+
     targetBand = `
-      <rect x="${pad}" y="${yTop.toFixed(1)}" width="${(w-pad*2).toFixed(1)}" height="${bandH.toFixed(1)}" fill="${TARGET_FILL}"></rect>
-      <line x1="${pad}" y1="${yTop.toFixed(1)}" x2="${(w-pad).toFixed(1)}" y2="${yTop.toFixed(1)}" stroke="${TARGET_LINE}" stroke-width="1" stroke-dasharray="3,2.5" opacity="0.65"></line>
-      <line x1="${pad}" y1="${yBottom.toFixed(1)}" x2="${(w-pad).toFixed(1)}" y2="${yBottom.toFixed(1)}" stroke="${TARGET_LINE}" stroke-width="1" stroke-dasharray="3,2.5" opacity="0.65"></line>`;
+      <rect x="${pad}" y="${yOuterTop.toFixed(1)}" width="${(w-pad*2).toFixed(1)}" height="${outerBandH.toFixed(1)}" fill="${YELLOW_FILL}"></rect>
+      <rect x="${pad}" y="${yTop.toFixed(1)}" width="${(w-pad*2).toFixed(1)}" height="${bandH.toFixed(1)}" fill="${GREEN_FILL}"></rect>
+      <line x1="${pad}" y1="${yTop.toFixed(1)}" x2="${(w-pad).toFixed(1)}" y2="${yTop.toFixed(1)}" stroke="${GREEN_LINE}" stroke-width="1" stroke-dasharray="3,2.5" opacity="0.65"></line>
+      <line x1="${pad}" y1="${yBottom.toFixed(1)}" x2="${(w-pad).toFixed(1)}" y2="${yBottom.toFixed(1)}" stroke="${GREEN_LINE}" stroke-width="1" stroke-dasharray="3,2.5" opacity="0.65"></line>`;
   }
 
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
