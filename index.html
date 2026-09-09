@@ -196,8 +196,9 @@
   }
   .icon-btn:hover{color:var(--text); border-color:var(--accent2); box-shadow:var(--shadow-glow);}
   .icon-btn svg{width:16px; height:16px;}
-  .video-link-icon{display:inline-flex; vertical-align:middle; margin-left:6px; color:var(--muted); transition:.15s;}
+  .video-link-icon{display:inline-flex; vertical-align:middle; margin-left:6px; color:var(--muted); transition:.15s; background:none; border:none; padding:0; cursor:pointer; font:inherit;}
   .video-link-icon:hover{color:var(--accent2);}
+  .video-link-icon.has-ref{color:var(--accent);}
   .video-link-icon svg{width:14px; height:14px; display:block;}
   .date-nav{display:inline-flex; align-items:center; gap:4px;}
   .date-nav-btn{
@@ -1468,6 +1469,33 @@
         </div>
       </div>
     </form>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="exerciseRefOverlay">
+  <div class="modal-box" style="max-width:440px;">
+    <h3><span id="exerciseRefModalTitle">Exercise reference</span><button type="button" class="close-x" id="exerciseRefCloseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></h3>
+    <div class="step-desc" style="margin-top:0;">Keep your own reference for this exercise — a photo of the machine setup (seat height, pin, incline) and a few notes — instead of relying on a video that might not match the machine you actually use. <a id="exerciseRefVideoLink" href="#" target="_blank" rel="noopener">Find a how-to video →</a></div>
+    <div class="field">
+      <label>Reference photo (optional)</label>
+      <div class="dropzone" id="exerciseRefPhotoDrop">
+        <input type="file" id="exerciseRefPhotoInput" accept="image/*" class="dropzone-input">
+        <div class="dropzone-empty" id="exerciseRefPhotoEmpty">
+          <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          <div>Drop image or click to browse</div>
+        </div>
+        <img id="exerciseRefPhotoPreview" class="dropzone-preview hidden" alt="Exercise reference photo preview">
+        <button type="button" class="dropzone-remove hidden" id="exerciseRefPhotoRemoveBtn" aria-label="Remove reference photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+      </div>
+    </div>
+    <div class="field"><label>Notes (optional)</label><textarea id="exerciseRefNoteInput" rows="3" placeholder="e.g. seat height 4, pin 12, backrest upright"></textarea></div>
+    <div class="nav" style="justify-content:space-between;">
+      <button type="button" class="del-btn hidden" id="exerciseRefDeleteBtn">Remove reference</button>
+      <div style="display:flex; gap:10px; margin-left:auto;">
+        <button type="button" class="secondary" id="exerciseRefCancelBtn">Cancel</button>
+        <button type="button" id="exerciseRefSaveBtn">Save →</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -8106,13 +8134,85 @@ function exerciseVideoSearchUrl(exerciseName){
   return "https://www.youtube.com/results?search_query=" + encodeURIComponent(exerciseName + " exercise proper form tutorial");
 }
 
-// Small inline play-icon link, opened in a new tab -- used next to an exercise name wherever it's
-// useful to jump straight to a demonstration video for it.
-function exerciseVideoLinkHtml(exerciseName){
-  const url = exerciseVideoSearchUrl(exerciseName);
-  const label = `Find a how-to video for ${escAttr(exerciseName)}`;
-  return `<a href="${url}" target="_blank" rel="noopener" class="video-link-icon" title="${label}" aria-label="${label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"></circle><polygon points="10 8.5 16 12 10 15.5 10 8.5" fill="currentColor" stroke="none"></polygon></svg></a>`;
+// --- Per-exercise reference (photo + free-text notes) -- a personal, always-consistent alternative
+// to "whatever video autoplay serves up" or a different machine's settings each time. Keyed by a
+// normalized exercise name (trim + lowercase) so "Squat" and " squat " share one reference. ---
+function exerciseRefKey(exerciseName){
+  return String(exerciseName || "").trim().toLowerCase();
 }
+function getExerciseReferences(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  return (u && u.exerciseReferences) ? u.exerciseReferences : {};
+}
+function saveExerciseReferencesObj(obj){
+  const users = getUsers();
+  if(!users[currentUserEmail]) return;
+  users[currentUserEmail].exerciseReferences = obj;
+  saveUsers(users);
+}
+
+// Small inline icon button -- used next to an exercise name wherever it's useful to jump to a
+// demonstration video AND/OR check your own saved reference photo/notes for it. Lights up (accent
+// color) once a reference has actually been saved, so it's obvious at a glance which exercises
+// already have one. Uses a data attribute + this.dataset rather than baking the exercise name into
+// the onclick string, since exercise names are free text and may contain quotes.
+function exerciseRefIconHtml(exerciseName){
+  const hasRef = !!getExerciseReferences()[exerciseRefKey(exerciseName)];
+  const label = `${hasRef ? "View" : "Add"} a reference (video, photo, notes) for ${escAttr(exerciseName)}`;
+  return `<button type="button" class="video-link-icon${hasRef ? " has-ref" : ""}" title="${label}" aria-label="${label}" data-ex-name="${escAttr(exerciseName)}" onclick="openExerciseRefModal(this.dataset.exName)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"></circle><polygon points="10 8.5 16 12 10 15.5 10 8.5" fill="currentColor" stroke="none"></polygon></svg></button>`;
+}
+// Kept as an alias so every existing call site (Day workout log, the now-unused Workout stats
+// table) picks up the new photo/notes modal automatically without needing its own edit.
+function exerciseVideoLinkHtml(exerciseName){
+  return exerciseRefIconHtml(exerciseName);
+}
+
+let editingExerciseRefName = null;
+const exerciseRefPhoto = setupPhotoDropzone("exerciseRefPhoto");
+function openExerciseRefModal(exerciseName){
+  if(!exerciseName) return;
+  editingExerciseRefName = exerciseName;
+  const ref = getExerciseReferences()[exerciseRefKey(exerciseName)] || {};
+  document.getElementById("exerciseRefModalTitle").textContent = exerciseName;
+  document.getElementById("exerciseRefVideoLink").href = exerciseVideoSearchUrl(exerciseName);
+  exerciseRefPhoto.set(ref.photo || null);
+  document.getElementById("exerciseRefNoteInput").value = ref.note || "";
+  document.getElementById("exerciseRefDeleteBtn").classList.toggle("hidden", !(ref.photo || ref.note));
+  document.getElementById("exerciseRefOverlay").classList.remove("hidden");
+}
+window.openExerciseRefModal = openExerciseRefModal;
+function closeExerciseRefModal(){
+  document.getElementById("exerciseRefOverlay").classList.add("hidden");
+  editingExerciseRefName = null;
+}
+document.getElementById("exerciseRefCloseBtn").addEventListener("click", closeExerciseRefModal);
+document.getElementById("exerciseRefCancelBtn").addEventListener("click", closeExerciseRefModal);
+document.getElementById("exerciseRefSaveBtn").addEventListener("click", ()=>{
+  if(!editingExerciseRefName) return;
+  const key = exerciseRefKey(editingExerciseRefName);
+  const photo = exerciseRefPhoto.get();
+  const note = document.getElementById("exerciseRefNoteInput").value.trim();
+  const refs = getExerciseReferences();
+  if(!photo && !note){
+    delete refs[key];
+  } else {
+    refs[key] = {photo: photo || null, note};
+  }
+  saveExerciseReferencesObj(refs);
+  closeExerciseRefModal();
+  showToast("Exercise reference saved");
+  if(typeof renderWorkoutsView === "function") renderWorkoutsView();
+});
+document.getElementById("exerciseRefDeleteBtn").addEventListener("click", ()=>{
+  if(!editingExerciseRefName) return;
+  const refs = getExerciseReferences();
+  delete refs[exerciseRefKey(editingExerciseRefName)];
+  saveExerciseReferencesObj(refs);
+  closeExerciseRefModal();
+  showToast("Reference removed");
+  if(typeof renderWorkoutsView === "function") renderWorkoutsView();
+});
 
 function renderWorkoutStatsTable(){
   const wrap = document.getElementById("workoutStatsWrap");
