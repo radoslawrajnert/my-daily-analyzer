@@ -3632,9 +3632,17 @@ function renderTrendChart(logs){
 
   let lo = min - basePad, hi = max + basePad;
   const th = bmiWeightThresholds();
+  const targetKg = answers.targetWeightKg;
   const NEARBY_KG = 10;
   const nearbyThresholds = th ? [th.underweight, th.overweight, th.obese].filter(v => v >= min - NEARBY_KG && v <= max + NEARBY_KG) : [];
   nearbyThresholds.forEach(v => { lo = Math.min(lo, v - 2); hi = Math.max(hi, v + 2); });
+  // Same "pull the visible domain out to include it" treatment as the BMI thresholds above, so the
+  // Target band doesn't get clipped off just because today's weight happens to be a bit further
+  // from goal than the BMI zones are.
+  if(targetKg != null && targetKg >= min - NEARBY_KG && targetKg <= max + NEARBY_KG){
+    lo = Math.min(lo, targetKg - 2);
+    hi = Math.max(hi, targetKg + 2);
+  }
   const domainRange = (hi - lo) || 1;
 
   const yFor = (weight) => h - pad - ((weight - lo) / domainRange) * (h - pad*2);
@@ -3666,6 +3674,20 @@ function renderTrendChart(logs){
         bands += `<line x1="${pad}" y1="${yLine.toFixed(1)}" x2="${chartRight}" y2="${yLine.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3 3"></line>`;
       }
     });
+  }
+
+  // Target weight -- drawn the same way as the BMI zone bands above (a shaded rect spanning the
+  // chart width plus a matching-colored label on the right), just in yellow to keep it visually
+  // distinct from the BMI zones' green/amber/red. Independent of height/BMI data being present.
+  if(targetKg != null && targetKg >= lo && targetKg <= hi){
+    const TARGET_FILL = "rgba(244,208,63,.16)", TARGET_LINE = "#f4d03f";
+    const bandHalfKg = Math.max(domainRange * 0.012, 0.15);
+    const yTop = yFor(Math.min(targetKg + bandHalfKg, hi)), yBottom = yFor(Math.max(targetKg - bandHalfKg, lo));
+    const bandH = Math.max(yBottom - yTop, 3);
+    const yCenter = yFor(targetKg);
+    bands += `<rect x="${pad}" y="${(yCenter-bandH/2).toFixed(1)}" width="${chartRight-pad}" height="${bandH.toFixed(1)}" fill="${TARGET_FILL}"></rect>`;
+    bands += `<line x1="${pad}" y1="${yCenter.toFixed(1)}" x2="${chartRight}" y2="${yCenter.toFixed(1)}" stroke="${TARGET_LINE}" stroke-width="1" stroke-dasharray="3 3"></line>`;
+    bands += `<text x="${chartRight+6}" y="${(yCenter+3).toFixed(1)}" font-size="9" fill="${TARGET_LINE}">Target</text>`;
   }
 
   // Space points along X by actual elapsed time between log dates, not just by entry index --
