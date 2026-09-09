@@ -333,7 +333,7 @@
   .mini-trend-label{font-size:.76rem; color:var(--muted); margin-bottom:2px;}
   .mini-trend-value{font-size:1.1rem; font-weight:800; margin-bottom:4px;}
   .mini-trend-card svg{display:block; width:100%; height:46px; margin-bottom:4px;}
-  .mini-trend-delta{font-size:.74rem; font-weight:700;}
+  .mini-trend-delta{font-size:.74rem; font-weight:700; word-break:keep-all; hyphens:none; overflow-wrap:normal;}
   .mini-trend-delta.ok{color:var(--accent);}
   .mini-trend-delta.warn{color:var(--warn);}
   .mini-trend-delta.neutral{color:var(--muted); font-weight:600;}
@@ -3750,10 +3750,13 @@ function miniSparklineSvg(points, target){
     const bandH = Math.max(2, yBottom - yTop);
     const inRange = lastValue >= target.min && lastValue <= target.max;
     lastColor = inRange ? "var(--accent)" : "var(--warn)";
+    // The target band itself is always shown in the "good zone" green (var(--accent)), regardless
+    // of whether the latest reading currently lands inside it -- it's a fixed goalpost on the
+    // chart, not a live status indicator (the dot's color already carries the in/out-of-range signal).
     targetBand = `
-      <rect x="${pad}" y="${yTop.toFixed(1)}" width="${(w-pad*2).toFixed(1)}" height="${bandH.toFixed(1)}" fill="var(--accent2)" opacity="0.16"></rect>
-      <line x1="${pad}" y1="${yTop.toFixed(1)}" x2="${(w-pad).toFixed(1)}" y2="${yTop.toFixed(1)}" stroke="var(--accent2)" stroke-width="1" stroke-dasharray="3,2.5" opacity="0.65"></line>
-      <line x1="${pad}" y1="${yBottom.toFixed(1)}" x2="${(w-pad).toFixed(1)}" y2="${yBottom.toFixed(1)}" stroke="var(--accent2)" stroke-width="1" stroke-dasharray="3,2.5" opacity="0.65"></line>`;
+      <rect x="${pad}" y="${yTop.toFixed(1)}" width="${(w-pad*2).toFixed(1)}" height="${bandH.toFixed(1)}" fill="var(--accent)" opacity="0.16"></rect>
+      <line x1="${pad}" y1="${yTop.toFixed(1)}" x2="${(w-pad).toFixed(1)}" y2="${yTop.toFixed(1)}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3,2.5" opacity="0.65"></line>
+      <line x1="${pad}" y1="${yBottom.toFixed(1)}" x2="${(w-pad).toFixed(1)}" y2="${yBottom.toFixed(1)}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3,2.5" opacity="0.65"></line>`;
   }
 
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
@@ -3968,6 +3971,16 @@ function renderMilestoneBanner(logs){
     </div>`;
 }
 
+// "2026-08-07" wraps mid-string onto an ugly 3rd line in the narrow mini-trend cards (the hyphens
+// give the browser a break point right before the day). A short "Aug 7" label is not only shorter
+// but has no internal break point, so it always wraps at the space before it (or not at all).
+function miniDateShort(iso){
+  if(!iso) return "";
+  const d = new Date(iso+"T00:00:00");
+  if(isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-US", {month:"short", day:"numeric"});
+}
+
 function renderMiniTrends(logs){
   const wrap = document.getElementById("miniTrendsWrap");
   if(!wrap) return;
@@ -4006,7 +4019,7 @@ function renderMiniTrends(logs){
         <div class="mini-trend-label">${m.label}</div>
         <div class="mini-trend-value">${last.toFixed(m.decimals)}${m.unit}</div>
         ${miniSparklineSvg(points, tgt)}
-        <div class="mini-trend-delta ${deltaCls}">${arrow} ${deltaStr} since ${points[0].date}</div>
+        <div class="mini-trend-delta ${deltaCls}">${arrow} ${deltaStr} since ${miniDateShort(points[0].date)}</div>
         ${targetHtml}
       </div>`;
   }).filter(Boolean);
