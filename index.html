@@ -3781,13 +3781,15 @@ function miniSparklineSvg(points, target){
     const bandH = Math.max(2, yBottom - yTop);
     const inRange = lastValue >= target.min && lastValue <= target.max;
     lastColor = inRange ? "var(--accent)" : "var(--warn)";
-    // The target band itself is always shown in the "good zone" green (var(--accent)), regardless
-    // of whether the latest reading currently lands inside it -- it's a fixed goalpost on the
-    // chart, not a live status indicator (the dot's color already carries the in/out-of-range signal).
+    // The target band itself is always shown in the same yellow as the Target-weight band on the
+    // main Weight trend chart (rgba(244,208,63,.16) fill / #f4d03f guide lines), regardless of
+    // whether the latest reading currently lands inside it -- it's a fixed goalpost on the chart,
+    // not a live status indicator (the dot's color already carries the in/out-of-range signal).
+    const TARGET_FILL = "rgba(244,208,63,.16)", TARGET_LINE = "#f4d03f";
     targetBand = `
-      <rect x="${pad}" y="${yTop.toFixed(1)}" width="${(w-pad*2).toFixed(1)}" height="${bandH.toFixed(1)}" fill="var(--accent)" opacity="0.16"></rect>
-      <line x1="${pad}" y1="${yTop.toFixed(1)}" x2="${(w-pad).toFixed(1)}" y2="${yTop.toFixed(1)}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3,2.5" opacity="0.65"></line>
-      <line x1="${pad}" y1="${yBottom.toFixed(1)}" x2="${(w-pad).toFixed(1)}" y2="${yBottom.toFixed(1)}" stroke="var(--accent)" stroke-width="1" stroke-dasharray="3,2.5" opacity="0.65"></line>`;
+      <rect x="${pad}" y="${yTop.toFixed(1)}" width="${(w-pad*2).toFixed(1)}" height="${bandH.toFixed(1)}" fill="${TARGET_FILL}"></rect>
+      <line x1="${pad}" y1="${yTop.toFixed(1)}" x2="${(w-pad).toFixed(1)}" y2="${yTop.toFixed(1)}" stroke="${TARGET_LINE}" stroke-width="1" stroke-dasharray="3,2.5" opacity="0.65"></line>
+      <line x1="${pad}" y1="${yBottom.toFixed(1)}" x2="${(w-pad).toFixed(1)}" y2="${yBottom.toFixed(1)}" stroke="${TARGET_LINE}" stroke-width="1" stroke-dasharray="3,2.5" opacity="0.65"></line>`;
   }
 
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
