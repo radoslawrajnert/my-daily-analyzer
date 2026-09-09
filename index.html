@@ -693,7 +693,7 @@
         <h2>Rest-day guardrail</h2>
         <div class="step-desc" style="margin-top:0;">Choose when the Workout Log should nudge you toward a rest day instead of another non-cardio (strength) session. Cardio is never restricted by either rule below. Turn on one, both, or neither.</div>
         <div class="field" style="display:flex; flex-direction:column; gap:10px;">
-          <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="restGuardrailStreakCb" style="width:auto;" checked> 3 non-cardio days in a row → recommend rest the day after</label>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; flex-wrap:wrap;"><input type="checkbox" id="restGuardrailStreakCb" style="width:auto;" checked> <input type="number" id="restGuardrailStreakInput" min="1" max="14" value="2" style="width:56px; display:inline-block;"> non-cardio days in a row → recommend rest the day after</label>
           <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; flex-wrap:wrap;"><input type="checkbox" id="restGuardrailWeeklyCapCb" style="width:auto;"> Cap non-cardio sessions at <input type="number" id="restGuardrailWeeklyCapInput" min="1" max="14" value="3" style="width:56px; display:inline-block;"> per week (Mon–Sun)</label>
         </div>
       </div>
@@ -6610,16 +6610,16 @@ function strengthTrainedDaysThisWeekBefore(date){
   }
   return count;
 }
-// Per-user toggles for the two rules above. Defaults preserve the app's original, always-on
-// behavior (3-consecutive-day streak only) for anyone who's never touched this setting -- the
-// weekly cap is opt-in.
+// Per-user toggles for the two rules above. streakDays/weeklyCap are both user-editable numbers
+// (see Rest-day guardrail card in My Plan) -- defaults below only apply until the user sets their
+// own value, and the streak rule stays on by default for anyone who's never touched this setting.
 function getRestGuardrailSettings(){
   const users = getUsers();
   const u = users[currentUserEmail];
   const s = (u && u.restGuardrailSettings) || {};
   return {
     streakEnabled: s.streakEnabled !== false,
-    streakDays: (typeof s.streakDays === "number" && s.streakDays > 0) ? s.streakDays : 3,
+    streakDays: (typeof s.streakDays === "number" && s.streakDays > 0) ? s.streakDays : 2,
     weeklyCapEnabled: !!s.weeklyCapEnabled,
     weeklyCap: (typeof s.weeklyCap === "number" && s.weeklyCap > 0) ? s.weeklyCap : 3,
   };
@@ -8866,7 +8866,7 @@ function renderWorkoutHeatmap(){
       // whole point (see shouldRestFromStrength) -- so a future cell with a rest recommendation no
       // longer stays blank the way a plain future cell otherwise would.
       const restChip = d.restRecommended
-        ? `<span class="workout-chip workout-rest-chip" style="background:#f16b83; color:${darkTextForFill("#f16b83")};" title="Recommended rest day for strength -- 3 days in a row before this">${ICON_BAN}Don't train</span>`
+        ? `<span class="workout-chip workout-rest-chip" style="background:#f16b83; color:${darkTextForFill("#f16b83")};" title="Recommended rest day for strength -- see your Rest-day guardrail settings in My Plan">${ICON_BAN}Don't train</span>`
         : "";
       if(d.future) return restChip ? `<td style="text-align:center; vertical-align:top;">${restChip}</td>` : `<td></td>`;
       if(!d.badges.length) return restChip ? `<td style="text-align:center; vertical-align:top;">${restChip}</td>` : `<td style="text-align:center; vertical-align:top; color:var(--border);">·</td>`;
@@ -11292,21 +11292,25 @@ HIDEABLE_TABS.forEach(key=>{
 function syncRestGuardrailUI(){
   const s = getRestGuardrailSettings();
   const streakCb = document.getElementById("restGuardrailStreakCb");
+  const streakInput = document.getElementById("restGuardrailStreakInput");
   const capCb = document.getElementById("restGuardrailWeeklyCapCb");
   const capInput = document.getElementById("restGuardrailWeeklyCapInput");
   if(streakCb) streakCb.checked = s.streakEnabled;
+  if(streakInput) streakInput.value = s.streakDays;
   if(capCb) capCb.checked = s.weeklyCapEnabled;
   if(capInput) capInput.value = s.weeklyCap;
 }
 function saveRestGuardrailFromUI(){
   const streakCb = document.getElementById("restGuardrailStreakCb");
+  const streakInput = document.getElementById("restGuardrailStreakInput");
   const capCb = document.getElementById("restGuardrailWeeklyCapCb");
   const capInput = document.getElementById("restGuardrailWeeklyCapInput");
   const current = getRestGuardrailSettings();
+  const streakVal = parseInt(streakInput && streakInput.value, 10);
   const capVal = parseInt(capInput && capInput.value, 10);
   saveRestGuardrailSettings({
     streakEnabled: streakCb ? streakCb.checked : current.streakEnabled,
-    streakDays: current.streakDays,
+    streakDays: (Number.isFinite(streakVal) && streakVal > 0) ? streakVal : current.streakDays,
     weeklyCapEnabled: capCb ? capCb.checked : current.weeklyCapEnabled,
     weeklyCap: (Number.isFinite(capVal) && capVal > 0) ? capVal : current.weeklyCap,
   });
@@ -11315,7 +11319,7 @@ function saveRestGuardrailFromUI(){
   // if that tab happens to already be open, not just after the next navigation there.
   if(typeof renderWorkoutsView === "function") renderWorkoutsView();
 }
-["restGuardrailStreakCb", "restGuardrailWeeklyCapCb", "restGuardrailWeeklyCapInput"].forEach(id=>{
+["restGuardrailStreakCb", "restGuardrailStreakInput", "restGuardrailWeeklyCapCb", "restGuardrailWeeklyCapInput"].forEach(id=>{
   const el = document.getElementById(id);
   if(!el) return;
   el.addEventListener("change", saveRestGuardrailFromUI);
