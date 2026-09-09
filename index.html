@@ -698,6 +698,29 @@
         </div>
       </div>
 
+      <div class="card" id="aestheticTargetsCard">
+        <h2>Your aesthetic target ranges</h2>
+        <div class="step-desc" style="margin-top:0;">Your personal target range for each measurement — saved to your profile so you can compare future readings against them.</div>
+        <div class="table-scroll">
+          <table class="log-table">
+            <thead><tr><th>Measure</th><th>Min</th><th>Max</th></tr></thead>
+            <tbody>
+              <tr><td>Body fat %</td><td><input type="number" id="targetBodyFatMin" step="any" style="width:80px;"></td><td><input type="number" id="targetBodyFatMax" step="any" style="width:80px;"></td></tr>
+              <tr><td>Muscle %</td><td><input type="number" id="targetMuscleMin" step="any" style="width:80px;"></td><td><input type="number" id="targetMuscleMax" step="any" style="width:80px;"></td></tr>
+              <tr><td>Visceral fat</td><td><input type="number" id="targetVisceralMin" step="any" style="width:80px;"></td><td><input type="number" id="targetVisceralMax" step="any" style="width:80px;"></td></tr>
+              <tr><td>Chest (cm)</td><td><input type="number" id="targetChestMin" step="any" style="width:80px;"></td><td><input type="number" id="targetChestMax" step="any" style="width:80px;"></td></tr>
+              <tr><td>Waist (cm)</td><td><input type="number" id="targetWaistMin" step="any" style="width:80px;"></td><td><input type="number" id="targetWaistMax" step="any" style="width:80px;"></td></tr>
+              <tr><td>Hips (cm)</td><td><input type="number" id="targetHipMin" step="any" style="width:80px;"></td><td><input type="number" id="targetHipMax" step="any" style="width:80px;"></td></tr>
+              <tr><td>Thigh (cm)</td><td><input type="number" id="targetThighMin" step="any" style="width:80px;"></td><td><input type="number" id="targetThighMax" step="any" style="width:80px;"></td></tr>
+              <tr><td>Calf (cm)</td><td><input type="number" id="targetCalfMin" step="any" style="width:80px;"></td><td><input type="number" id="targetCalfMax" step="any" style="width:80px;"></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="nav" style="justify-content:flex-end;">
+          <button type="button" id="saveAestheticTargetsBtn">Save →</button>
+        </div>
+      </div>
+
       <div class="card">
         <h2 id="workoutSplitFormTitle">My splits</h2>
         <div class="step-desc" style="margin-top:0;">Define the splits in your program (e.g. Lower A, Upper B) as an exact, ordered list of exercises — the quick pick in Log a set will offer that list first, in order, and "Copy last exercises" duplicates your last session for whichever split you pick.</div>
@@ -3024,7 +3047,7 @@ function switchView(view){
   if(view==="ailog") renderAiLogView();
   if(view==="coach") renderCoachView();
   if(view==="plan"){
-    syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI();
+    syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI(); syncAestheticTargetsUI();
     // "My splits" and "My exercises" (moved here from the Workout Log tab, reachable now only by
     // clicking your name) need their own refresh on open -- renderWorkoutsView() also keeps them
     // current whenever the Workout Log tab itself is visited, but My Plan can be opened without
@@ -11410,6 +11433,67 @@ function saveRestGuardrailFromUI(){
   if(!el) return;
   el.addEventListener("change", saveRestGuardrailFromUI);
 });
+
+// --- "Your aesthetic target ranges" (My Plan) -- a personal min/max target per body-composition
+// measurement, saved to the profile so future readings can eventually be compared against them.
+// Each metric key maps 1:1 to the same field used on Scale Log entries (bodyFatPct, musclePct,
+// etc.), and each has its own Min/Max input pair named "target<Base>Min"/"target<Base>Max".
+const AESTHETIC_TARGET_METRICS = [
+  {key:"bodyFatPct", base:"targetBodyFat", defaultMin:12,   defaultMax:15},
+  {key:"musclePct",  base:"targetMuscle",  defaultMin:41,   defaultMax:44},
+  {key:"visceralFat",base:"targetVisceral",defaultMin:6,    defaultMax:6},
+  {key:"chestCm",    base:"targetChest",   defaultMin:99,   defaultMax:103},
+  {key:"waistCm",    base:"targetWaist",   defaultMin:75,   defaultMax:78},
+  {key:"hipCm",      base:"targetHip",     defaultMin:83,   defaultMax:87},
+  {key:"thighCm",    base:"targetThigh",   defaultMin:53.5, defaultMax:56},
+  {key:"calfCm",     base:"targetCalf",    defaultMin:36,   defaultMax:38},
+];
+function getAestheticTargets(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  const saved = (u && u.aestheticTargets) || {};
+  const out = {};
+  AESTHETIC_TARGET_METRICS.forEach(m=>{
+    const s = saved[m.key] || {};
+    out[m.key] = {
+      min: (typeof s.min === "number") ? s.min : m.defaultMin,
+      max: (typeof s.max === "number") ? s.max : m.defaultMax,
+    };
+  });
+  return out;
+}
+function saveAestheticTargets(targets){
+  const users = getUsers();
+  if(!users[currentUserEmail]) return;
+  users[currentUserEmail].aestheticTargets = targets;
+  saveUsers(users);
+}
+function syncAestheticTargetsUI(){
+  const t = getAestheticTargets();
+  AESTHETIC_TARGET_METRICS.forEach(m=>{
+    const minEl = document.getElementById(m.base+"Min");
+    const maxEl = document.getElementById(m.base+"Max");
+    if(minEl) minEl.value = t[m.key].min;
+    if(maxEl) maxEl.value = t[m.key].max;
+  });
+}
+function saveAestheticTargetsFromUI(){
+  const current = getAestheticTargets();
+  const next = {};
+  AESTHETIC_TARGET_METRICS.forEach(m=>{
+    const minEl = document.getElementById(m.base+"Min");
+    const maxEl = document.getElementById(m.base+"Max");
+    const minVal = parseFloat(minEl && minEl.value);
+    const maxVal = parseFloat(maxEl && maxEl.value);
+    next[m.key] = {
+      min: Number.isFinite(minVal) ? minVal : current[m.key].min,
+      max: Number.isFinite(maxVal) ? maxVal : current[m.key].max,
+    };
+  });
+  saveAestheticTargets(next);
+  showToast("Target ranges saved");
+}
+document.getElementById("saveAestheticTargetsBtn").addEventListener("click", saveAestheticTargetsFromUI);
 
 // Which view to land on right after logging in -- or when reopening the app while a session is
 // already saved (see the init() IIFE at the bottom, which also calls enterApp()). Defaults to
