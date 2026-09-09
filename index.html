@@ -337,6 +337,9 @@
   .mini-trend-delta.ok{color:var(--accent);}
   .mini-trend-delta.warn{color:var(--warn);}
   .mini-trend-delta.neutral{color:var(--muted); font-weight:600;}
+  .mini-trend-target-label{font-size:.72rem; font-weight:700;}
+  .mini-trend-target-label.ok{color:var(--accent);}
+  .mini-trend-target-label.warn{color:var(--warn);}
 
   .plateau-note{display:flex; gap:12px; align-items:flex-start; background:rgba(124,156,255,.08); border:1px solid rgba(124,156,255,.25); border-radius:var(--radius); padding:14px 16px; margin-top:14px;}
   .plateau-note svg{width:20px; height:20px; flex:0 0 auto; color:var(--accent2); margin-top:2px;}
@@ -3892,9 +3895,35 @@ function renderMilestoneBanner(logs){
     </div>`;
 }
 
+// A slim horizontal "scale" for a mini-trend card -- a track spanning a window around the target
+// band, the band itself shaded, and a dot marking the latest logged value. Reuses the same
+// ok/warn color meaning as the delta line below it (accent = inside your target range, warn =
+// outside it) so the two lines read consistently at a glance.
+function miniTargetScaleSvg(value, min, max){
+  const w = 200, h = 16, y = 8;
+  const span = max - min;
+  // Give the visible window some breathing room beyond the band itself, so a value that's
+  // currently outside the target range still lands on the track instead of clipping off the edge.
+  const margin = span > 0 ? span * 0.7 : Math.max(Math.abs(max) * 0.2, 1);
+  const lo = min - margin, hi = max + margin;
+  const scale = (hi > lo) ? (w / (hi - lo)) : 0;
+  const xFor = (v)=> Math.max(1, Math.min(w-1, (Math.max(lo, Math.min(hi, v)) - lo) * scale));
+  const bandX1 = xFor(min), bandX2 = Math.max(xFor(max), bandX1 + 2);
+  const markerX = xFor(value);
+  const inRange = value >= min && value <= max;
+  const markerColor = inRange ? "var(--accent)" : "var(--warn)";
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px; display:block; margin:6px 0 2px;" preserveAspectRatio="none">
+    <line x1="1" y1="${y}" x2="${w-1}" y2="${y}" stroke="var(--border)" stroke-width="2" stroke-linecap="round"></line>
+    <line x1="${bandX1.toFixed(1)}" y1="${y}" x2="${bandX2.toFixed(1)}" y2="${y}" stroke="var(--accent2)" stroke-width="4" stroke-linecap="round" opacity="0.55"></line>
+    <circle cx="${markerX.toFixed(1)}" cy="${y}" r="4" fill="${markerColor}" stroke="var(--panel2)" stroke-width="1.5"></circle>
+  </svg>`;
+}
+
 function renderMiniTrends(logs){
   const wrap = document.getElementById("miniTrendsWrap");
   if(!wrap) return;
+
+  const targets = getAestheticTargets();
 
   const cards = MINI_TREND_METRICS.map(m=>{
     const points = logs.filter(l => l[m.key] != null).map(l => ({date:l.date, value:l[m.key]}));
@@ -3913,12 +3942,25 @@ function renderMiniTrends(logs){
     }
     const arrow = delta > 0 ? "↑" : delta < 0 ? "↓" : "→";
 
+    const tgt = targets[m.key];
+    let targetHtml = "";
+    if(tgt){
+      const inRange = last >= tgt.min && last <= tgt.max;
+      const rangeLabel = tgt.min === tgt.max
+        ? `${tgt.min.toFixed(m.decimals)}${m.unit}`
+        : `${tgt.min.toFixed(m.decimals)}–${tgt.max.toFixed(m.decimals)}${m.unit}`;
+      targetHtml = `
+        ${miniTargetScaleSvg(last, tgt.min, tgt.max)}
+        <div class="mini-trend-target-label ${inRange?"ok":"warn"}">${inRange?"✓":"→"} target ${rangeLabel}</div>`;
+    }
+
     return `
       <div class="mini-trend-card">
         <div class="mini-trend-label">${m.label}</div>
         <div class="mini-trend-value">${last.toFixed(m.decimals)}${m.unit}</div>
         ${miniSparklineSvg(points)}
         <div class="mini-trend-delta ${deltaCls}">${arrow} ${deltaStr} since ${points[0].date}</div>
+        ${targetHtml}
       </div>`;
   }).filter(Boolean);
 
