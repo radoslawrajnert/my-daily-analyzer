@@ -805,63 +805,72 @@
       <div class="card">
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <span id="logFormTitle">Add a scale reading</span>
-          <span style="display:flex; align-items:center; gap:8px; font-size:.78rem; font-weight:400; color:var(--muted);">
+          <button type="button" class="secondary" id="logFormToggleBtn" onclick="toggleLogForm()">+ Add a reading</button>
+        </h2>
+        <div id="milestoneBannerWrap"></div>
+        <div id="logFormWrap" class="hidden">
+          <span style="display:flex; align-items:center; gap:8px; font-size:.78rem; font-weight:400; color:var(--muted); margin-bottom:8px;">
             Date: <span class="date-nav"><button type="button" class="date-nav-btn" id="logDatePrevBtn" aria-label="Previous day">‹</button><button type="button" id="logDate" style="width:auto; padding:6px 10px;"></button><button type="button" class="date-nav-btn" id="logDateNextBtn" aria-label="Next day">›</button></span> <span class="date-day-label" id="logDateDayLabel"></span>
           </span>
-        </h2>
-        <div class="step-desc">From your smart scale — weight is required, everything else optional. BMI is calculated automatically from your height.</div>
-        <div id="milestoneBannerWrap"></div>
-        <div id="streakBannerWrap"></div>
-        <form id="logForm" autocomplete="off">
-          <div class="row-inline compact-row">
-            <div class="field"><label>Weight (kg) *</label><input type="number" id="logWeight" min="30" max="300" step="any" required></div>
-            <div class="field"><label>Body fat % <button type="button" class="help-btn" onclick="showHelp('bodyfat')" aria-label="How to find this">ⓘ</button></label><input type="number" id="logBodyFat" min="3" max="60" step="any"></div>
-            <div class="field"><label>Muscle % <button type="button" class="help-btn" onclick="showHelp('muscle')" aria-label="How to find this">ⓘ</button></label><input type="number" id="logMusclePct" min="10" max="70" step="any"></div>
-            <div class="field"><label>Visceral fat rating</label><input type="number" id="logVisceral" min="1" max="59" step="1"></div>
-          </div>
-          <div class="row-inline compact-row">
-            <div class="field"><label>Chest (cm) <button type="button" class="help-btn" onclick="showHelp('chest')" aria-label="How to measure">ⓘ</button></label><input type="number" id="logChest" min="50" max="200" step="any"></div>
-            <div class="field"><label>Waist (cm) <button type="button" class="help-btn" onclick="showHelp('waist')" aria-label="How to measure">ⓘ</button></label><input type="number" id="logWaist" min="40" max="200" step="any"></div>
-            <div class="field"><label>Hip (cm) <button type="button" class="help-btn" onclick="showHelp('hip')" aria-label="How to measure">ⓘ</button></label><input type="number" id="logHip" min="40" max="200" step="any"></div>
-            <div class="field"><label>Thigh (cm) <button type="button" class="help-btn" onclick="showHelp('thigh')" aria-label="How to measure">ⓘ</button></label><input type="number" id="logThigh" min="20" max="120" step="any"></div>
-          </div>
-          <div class="row-inline">
-            <div class="field">
-              <label>Front photo (optional) <button type="button" class="help-btn" onclick="showHelp('photoGuide')" aria-label="Tips for consistent photos">ⓘ</button></label>
-              <div class="dropzone" id="logPhotoFrontDrop">
-                <input type="file" id="logPhotoFrontInput" accept="image/*" class="dropzone-input">
-                <div class="dropzone-empty" id="logPhotoFrontEmpty">
-                  <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                  <div>Drop image or click to browse</div>
+          <div class="step-desc" style="margin-top:0;">From your smart scale — weight is required, everything else optional. BMI is calculated automatically from your height.</div>
+          <div id="streakBannerWrap"></div>
+          <form id="logForm" autocomplete="off">
+            <div class="row-inline compact-row">
+              <div class="field"><label>Weight (kg) *</label><input type="number" id="logWeight" min="30" max="300" step="any" required></div>
+              <div class="field"><label>Body fat % <button type="button" class="help-btn" onclick="showHelp('bodyfat')" aria-label="How to find this">ⓘ</button></label><input type="number" id="logBodyFat" min="3" max="60" step="any"></div>
+              <div class="field"><label>Muscle % <button type="button" class="help-btn" onclick="showHelp('muscle')" aria-label="How to find this">ⓘ</button></label><input type="number" id="logMusclePct" min="10" max="70" step="any"></div>
+              <div class="field"><label>Visceral fat rating</label><input type="number" id="logVisceral" min="1" max="59" step="1"></div>
+            </div>
+            <div class="row-inline compact-row">
+              <div class="field"><label>Chest (cm) <button type="button" class="help-btn" onclick="showHelp('chest')" aria-label="How to measure">ⓘ</button></label><input type="number" id="logChest" min="50" max="200" step="any"></div>
+              <div class="field"><label>Waist (cm) <button type="button" class="help-btn" onclick="showHelp('waist')" aria-label="How to measure">ⓘ</button></label><input type="number" id="logWaist" min="40" max="200" step="any"></div>
+              <div class="field"><label>Hip (cm) <button type="button" class="help-btn" onclick="showHelp('hip')" aria-label="How to measure">ⓘ</button></label><input type="number" id="logHip" min="40" max="200" step="any"></div>
+              <div class="field"><label>Thigh (cm) <button type="button" class="help-btn" onclick="showHelp('thigh')" aria-label="How to measure">ⓘ</button></label><input type="number" id="logThigh" min="20" max="120" step="any"></div>
+            </div>
+            <div class="row-inline compact-row">
+              <div class="field"><label>Calf (cm)</label><input type="number" id="logCalf" min="15" max="80" step="any"></div>
+            </div>
+            <div class="row-inline">
+              <div class="field">
+                <label>Front photo (optional) <button type="button" class="help-btn" onclick="showHelp('photoGuide')" aria-label="Tips for consistent photos">ⓘ</button></label>
+                <div class="dropzone" id="logPhotoFrontDrop">
+                  <input type="file" id="logPhotoFrontInput" accept="image/*" class="dropzone-input">
+                  <div class="dropzone-empty" id="logPhotoFrontEmpty">
+                    <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    <div>Drop image or click to browse</div>
+                  </div>
+                  <img id="logPhotoFrontPreview" class="dropzone-preview hidden" alt="Front photo preview">
+                  <button type="button" class="dropzone-remove hidden" id="logPhotoFrontRemoveBtn" aria-label="Remove front photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
                 </div>
-                <img id="logPhotoFrontPreview" class="dropzone-preview hidden" alt="Front photo preview">
-                <button type="button" class="dropzone-remove hidden" id="logPhotoFrontRemoveBtn" aria-label="Remove front photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+              </div>
+              <div class="field">
+                <label>Back photo (optional)</label>
+                <div class="dropzone" id="logPhotoBackDrop">
+                  <input type="file" id="logPhotoBackInput" accept="image/*" class="dropzone-input">
+                  <div class="dropzone-empty" id="logPhotoBackEmpty">
+                    <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    <div>Drop image or click to browse</div>
+                  </div>
+                  <img id="logPhotoBackPreview" class="dropzone-preview hidden" alt="Back photo preview">
+                  <button type="button" class="dropzone-remove hidden" id="logPhotoBackRemoveBtn" aria-label="Remove back photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                </div>
               </div>
             </div>
-            <div class="field">
-              <label>Back photo (optional)</label>
-              <div class="dropzone" id="logPhotoBackDrop">
-                <input type="file" id="logPhotoBackInput" accept="image/*" class="dropzone-input">
-                <div class="dropzone-empty" id="logPhotoBackEmpty">
-                  <svg class="dropzone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                  <div>Drop image or click to browse</div>
-                </div>
-                <img id="logPhotoBackPreview" class="dropzone-preview hidden" alt="Back photo preview">
-                <button type="button" class="dropzone-remove hidden" id="logPhotoBackRemoveBtn" aria-label="Remove back photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
-              </div>
+            <div class="nav" style="justify-content:flex-end;">
+              <button type="button" class="secondary hidden" id="logCancelBtn">Cancel edit</button>
+              <button type="submit" id="logSubmitBtn">Add reading →</button>
             </div>
-          </div>
-          <div class="nav" style="justify-content:flex-end;">
-            <button type="button" class="secondary hidden" id="logCancelBtn">Cancel edit</button>
-            <button type="submit" id="logSubmitBtn">Add reading →</button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
 
       <div class="card">
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <span>History</span>
-          <button type="button" class="secondary" id="exportScaleCsvBtn" style="font-size:.78rem; padding:6px 12px;">Export CSV ⬇</button>
+          <span style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="secondary" id="copyScaleSummaryBtn" style="font-size:.78rem; padding:6px 12px;" title="Copies a plain-text summary of your trend and readings — paste it into ChatGPT or any AI assistant">Copy summary ⧉</button>
+            <button type="button" class="secondary" id="exportScaleCsvBtn" style="font-size:.78rem; padding:6px 12px;">Export CSV ⬇</button>
+          </span>
         </h2>
         <div id="goalProgressWrap"></div>
         <div id="recentChangesWrap"></div>
@@ -3409,9 +3418,30 @@ function setupPhotoDropzone(prefix){
 const logPhotoFront = setupPhotoDropzone("logPhotoFront");
 const logPhotoBack = setupPhotoDropzone("logPhotoBack");
 
+// The "Add a scale reading" form (plus its date-nag streak banner) is collapsed by default --
+// most days you're just checking History/trends, not adding a reading, so this stays out of the
+// way until you actually click in to log one. Same collapse-behind-a-button pattern as the
+// Workout Log's manual entry form (see toggleWorkoutManualForm).
+function isLogFormOpen(){
+  return !document.getElementById("logFormWrap").classList.contains("hidden");
+}
+function showLogForm(){
+  document.getElementById("logFormWrap").classList.remove("hidden");
+  document.getElementById("logFormToggleBtn").textContent = "− Hide form";
+}
+function hideLogForm(){
+  document.getElementById("logFormWrap").classList.add("hidden");
+  document.getElementById("logFormToggleBtn").textContent = "+ Add a reading";
+}
+function toggleLogForm(){
+  if(isLogFormOpen()) hideLogForm(); else showLogForm();
+}
+window.toggleLogForm = toggleLogForm;
+
 function editLogEntry(date){
   const entry = getScaleLogs().find(l=>l.date===date);
   if(!entry) return;
+  showLogForm(); // the fields need to actually be visible before we populate + scroll to them
   editingLogDate = date;
   document.getElementById("logDate").value = entry.date;
   refreshDateDayLabel("logDate");
@@ -3423,6 +3453,7 @@ function editLogEntry(date){
   document.getElementById("logWaist").value = entry.waistCm!=null ? entry.waistCm : "";
   document.getElementById("logHip").value = entry.hipCm!=null ? entry.hipCm : "";
   document.getElementById("logThigh").value = entry.thighCm!=null ? entry.thighCm : "";
+  document.getElementById("logCalf").value = entry.calfCm!=null ? entry.calfCm : "";
   logPhotoFront.set(entry.photoFront || entry.photo || null); // fall back to legacy single-photo field
   logPhotoBack.set(entry.photoBack || null);
   document.getElementById("logFormTitle").textContent = `Edit scale reading — ${entry.date}`;
@@ -3459,6 +3490,7 @@ document.getElementById("logForm").addEventListener("submit", (e)=>{
   const waistCm = document.getElementById("logWaist").value ? parseFloat(document.getElementById("logWaist").value) : null;
   const hipCm = document.getElementById("logHip").value ? parseFloat(document.getElementById("logHip").value) : null;
   const thighCm = document.getElementById("logThigh").value ? parseFloat(document.getElementById("logThigh").value) : null;
+  const calfCm = document.getElementById("logCalf").value ? parseFloat(document.getElementById("logCalf").value) : null;
   const photoFront = logPhotoFront.get();
   const photoBack = logPhotoBack.get();
 
@@ -3468,7 +3500,7 @@ document.getElementById("logForm").addEventListener("submit", (e)=>{
     logs = logs.filter(l=>l.date!==editingLogDate);
   }
   const idx = logs.findIndex(l=>l.date===date);
-  const entry = {date, weightKg, bodyFatPct, musclePct, visceralFat, chestCm, waistCm, hipCm, thighCm, photoFront, photoBack};
+  const entry = {date, weightKg, bodyFatPct, musclePct, visceralFat, chestCm, waistCm, hipCm, thighCm, calfCm, photoFront, photoBack};
   const wasEditing = !!editingLogDate;
   if(idx>=0) logs[idx] = entry; else logs.push(entry);
   saveScaleLogs(logs);
@@ -3606,6 +3638,7 @@ const MINI_TREND_METRICS = [
   {key:"waistCm", label:"Waist", unit:"cm", decimals:1, judge:true},
   {key:"hipCm", label:"Hip", unit:"cm", decimals:1, judge:false},
   {key:"thighCm", label:"Thigh", unit:"cm", decimals:1, judge:false},
+  {key:"calfCm", label:"Calf", unit:"cm", decimals:1, judge:false},
   {key:"musclePct", label:"Muscle %", unit:"%", decimals:1, judge:false},
   {key:"visceralFat", label:"Visceral fat", unit:"", decimals:0, judge:true},
 ];
@@ -4270,13 +4303,14 @@ function renderLogView(){
       <td>${l.waistCm!=null ? l.waistCm+" cm" + (waistCat?` <span class="badge ${waistCat.cls}">${waistCat.label}</span>`:"") : "—"}</td>
       <td>${l.hipCm!=null ? l.hipCm+" cm" : "—"}</td>
       <td>${l.thighCm!=null ? l.thighCm+" cm" : "—"}</td>
+      <td>${l.calfCm!=null ? l.calfCm+" cm" : "—"}</td>
       <td><button type="button" class="edit-btn" onclick="editLogEntry('${l.date}')">Edit</button> <button type="button" class="del-btn" onclick="deleteLogEntry('${l.date}')">Delete</button></td>
     </tr>`;
   }).join("");
   wrap.innerHTML = `
     <div class="table-scroll">
       <table class="log-table">
-        <thead><tr><th></th><th>Date</th><th>Weight</th><th>BMI</th><th>Body fat</th><th>Muscle</th><th>Visceral fat</th><th>Chest</th><th>Waist</th><th>Hip</th><th>Thigh</th><th></th></tr></thead>
+        <thead><tr><th></th><th>Date</th><th>Weight</th><th>BMI</th><th>Body fat</th><th>Muscle</th><th>Visceral fat</th><th>Chest</th><th>Waist</th><th>Hip</th><th>Thigh</th><th>Calf</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
@@ -9994,6 +10028,7 @@ function buildReport(){
   const effWaistCm = (latest && latest.waistCm!=null) ? latest.waistCm : a.waistCm;
   const effHipCm = (latest && latest.hipCm!=null) ? latest.hipCm : a.hipCm;
   const effThighCm = (latest && latest.thighCm!=null) ? latest.thighCm : a.thighCm;
+  const effCalfCm = latest ? latest.calfCm : null; // no intake-form fallback -- calf is Scale Log only
   const usingLogData = !!latest;
 
   const c = calc(Object.assign({}, a, {weightKg: effWeightKg}));
@@ -10103,7 +10138,7 @@ function buildReport(){
     bodyProfile: {
       birthDate: a.birthDate||null, age: computeAge(a.birthDate), gender: a.gender, heightCm: a.heightCm, currentWeightKg: effWeightKg,
       targetWeightKg: a.targetWeightKg, bodyFatPct: effBodyFatPct!=null?effBodyFatPct:null,
-      chestCm: effChestCm||null, waistCm: effWaistCm||null, hipCm: effHipCm||null, thighCm: effThighCm||null,
+      chestCm: effChestCm||null, waistCm: effWaistCm||null, hipCm: effHipCm||null, thighCm: effThighCm||null, calfCm: effCalfCm||null,
       muscleMassKg: effMuscleMassKg!=null?effMuscleMassKg:null, musclePct: effMusclePct!=null?effMusclePct:null,
       visceralFat: effVisceralFat!=null?effVisceralFat:null,
       bmi: Number(c.bmi.toFixed(1)), source: usingLogData ? "latest scale log entry ("+latest.date+")" : "intake form"
@@ -10223,7 +10258,7 @@ function csvEscapeVal(v){
 function buildScaleCsv(){
   const logs = sortedLogs();
   if(!logs.length) return null;
-  const headers = ["Date","Weight (kg)","BMI","Body fat %","Muscle %","Visceral fat","Chest (cm)","Waist (cm)","Hip (cm)","Thigh (cm)"];
+  const headers = ["Date","Weight (kg)","BMI","Body fat %","Muscle %","Visceral fat","Chest (cm)","Waist (cm)","Hip (cm)","Thigh (cm)","Calf (cm)"];
   const rows = logs.map(l=>{
     const bmi = computeLogBMI(l);
     return [
@@ -10237,10 +10272,60 @@ function buildScaleCsv(){
       l.waistCm != null ? l.waistCm : "",
       l.hipCm != null ? l.hipCm : "",
       l.thighCm != null ? l.thighCm : "",
+      l.calfCm != null ? l.calfCm : "",
     ];
   });
   return [headers, ...rows].map(r=>r.map(csvEscapeVal).join(",")).join("\r\n");
 }
+
+// Plain-text scale-log summary -- built specifically to paste into ChatGPT or another AI assistant
+// (a raw CSV works but reads poorly pasted into a chat box). Reuses MINI_TREND_METRICS so the
+// first-vs-last deltas reported here match exactly what the "Other measurements" cards show on
+// screen, rather than recomputing the same numbers a second, possibly-inconsistent way.
+function buildScaleSummaryText(){
+  const logs = sortedLogs();
+  if(!logs.length) return null;
+  const lines = [`Scale Log summary — generated ${todayStr()}`, ""];
+
+  const weightPoints = logs.filter(l=>l.weightKg!=null).map(l=>({date:l.date, value:l.weightKg}));
+  if(weightPoints.length){
+    const first = weightPoints[0], last = weightPoints[weightPoints.length-1];
+    const delta = last.value - first.value;
+    lines.push(`Weight: ${first.value.toFixed(1)}kg (${first.date}) → ${last.value.toFixed(1)}kg (${last.date}), ${delta>0?"+":""}${delta.toFixed(1)}kg`);
+  }
+  MINI_TREND_METRICS.forEach(m=>{
+    const points = logs.filter(l=>l[m.key]!=null).map(l=>({date:l.date, value:l[m.key]}));
+    if(points.length < 2) return; // matches the "needs at least 2 points to trend" rule the cards use
+    const first = points[0].value, last = points[points.length-1].value;
+    const delta = last - first;
+    const deltaStr = `${delta>0?"+":""}${delta.toFixed(m.decimals)}${m.unit}`;
+    lines.push(`${m.label}: ${first.toFixed(m.decimals)}${m.unit} → ${last.toFixed(m.decimals)}${m.unit} (${deltaStr}) since ${points[0].date}`);
+  });
+
+  lines.push("", "Recent readings (most recent first):");
+  logs.slice().reverse().slice(0, 15).forEach(l=>{
+    const bmi = computeLogBMI(l);
+    const parts = [l.weightKg!=null ? `${l.weightKg}kg` : null];
+    if(bmi!=null) parts.push(`BMI ${bmi.toFixed(1)}`);
+    if(l.bodyFatPct!=null) parts.push(`body fat ${l.bodyFatPct}%`);
+    if(l.musclePct!=null) parts.push(`muscle ${l.musclePct}%`);
+    if(l.visceralFat!=null) parts.push(`visceral fat ${l.visceralFat}`);
+    if(l.chestCm!=null) parts.push(`chest ${l.chestCm}cm`);
+    if(l.waistCm!=null) parts.push(`waist ${l.waistCm}cm`);
+    if(l.hipCm!=null) parts.push(`hip ${l.hipCm}cm`);
+    if(l.thighCm!=null) parts.push(`thigh ${l.thighCm}cm`);
+    if(l.calfCm!=null) parts.push(`calf ${l.calfCm}cm`);
+    lines.push(`- ${l.date}: ${parts.filter(Boolean).join(", ")}`);
+  });
+
+  return lines.join("\n");
+}
+
+document.getElementById("copyScaleSummaryBtn").addEventListener("click", ()=>{
+  const text = buildScaleSummaryText();
+  if(!text){ showToast("No scale log entries yet"); return; }
+  navigator.clipboard.writeText(text).then(()=> showToast("Summary copied — paste it into ChatGPT"));
+});
 
 function buildFoodCsv(){
   const log = getFoodLog();
