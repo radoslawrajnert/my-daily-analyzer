@@ -325,6 +325,11 @@
   .trend-swatch{display:inline-block; width:14px; height:3px; border-radius:2px;}
   .trend-swatch-raw{background:var(--accent2); opacity:.45;}
   .trend-swatch-avg{background:var(--accent);}
+  .trend-chart-inner{position:relative;}
+  .trend-goal-reached-badge{position:absolute; top:6px; left:10px; width:84px; height:84px; filter:drop-shadow(0 3px 10px rgba(0,0,0,.45)); pointer-events:none;}
+  .trend-goal-reached-badge img{display:block; width:100%; height:100%;}
+  .trend-goal-reached-note{display:flex; align-items:center; gap:6px; font-size:.82rem; font-weight:700; color:var(--accent); margin-top:8px;}
+  .trend-goal-reached-note svg{width:16px; height:16px;}
 
   .mini-trends{margin-top:20px;}
   .mini-trends-title{font-size:.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:10px;}
@@ -3672,6 +3677,9 @@ function renderTrendChart(logs){
       if(isFinite(z.from) && z.from > lo && z.from < hi){
         const yLine = yFor(z.from);
         bands += `<line x1="${pad}" y1="${yLine.toFixed(1)}" x2="${chartRight}" y2="${yLine.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3 3"></line>`;
+        // Small number right on the boundary line itself -- so the actual kg value is visible on
+        // the chart, not just an unlabeled dashed line you'd have to guess the position of.
+        bands += `<text x="${pad+2}" y="${(yLine-2).toFixed(1)}" font-size="7.5" fill="var(--muted)">${z.from.toFixed(1)}kg</text>`;
       }
     });
   }
@@ -3687,7 +3695,7 @@ function renderTrendChart(logs){
     const yCenter = yFor(targetKg);
     bands += `<rect x="${pad}" y="${(yCenter-bandH/2).toFixed(1)}" width="${chartRight-pad}" height="${bandH.toFixed(1)}" fill="${TARGET_FILL}"></rect>`;
     bands += `<line x1="${pad}" y1="${yCenter.toFixed(1)}" x2="${chartRight}" y2="${yCenter.toFixed(1)}" stroke="${TARGET_LINE}" stroke-width="1" stroke-dasharray="3 3"></line>`;
-    bands += `<text x="${chartRight+6}" y="${(yCenter+3).toFixed(1)}" font-size="9" fill="${TARGET_LINE}">Target</text>`;
+    bands += `<text x="${chartRight+6}" y="${(yCenter+3).toFixed(1)}" font-size="9" fill="${TARGET_LINE}">Target ${targetKg.toFixed(1)}kg</text>`;
   }
 
   // Space points along X by actual elapsed time between log dates, not just by entry index --
@@ -3726,15 +3734,32 @@ function renderTrendChart(logs){
 
   const first = logs[0], last = logs[logs.length-1];
   const delta = (last.weightKg - first.weightKg);
+
+  // Big celebration smiley once the target weight is actually reached -- same goal-direction logic
+  // already used for the "Goal weight reached" milestone banner (detectMilestones above), just
+  // rendered directly on the chart instead of as a one-time toast, so it stays visible for as long
+  // as you're at/past your goal.
+  const isLossGoal = answers.goalType === "Lose fat";
+  const isGainGoal = answers.goalType === "Gain muscle / weight";
+  const goalReached = targetKg != null && (
+    isLossGoal ? last.weightKg <= targetKg :
+    isGainGoal ? last.weightKg >= targetKg :
+    false
+  );
+
   wrap.innerHTML = `
     <div class="trend-label">Weight trend: ${first.date} → ${last.date} · ${delta>0?"+":""}${delta.toFixed(1)} kg</div>
     ${showAvg ? `<div class="trend-legend"><span class="trend-legend-item"><span class="trend-swatch trend-swatch-raw"></span>Logged weight</span><span class="trend-legend-item"><span class="trend-swatch trend-swatch-avg"></span>7-day average</span></div>` : ""}
-    <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
-      ${bands}
-      <path d="${path}" fill="none" stroke="var(--accent2)" stroke-width="1.5" opacity="${showAvg ? 0.45 : 1}"></path>
-      ${dots}
-      ${showAvg ? `<path d="${avgPath}" fill="none" stroke="var(--accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"></path>` : ""}
-    </svg>
+    <div class="trend-chart-inner">
+      <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
+        ${bands}
+        <path d="${path}" fill="none" stroke="var(--accent2)" stroke-width="1.5" opacity="${showAvg ? 0.45 : 1}"></path>
+        ${dots}
+        ${showAvg ? `<path d="${avgPath}" fill="none" stroke="var(--accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"></path>` : ""}
+      </svg>
+      ${goalReached ? `<div class="trend-goal-reached-badge" title="You've reached your target weight!">${smileyPhotoImg(84, "Target weight reached!")}</div>` : ""}
+    </div>
+    ${goalReached ? `<div class="trend-goal-reached-note">${ICON_SMILEY}You've reached your target weight of ${targetKg.toFixed(1)}kg!</div>` : ""}
     ${!th ? `<div class="goal-progress-note">Add your height in Body Profile to see BMI zone bands here.</div>` : ""}
   `;
 }
