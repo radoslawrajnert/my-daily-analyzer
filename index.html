@@ -689,6 +689,15 @@
       </div>
 
       <div class="card">
+        <h2>Rest-day guardrail</h2>
+        <div class="step-desc" style="margin-top:0;">Choose when the Workout Log should nudge you toward a rest day instead of another non-cardio (strength) session. Cardio is never restricted by either rule below. Turn on one, both, or neither.</div>
+        <div class="field" style="display:flex; flex-direction:column; gap:10px;">
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="restGuardrailStreakCb" style="width:auto;" checked> 3 non-cardio days in a row → recommend rest the day after</label>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; flex-wrap:wrap;"><input type="checkbox" id="restGuardrailWeeklyCapCb" style="width:auto;"> Cap non-cardio sessions at <input type="number" id="restGuardrailWeeklyCapInput" min="1" max="14" value="3" style="width:56px; display:inline-block;"> per week (Mon–Sun)</label>
+        </div>
+      </div>
+
+      <div class="card">
         <h2 id="workoutSplitFormTitle">My splits</h2>
         <div class="step-desc" style="margin-top:0;">Define the splits in your program (e.g. Lower A, Upper B) as an exact, ordered list of exercises — the quick pick in Log a set will offer that list first, in order, and "Copy last exercises" duplicates your last session for whichever split you pick.</div>
         <form id="workoutSplitForm" autocomplete="off">
@@ -2978,7 +2987,7 @@ function switchView(view){
   if(view==="ailog") renderAiLogView();
   if(view==="coach") renderCoachView();
   if(view==="plan"){
-    syncCoachFocusUI(); syncVisibleTabsUI();
+    syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI();
     // "My splits" and "My exercises" (moved here from the Workout Log tab, reachable now only by
     // clicking your name) need their own refresh on open -- renderWorkoutsView() also keeps them
     // current whenever the Workout Log tab itself is visited, but My Plan can be opened without
@@ -6532,11 +6541,13 @@ function getWorkoutEntriesForDate(date){
 }
 
 // --- Rest-day nudge -- an intentional guardrail against overtraining, not a schedule feature.
-// Three CONSECUTIVE calendar days with any real (non-pending) strength set logged, regardless of
-// which split, is treated as the point where another rest day is due; the day right after gets
-// flagged. Cardio never counts toward the streak and is never restricted -- physiologically a
-// different kind of stress on the body, and this is about protecting recovery, not discouraging
-// activity altogether. ---
+// Two independent rules, each toggleable from My Plan (see getRestGuardrailSettings below):
+// (1) a STREAK rule -- N consecutive calendar days with any real (non-pending) strength set
+// logged, regardless of which split, flags the day right after; (2) a WEEKLY CAP rule -- once a
+// Mon-Sun week has already hit a max number of non-cardio training days, every remaining day that
+// week is flagged. Either rule firing is enough to recommend rest. Cardio never counts toward
+// either rule and is never restricted -- physiologically a different kind of stress on the body,
+// and this is about protecting recovery, not discouraging activity altogether. ---
 function isStrengthTrainedDate(date){
   return getWorkoutEntriesForDate(date).some(e => !workoutEntryIsCardio(e) && !e.pending);
 }
@@ -6551,12 +6562,54 @@ function strengthTrainingStreakEndingOn(endDate){
   }
   return streak;
 }
-// True once the 3 days immediately before `date` were ALL strength-trained -- i.e. `date` itself
-// is the recommended rest day. Works for a future date too (e.g. "tomorrow"), so the heatmap and
-// the Workout Log banner can flag a rest day before it even arrives, the moment the 3rd
-// consecutive day gets logged.
+// The Monday (start) of the Mon-Sun week containing `date` -- same week-boundary math already
+// used by the heatmap builder, pulled out here so the weekly-cap rule uses the exact same weeks.
+function mondayOfWeek(date){
+  const dow = new Date(date+"T00:00:00").getDay(); // 0=Sun..6=Sat
+  const daysSinceMonday = (dow + 6) % 7;
+  return shiftDateStr(date, -daysSinceMonday);
+}
+// How many distinct days in `date`'s own Mon-Sun week were already strength-trained, counting only
+// days strictly BEFORE `date` itself -- mirrors the streak rule's "the days before you" framing,
+// so hitting the cap on day N flags day N+1 onward, not day N (the day that reached the cap).
+function strengthTrainedDaysThisWeekBefore(date){
+  const monday = mondayOfWeek(date);
+  let count = 0;
+  let d = monday;
+  while(d < date){
+    if(isStrengthTrainedDate(d)) count++;
+    d = shiftDateStr(d, 1);
+  }
+  return count;
+}
+// Per-user toggles for the two rules above. Defaults preserve the app's original, always-on
+// behavior (3-consecutive-day streak only) for anyone who's never touched this setting -- the
+// weekly cap is opt-in.
+function getRestGuardrailSettings(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  const s = (u && u.restGuardrailSettings) || {};
+  return {
+    streakEnabled: s.streakEnabled !== false,
+    streakDays: (typeof s.streakDays === "number" && s.streakDays > 0) ? s.streakDays : 3,
+    weeklyCapEnabled: !!s.weeklyCapEnabled,
+    weeklyCap: (typeof s.weeklyCap === "number" && s.weeklyCap > 0) ? s.weeklyCap : 3,
+  };
+}
+function saveRestGuardrailSettings(s){
+  const users = getUsers();
+  if(!users[currentUserEmail]) return;
+  users[currentUserEmail].restGuardrailSettings = s;
+  saveUsers(users);
+}
+// True once `date` is the recommended rest day under whichever rule(s) are enabled. Works for a
+// future date too (e.g. "tomorrow"), so the heatmap and the Workout Log banner can flag a rest day
+// before it even arrives, the moment the triggering condition gets logged.
 function shouldRestFromStrength(date){
-  return strengthTrainingStreakEndingOn(shiftDateStr(date, -1)) >= 3;
+  const settings = getRestGuardrailSettings();
+  const streakHit = settings.streakEnabled && strengthTrainingStreakEndingOn(shiftDateStr(date, -1)) >= settings.streakDays;
+  const weeklyCapHit = settings.weeklyCapEnabled && strengthTrainedDaysThisWeekBefore(date) >= settings.weeklyCap;
+  return streakHit || weeklyCapHit;
 }
 
 // --- Workout session timer -- tracks how long an actual gym session ran, independent of whichever
@@ -11134,6 +11187,38 @@ HIDEABLE_TABS.forEach(key=>{
     applyVisibleTabsToNav();
     showToast("Visible tabs updated");
   });
+});
+
+function syncRestGuardrailUI(){
+  const s = getRestGuardrailSettings();
+  const streakCb = document.getElementById("restGuardrailStreakCb");
+  const capCb = document.getElementById("restGuardrailWeeklyCapCb");
+  const capInput = document.getElementById("restGuardrailWeeklyCapInput");
+  if(streakCb) streakCb.checked = s.streakEnabled;
+  if(capCb) capCb.checked = s.weeklyCapEnabled;
+  if(capInput) capInput.value = s.weeklyCap;
+}
+function saveRestGuardrailFromUI(){
+  const streakCb = document.getElementById("restGuardrailStreakCb");
+  const capCb = document.getElementById("restGuardrailWeeklyCapCb");
+  const capInput = document.getElementById("restGuardrailWeeklyCapInput");
+  const current = getRestGuardrailSettings();
+  const capVal = parseInt(capInput && capInput.value, 10);
+  saveRestGuardrailSettings({
+    streakEnabled: streakCb ? streakCb.checked : current.streakEnabled,
+    streakDays: current.streakDays,
+    weeklyCapEnabled: capCb ? capCb.checked : current.weeklyCapEnabled,
+    weeklyCap: (Number.isFinite(capVal) && capVal > 0) ? capVal : current.weeklyCap,
+  });
+  showToast("Rest-day guardrail updated");
+  // Re-render the Workout Log's rest banner + weekly heatmap so a change here shows up immediately
+  // if that tab happens to already be open, not just after the next navigation there.
+  if(typeof renderWorkoutsView === "function") renderWorkoutsView();
+}
+["restGuardrailStreakCb", "restGuardrailWeeklyCapCb", "restGuardrailWeeklyCapInput"].forEach(id=>{
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.addEventListener("change", saveRestGuardrailFromUI);
 });
 
 // Which view to land on right after logging in -- or when reopening the app while a session is
