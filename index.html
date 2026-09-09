@@ -8868,25 +8868,26 @@ function renderWorkoutHeatmap(){
       const restChip = d.restRecommended
         ? `<span class="workout-chip workout-rest-chip" style="background:#f16b83; color:${darkTextForFill("#f16b83")};" title="Recommended rest day for strength -- see your Rest-day guardrail settings in My Plan">${ICON_BAN}Don't train</span>`
         : "";
-      if(d.future) return restChip ? `<td style="text-align:center; vertical-align:top;">${restChip}</td>` : `<td></td>`;
-      if(!d.badges.length) return restChip ? `<td style="text-align:center; vertical-align:top;">${restChip}</td>` : `<td style="text-align:center; vertical-align:top; color:var(--border);">·</td>`;
+      if(d.future) return restChip ? `<td style="text-align:center; vertical-align:middle;">${restChip}</td>` : `<td></td>`;
+      if(!d.badges.length) return restChip ? `<td style="text-align:center; vertical-align:middle;">${restChip}</td>` : `<td style="text-align:center; vertical-align:middle; color:var(--border);">·</td>`;
       // Don't-train always sorts ABOVE the split badges (Cardio included) in a cell, since it's the
       // more urgent/attention-grabbing signal -- reading top-to-bottom, "should I rest" comes before
       // "what did I actually log that day". Every chip shares the .workout-chip class (fixed
       // size/shape) with only its color varying inline, so Lower A/Upper A/Cardio/etc. always render
       // as identically-sized boxes instead of auto-sizing to each label's own text length.
       const chips = restChip + d.badges.map(b=>`<span class="workout-chip" style="background:${b.color}; color:${darkTextForFill(b.color)};" title="${b.label}">${b.icon||""}${b.label}</span>`).join("");
-      return `<td style="text-align:center; vertical-align:top;" title="${d.date}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
+      return `<td style="text-align:center; vertical-align:middle;" title="${d.date}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
     }).join("");
     // Weekly medal: lights up the moment every currently-defined split has been logged at least
     // once that week -- doesn't wait for the week to finish, so a Tuesday sweep still earns it.
     const medalCell = week.allSplitsLogged
-      ? `<td style="text-align:center; vertical-align:top;" title="All your splits logged this week!"><span class="week-medal-icon">${celebrationIconSvg}</span></td>`
-      : `<td style="text-align:center; vertical-align:top; color:var(--border);">·</td>`;
-    // vertical-align:top on the week label too, so its date range lines up with the FIRST chip
-    // line in each day cell (the split-name badge -- see the ordering note above) rather than
-    // floating centered across the full height of a row where some days stack two chips.
-    return `<tr><td style="white-space:nowrap; color:var(--muted); font-size:.78rem; vertical-align:top;">${shortDate(week.weekStart)}–${shortDate(week.weekEnd)}</td>${cells}${medalCell}</tr>`;
+      ? `<td style="text-align:center; vertical-align:middle;" title="All your splits logged this week!"><span class="week-medal-icon">${celebrationIconSvg}</span></td>`
+      : `<td style="text-align:center; vertical-align:middle; color:var(--border);">·</td>`;
+    // vertical-align:middle throughout the row (week label included) so a day with just one chip
+    // (or the Don't-train chip, or the empty-day dot) sits centered in the row's full height
+    // instead of hugging the top next to a taller two-chip neighbor -- reads as one aligned row
+    // rather than a ragged top edge.
+    return `<tr><td style="white-space:nowrap; color:var(--muted); font-size:.78rem; vertical-align:middle;">${shortDate(week.weekStart)}–${shortDate(week.weekEnd)}</td>${cells}${medalCell}</tr>`;
   }).join("");
   const splits = getWorkoutSplits();
   const legend = splits.map(s=>`<span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted); margin-right:14px;"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:${s.color};"></span>${splitChipIcon(s)}${s.name}</span>`).join("");
