@@ -5390,13 +5390,16 @@ document.getElementById("foodCancelBtn").addEventListener("click", ()=>{
   renderFoodView();
 });
 
-// "+ Add a product" (Log food card) -- when nothing in Quick pick matches, this jumps down to
-// the My products form to define one from scratch. Saving it there hands control right back
-// here: the new product gets bound into Quick pick automatically so all that's left is
-// adjusting Amount and hitting "Add food".
+// "+ Add a product" (Log food card) -- the My products / My meals form lives over in Settings
+// (My Plan -> Nutrition Log Settings), not on this page, so jump there first, then open the form
+// to define the product from scratch. Saving it there hands control right back here: the new
+// product gets bound into Quick pick automatically so all that's left is adjusting Amount and
+// hitting "Add food".
 let addProductFromLogFood = false;
 document.getElementById("logFoodAddProductBtn").addEventListener("click", ()=>{
   addProductFromLogFood = true;
+  switchView("plan");
+  switchPlanTab("nutrition");
   document.getElementById("packageForm").reset();
   exitPackageEditMode();
   document.getElementById("pkgName").placeholder = "e.g. Grilled chicken breast, KitKat";
@@ -6369,11 +6372,14 @@ document.getElementById("packageForm").addEventListener("submit", (e)=>{
 
   // Triggered via the Log food card's "+ Add a product" -- hand control straight back there
   // instead of just confirming the save: bind the new product into Quick pick so the only
-  // thing left to do is adjust Amount and hit "Add food".
+  // thing left to do is adjust Amount and hit "Add food". That button jumped over to Settings
+  // (My Plan -> Nutrition Log Settings) to reach this form, so switch back to the Nutrition Log
+  // tab first, or the scroll below would target a hidden page.
   if(addProductFromLogFood && !wasEditing){
     addProductFromLogFood = false;
     selectedFoodIndex = null;
     selectedPackageId = pkg.id;
+    switchView("food");
     document.getElementById("foodQuickPick").value = packageQuickPickLabel(pkg);
     hideFoodManualFields();
     populateFoodUnitOptions(true);
