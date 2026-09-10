@@ -47,9 +47,10 @@
   .brand{display:flex; align-items:center; gap:14px; text-align:left; margin:0; min-width:0;}
   .brand-icon{
     flex:0 0 auto; width:44px; height:44px; border-radius:13px; background:var(--accent-grad);
-    display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow-glow);
+    display:flex; align-items:center; justify-content:center; box-shadow:var(--shadow-glow); overflow:hidden;
   }
   .brand-icon svg{width:22px; height:22px;}
+  .brand-icon img{width:100%; height:100%; object-fit:cover; display:block;}
   .tab-icon{width:15px; height:15px; flex:0 0 auto; vertical-align:-3px;}
   .brand-text{min-width:0;}
   header.top h1{
@@ -487,6 +488,11 @@
   }
 
   .body-silhouette-card svg{display:block; margin:0 auto;}
+  .measure-chip-row{display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; justify-content:center;}
+  .measure-chip{background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 16px; text-align:center; min-width:76px;}
+  .measure-chip-label{font-size:.72rem; color:var(--muted); margin-bottom:2px;}
+  .measure-chip-value{font-size:1.05rem; font-weight:800;}
+  .measure-chip-unit{font-size:.72rem; font-weight:600; color:var(--muted); margin-left:1px;}
 
   .body-change{margin:18px 0; padding:18px; background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius);}
   .body-change-title{font-size:.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:14px;}
@@ -629,7 +635,7 @@
   <header class="top">
     <div class="topbar">
       <div class="brand">
-        <div class="brand-icon"><svg viewBox="0 0 24 24" fill="#0a0c11"><path d="M12 21s-6.72-4.35-9.33-8.1C.9 10.03 1.63 6.5 4.63 5.02c2.2-1.08 4.63-.3 5.93 1.48L12 8l1.44-1.5c1.3-1.78 3.73-2.56 5.93-1.48 3 1.48 3.73 5.01 1.9 7.88C18.72 16.65 12 21 12 21z"/></svg></div>
+        <div class="brand-icon"><img src="logo.png" alt="Logo" onerror="this.parentElement.innerHTML='&lt;svg viewBox=&quot;0 0 24 24&quot; fill=&quot;#0a0c11&quot;&gt;&lt;path d=&quot;M12 21s-6.72-4.35-9.33-8.1C.9 10.03 1.63 6.5 4.63 5.02c2.2-1.08 4.63-.3 5.93 1.48L12 8l1.44-1.5c1.3-1.78 3.73-2.56 5.93-1.48 3 1.48 3.73 5.01 1.9 7.88C18.72 16.65 12 21 12 21z&quot;&gt;&lt;/path&gt;&lt;/svg&gt;';"></div>
         <div class="brand-text">
           <h1>AI Body & Nutrition Analyzer</h1>
           <p id="brandTagline">Answer a few questions about your body, lifestyle, training and eating habits to get a personalized (non-medical) nutrition & fitness strategy.</p>
@@ -4200,41 +4206,34 @@ function bodySilhouetteSvg(wf, fillColor){
 const MALE_SIL_PTS = [[-9.1,6.0], [-21.3,37.6], [-16.4,72.8], [-51.6,89.8], [-60.1,100.8], [-73.5,253.9], [-62.6,272.1], [-46.8,274.5], [-41.9,317.1], [-46.8,371.7], [-38.3,414.3], [-38.3,433.7], [-46.8,445.8], [-46.8,456.8], [-22.5,456.8], [-23.7,405.8], [-7.9,303.7], [7.9,304.9], [14.0,331.6], [12.8,364.4], [22.5,411.8], [21.3,456.8], [45.6,456.8], [45.6,445.8], [37.1,434.9], [44.3,376.6], [40.7,336.5], [44.3,274.5], [58.9,273.3], [72.3,263.6], [65.0,164.0], [60.1,161.5], [58.9,102.0], [51.6,91.1], [15.2,74.0], [20.0,46.1], [16.4,23.0], [6.7,6.0]];
 const FEMALE_SIL_PTS = [[-9.1,6.0], [-21.3,37.6], [-15.5,72.8], [-44.7,89.8], [-49.3,100.8], [-60.3,253.9], [-50.6,272.1], [-37.3,274.5], [-39.6,317.1], [-51.7,371.7], [-40.1,414.3], [-38.5,433.7], [-45.7,445.8], [-44.4,456.8], [-21.3,456.8], [-25.1,405.8], [-5.7,303.7], [5.9,304.9], [16.2,331.6], [14.3,364.4], [23.6,411.8], [20.2,456.8], [43.2,456.8], [44.5,445.8], [37.2,434.9], [48.6,376.6], [46.9,336.5], [35.3,274.5], [47.3,273.3], [59.3,263.6], [53.3,164.0], [49.3,161.5], [48.3,102.0], [44.4,91.1], [14.2,74.0], [20.0,46.1], [16.4,23.0], [6.7,6.0]];
 
-// Measurement-callout anchor points (chest/waist/hip/thigh/calf), read off the same traced outline
-// via a horizontal-line intersection at each landmark's Y -- so the dashed lines actually touch the
-// real body edge instead of an approximated one.
-const SIL_LANDMARKS = {
-  male:   {chest:{y:110, edgeX:60}, waist:{y:200, edgeX:68}, hip:{y:245, edgeX:72}, thigh:{y:330, edgeX:42}, calf:{y:400, edgeX:41}},
-  female: {chest:{y:110, edgeX:49}, waist:{y:200, edgeX:56}, hip:{y:245, edgeX:59}, thigh:{y:330, edgeX:44}, calf:{y:400, edgeX:44}},
-};
-
 function silPath(pts, wf){
   const d = pts.map(([dx,y]) => `${(100+dx*wf).toFixed(1)} ${y.toFixed(1)}`).join(" L ");
   return `M ${d} Z`;
 }
 
-// Fixed-proportion composition bands -- SAME relative heights as the reference image (45/3/12/15/25%
-// of the figure's height) no matter what the user's actual muscle%/body-fat% are. Only the NUMBERS
-// shown update live (from the user's latest reading); the band sizes stay constant so the figure
-// always looks like the reference instead of being squeezed or stretched by whatever the current
-// values happen to be. The 3%/15%/25% bands don't correspond to anything this app measures (the
-// reference splits those as essential fat / bone / other), so they stay unlabeled decorative zones.
+// Fixed-proportion composition bands -- SAME relative heights AND colors as the reference image
+// (45/3/12/15/25% of the figure's height, navy/pale-blue/teal/tan/cream) no matter what the user's
+// actual muscle%/body-fat% are. Only the NUMBER shown on the muscle and body-fat bands updates live
+// (from the user's latest reading); every band's size and color stays constant so the figure always
+// looks exactly like the reference photo instead of being squeezed, stretched, or recolored by
+// whatever the current values happen to be. The 3%/15%/25% bands don't correspond to anything this
+// app measures (the reference splits those as essential fat / bone / other), so they just keep
+// showing the reference's own fixed numbers.
 const FIXED_COMPOSITION_BANDS = [
-  {pct:45, color:"var(--accent2)", valueKey:"musclePct", label:"Muscle"},
-  {pct:3,  color:"rgba(124,156,255,.35)", valueKey:null, label:null},
-  {pct:12, color:"var(--warn)", valueKey:"bodyFatPct", label:"Body fat"},
-  {pct:15, color:"#c9a876", valueKey:null, label:null},
-  {pct:25, color:"#d8d4c8", valueKey:null, label:null},
+  {pct:45, color:"#3d4a63", valueKey:"musclePct"},
+  {pct:3,  color:"#bdd2e0", valueKey:null},
+  {pct:12, color:"#4f8f8a", valueKey:"bodyFatPct"},
+  {pct:15, color:"#c9a876", valueKey:null},
+  {pct:25, color:"#e4ddc9", valueKey:null},
 ];
 
-// Body-composition figure: the traced silhouette above, with the fixed-proportion bands clipped
-// inside it (so live muscle%/body-fat% values are shown as text without resizing the zones), plus
-// the existing chest/waist/hip/thigh/calf readings called out as dashed lines to the side, colored
-// green/yellow via the same directional target logic as the mini-trend cards.
-function measurementSilhouetteSvg(vals, targets, wf, female, composition){
+// Body-composition figure: the traced silhouette above, filled entirely by the fixed-proportion,
+// fixed-color bands clipped to its shape -- a plain recreation of the reference photo's look, just
+// with the muscle%/body-fat% numbers swapped for the user's own latest reading. Sits on its own
+// light card to match the reference's light background rather than the app's dark theme.
+function measurementSilhouetteSvg(wf, female, composition){
   wf = wf || 1;
   const path = silPath(female ? FEMALE_SIL_PTS : MALE_SIL_PTS, wf);
-  const landmarks = SIL_LANDMARKS[female ? "female" : "male"];
 
   const TOP_Y = 6, totalH = 446;
   let cursorY = TOP_Y;
@@ -4242,45 +4241,46 @@ function measurementSilhouetteSvg(vals, targets, wf, female, composition){
     const bh = totalH * (b.pct/100);
     const y = cursorY;
     cursorY += bh;
-    const val = b.valueKey ? composition[b.valueKey] : null;
-    const showLabel = val != null && bh >= 24;
+    const val = (b.valueKey && composition[b.valueKey] != null) ? Math.round(composition[b.valueKey]) : b.pct;
+    const fontSize = bh < 20 ? 10 : 14;
     // White text with a dark outline (paint-order flips fill/stroke drawing order) stays readable
     // on every band color, light or dark, the same trick the reference infographic uses.
     return `
       <rect x="-30" y="${y.toFixed(1)}" width="260" height="${bh.toFixed(1)}" fill="${b.color}"></rect>
-      ${showLabel ? `<text x="100" y="${(y+bh/2+4).toFixed(1)}" font-size="13" font-weight="800" fill="#fff" stroke="rgba(10,12,17,.55)" stroke-width="3" paint-order="stroke" text-anchor="middle">${Math.round(val)}% ${b.label}</text>` : ""}
+      <text x="100" y="${(y+bh/2+fontSize*0.35).toFixed(1)}" font-size="${fontSize}" font-weight="800" fill="#fff" stroke="rgba(10,12,17,.45)" stroke-width="2.5" paint-order="stroke" text-anchor="middle">${val}%</text>
     `;
   }).join("");
 
-  // Alternating left/right sides keep same-side labels far enough apart vertically to never overlap.
-  const callouts = [
-    {key:"chestCm", label:"Chest", lm:landmarks.chest, side:"left",  judge:false},
-    {key:"waistCm", label:"Waist", lm:landmarks.waist, side:"right", judge:true},
-    {key:"hipCm",   label:"Hip",   lm:landmarks.hip,   side:"left",  judge:false},
-    {key:"thighCm", label:"Thigh", lm:landmarks.thigh, side:"right", judge:false},
-    {key:"calfCm",  label:"Calf",  lm:landmarks.calf,  side:"left",  judge:false},
-  ];
-  const LEFT_X = -26, RIGHT_X = 226;
-  const calloutEls = callouts.map(c=>{
-    const val = vals[c.key];
-    if(val == null) return "";
-    const color = metricStatusColor(val, targets[c.key], c.judge) || "var(--accent2)";
-    const bodyX = c.side === "left" ? 100 - c.lm.edgeX*wf : 100 + c.lm.edgeX*wf;
-    const labelX = c.side === "left" ? LEFT_X : RIGHT_X;
-    const anchor = c.side === "left" ? "end" : "start";
-    return `
-      <line x1="${bodyX.toFixed(1)}" y1="${c.lm.y}" x2="${labelX}" y2="${c.lm.y}" stroke="${color}" stroke-width="1.4" stroke-dasharray="3,3" opacity="0.85"></line>
-      <circle cx="${bodyX.toFixed(1)}" cy="${c.lm.y}" r="3.2" fill="${color}" stroke="#0a0c11" stroke-width="1"></circle>
-      <text x="${labelX}" y="${c.lm.y-5}" font-size="9" fill="var(--muted)" text-anchor="${anchor}">${c.label}</text>
-      <text x="${labelX}" y="${c.lm.y+9}" font-size="11" font-weight="700" fill="${color}" text-anchor="${anchor}">${val.toFixed(1)}cm</text>
-    `;
-  }).join("");
-
-  return `<svg viewBox="-70 0 340 460" width="100%" height="380" style="max-width:380px;" data-figure="${female?"female":"male"}">
+  return `<svg viewBox="-70 0 340 460" width="100%" height="380" style="max-width:340px;" data-figure="${female?"female":"male"}">
+    <rect x="-70" y="0" width="340" height="460" rx="18" fill="#f4f2ee"></rect>
     <clipPath id="bodyCompClip"><path d="${path}"></path></clipPath>
     <g clip-path="url(#bodyCompClip)">${bandRects}</g>
-    ${calloutEls}
   </svg>`;
+}
+
+// Chest/waist/hip/thigh/calf readings as plain stat chips below the figure (instead of dashed
+// callout lines drawn over it), colored green/yellow via the same directional target logic as the
+// mini-trend cards -- keeps the silhouette itself clean like the reference, while still surfacing
+// every logged measurement.
+function measurementStatChips(vals, targets){
+  const items = [
+    {key:"chestCm", label:"Chest", judge:false},
+    {key:"waistCm", label:"Waist", judge:true},
+    {key:"hipCm",   label:"Hip",   judge:false},
+    {key:"thighCm", label:"Thigh", judge:false},
+    {key:"calfCm",  label:"Calf",  judge:false},
+  ];
+  const chips = items.map(it=>{
+    const val = vals[it.key];
+    if(val == null) return "";
+    const color = metricStatusColor(val, targets[it.key], it.judge) || "var(--accent2)";
+    return `
+      <div class="measure-chip">
+        <div class="measure-chip-label">${it.label}</div>
+        <div class="measure-chip-value" style="color:${color};">${val.toFixed(1)}<span class="measure-chip-unit">cm</span></div>
+      </div>`;
+  }).join("");
+  return chips ? `<div class="measure-chip-row">${chips}</div>` : "";
 }
 
 function renderBodySilhouetteCard(logs){
@@ -4302,8 +4302,9 @@ function renderBodySilhouetteCard(logs){
   wrap.innerHTML = `
     <div class="card body-silhouette-card">
       <h2>Body composition &amp; measurements</h2>
-      <div class="step-desc" style="margin-top:0;">Your latest reading (${last.date}) — muscle % and body fat % as colored zones, other measurements called out as lines. Green means at or past target, yellow means still working toward it.</div>
-      ${measurementSilhouetteSvg(vals, targets, wf, female, composition)}
+      <div class="step-desc" style="margin-top:0;">Your latest reading (${last.date}) — muscle % and body fat % shown on the figure, other measurements below. Green means at or past target, yellow means still working toward it.</div>
+      ${measurementSilhouetteSvg(wf, female, composition)}
+      ${measurementStatChips(vals, targets)}
     </div>`;
 }
 
