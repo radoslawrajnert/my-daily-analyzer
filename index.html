@@ -462,6 +462,32 @@
   .goal-progress-summary .big{font-weight:700; color:var(--accent2);}
   .goal-progress-note{color:var(--muted); font-size:.78rem; margin-top:4px;}
 
+  /* Hero progress panel -- a flashier, at-a-glance summary card at the top of Scale Log: a
+     progress ring toward the target weight, plus streak and target-ranges-hit stat chips. */
+  .hero-panel{
+    display:flex; align-items:center; gap:28px; flex-wrap:wrap;
+    background:radial-gradient(circle at 12% 15%, rgba(124,156,255,.16), transparent 55%),
+               radial-gradient(circle at 88% 85%, rgba(78,225,163,.14), transparent 55%),
+               var(--panel);
+  }
+  .hero-ring-wrap{position:relative; width:128px; height:128px; flex-shrink:0;}
+  .hero-ring-center{position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;}
+  .hero-ring-pct{font-size:1.6rem; font-weight:800; color:var(--text); letter-spacing:-.02em;}
+  .hero-ring-sub{font-size:.66rem; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
+  .hero-ring-badge{position:absolute; top:-6px; right:-6px; width:34px; height:34px; filter:drop-shadow(0 2px 6px rgba(0,0,0,.4));}
+  .hero-ring-badge img{display:block; width:100%; height:100%;}
+  .hero-stats{display:flex; gap:26px; flex-wrap:wrap; flex:1;}
+  .hero-stat{min-width:96px;}
+  .hero-stat-value{font-size:1.7rem; font-weight:800; color:var(--text); letter-spacing:-.02em; line-height:1;}
+  .hero-stat-value .hero-stat-unit{font-size:.95rem; font-weight:600; color:var(--muted); margin-left:2px;}
+  .hero-stat-label{font-size:.76rem; color:var(--muted); margin-top:4px;}
+  @media (max-width:600px){
+    .hero-panel{flex-direction:column; align-items:flex-start; gap:18px;}
+    .hero-stats{gap:18px;}
+  }
+
+  .body-silhouette-card svg{display:block; margin:0 auto;}
+
   .body-change{margin:18px 0; padding:18px; background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius);}
   .body-change-title{font-size:.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:14px;}
   .body-change-row{display:flex; align-items:center; justify-content:center; gap:22px; flex-wrap:wrap;}
@@ -915,6 +941,9 @@
     </div>
 
     <div id="logView" class="hidden">
+      <div id="heroPanelWrap"></div>
+      <div id="bodySilhouetteWrap"></div>
+
       <div class="card">
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <span id="logFormTitle">Add a scale reading</span>
@@ -3775,6 +3804,18 @@ const MINI_TREND_METRICS = [
   {key:"visceralFat", label:"Visceral fat", unit:"", decimals:0, judge:true},
 ];
 
+// Shared "is this value in a good place relative to its target range" check, used by the Hero
+// panel and the body-measurements silhouette. Mirrors the exact favorable-direction logic already
+// used for the mini-trend sparkline's dot color (see miniSparklineSvg below): sitting on the
+// favorable side of the range entirely (below min when lower is better, above max when hitting/
+// exceeding it is the goal) counts as green, same as landing inside the range itself.
+function metricStatusColor(value, target, judge){
+  if(value == null || !target) return null;
+  const inRange = value >= target.min && value <= target.max;
+  const favorableBeyond = judge ? (value < target.min) : (value > target.max);
+  return (inRange || favorableBeyond) ? "var(--accent)" : "#f4d03f";
+}
+
 function miniSparklineSvg(points, target, judge){
   const w = 200, h = 46, pad = 4;
   const values = points.map(p=>p.value);
@@ -4150,6 +4191,76 @@ function bodySilhouetteSvg(wf, fillColor){
   </svg>`;
 }
 
+// Schematic body figure with the latest chest/waist/hip/thigh/calf readings called out at their
+// approximate body location, colored green/yellow via the same directional target logic as the
+// mini-trend cards -- reuses bodySilhouetteSvg's exact proportions/coordinate system (viewBox
+// 0-100 x 0-160) so the figure stays visually consistent with the body-change comparison above,
+// just widened (viewBox starts at -40 and ends at 140) to leave room for the callout labels.
+function measurementSilhouetteSvg(vals, targets, wf){
+  wf = wf || 1;
+  const headR = 13, headCy = 17, shW = 22*wf, shCy = 38, torsoW = 15*wf, torsoTop = 32, torsoH = 50,
+    hipW = 17*wf, hipCy = 88, hipRy = 12, legW = 9*wf, legTop = 96, legBottom = 152;
+  const bodyColor = "var(--panel3)";
+
+  const body = `
+    <ellipse cx="50" cy="${shCy}" rx="${shW.toFixed(1)}" ry="13" fill="${bodyColor}"></ellipse>
+    <rect x="${(50-torsoW).toFixed(1)}" y="${torsoTop}" width="${(torsoW*2).toFixed(1)}" height="${torsoH}" rx="${(torsoW*0.7).toFixed(1)}" fill="${bodyColor}"></rect>
+    <ellipse cx="50" cy="${hipCy}" rx="${hipW.toFixed(1)}" ry="${hipRy}" fill="${bodyColor}"></ellipse>
+    <rect x="${(50-hipW+2).toFixed(1)}" y="${legTop}" width="${legW.toFixed(1)}" height="${legBottom-legTop}" rx="${(legW/2).toFixed(1)}" fill="${bodyColor}"></rect>
+    <rect x="${(50+hipW-2-legW).toFixed(1)}" y="${legTop}" width="${legW.toFixed(1)}" height="${legBottom-legTop}" rx="${(legW/2).toFixed(1)}" fill="${bodyColor}"></rect>
+    <circle cx="50" cy="${headCy}" r="${headR}" fill="${bodyColor}"></circle>
+  `;
+
+  // Alternating left/right sides keep same-side labels far enough apart vertically to never overlap.
+  const callouts = [
+    {key:"chestCm", label:"Chest", y:38,  edgeX:torsoW+2, side:"left",  judge:false},
+    {key:"waistCm", label:"Waist", y:72,  edgeX:torsoW-3, side:"right", judge:true},
+    {key:"hipCm",   label:"Hip",   y:hipCy, edgeX:hipW,   side:"left",  judge:false},
+    {key:"thighCm", label:"Thigh", y:112, edgeX:hipW-4,   side:"right", judge:false},
+    {key:"calfCm",  label:"Calf",  y:134, edgeX:legW+2,   side:"left",  judge:false},
+  ];
+  const LEFT_X = -4, RIGHT_X = 104;
+  const calloutEls = callouts.map(c=>{
+    const val = vals[c.key];
+    if(val == null) return "";
+    const color = metricStatusColor(val, targets[c.key], c.judge) || "var(--accent2)";
+    const bodyX = c.side === "left" ? 50 - c.edgeX : 50 + c.edgeX;
+    const labelX = c.side === "left" ? LEFT_X : RIGHT_X;
+    const anchor = c.side === "left" ? "end" : "start";
+    return `
+      <line x1="${bodyX.toFixed(1)}" y1="${c.y}" x2="${labelX}" y2="${c.y}" stroke="${color}" stroke-width="1" stroke-dasharray="2,2" opacity="0.75"></line>
+      <circle cx="${bodyX.toFixed(1)}" cy="${c.y}" r="2.6" fill="${color}"></circle>
+      <text x="${labelX}" y="${c.y-4}" font-size="6.5" fill="var(--muted)" text-anchor="${anchor}">${c.label}</text>
+      <text x="${labelX}" y="${c.y+7}" font-size="8.5" font-weight="700" fill="${color}" text-anchor="${anchor}">${val.toFixed(1)}cm</text>
+    `;
+  }).join("");
+
+  return `<svg viewBox="-40 0 180 160" width="100%" height="260" style="max-width:320px;">
+    ${body}
+    ${calloutEls}
+  </svg>`;
+}
+
+function renderBodySilhouetteCard(logs){
+  const wrap = document.getElementById("bodySilhouetteWrap");
+  if(!wrap) return;
+  if(!logs.length){ wrap.innerHTML = ""; return; }
+  const last = logs[logs.length-1];
+  const vals = {chestCm:last.chestCm, waistCm:last.waistCm, hipCm:last.hipCm, thighCm:last.thighCm, calfCm:last.calfCm};
+  if(!Object.values(vals).some(v => v != null)){ wrap.innerHTML = ""; return; }
+
+  const targets = getAestheticTargets();
+  const bmi = answers.heightCm ? (last.weightKg / Math.pow(answers.heightCm/100, 2)) : null;
+  const wf = bodyWidthFactorFromBMI(bmi);
+
+  wrap.innerHTML = `
+    <div class="card body-silhouette-card">
+      <h2>Body measurements</h2>
+      <div class="step-desc" style="margin-top:0;">Your latest reading (${last.date}) mapped onto your body — green means at or past target, yellow means still working toward it.</div>
+      ${measurementSilhouetteSvg(vals, targets, wf)}
+    </div>`;
+}
+
 function bodyFigureHtml(entry, wf, fillColor){
   const front = entry && (entry.photoFront || entry.photo); // fall back to legacy single-photo field
   const back = entry && entry.photoBack;
@@ -4391,6 +4502,87 @@ function renderBodyChangeVisual(logs){
   `;
 }
 
+// Circular progress ring for the Hero panel -- a plain SVG stroke-dasharray/-dashoffset trick,
+// no chart library needed. pct is 0-100.
+function heroProgressRing(pct, size){
+  size = size || 128;
+  const strokeW = 10;
+  const r = size/2 - strokeW/2 - 2;
+  const c = size/2;
+  const circumference = 2 * Math.PI * r;
+  const offset = circumference * (1 - Math.max(0, Math.min(100, pct))/100);
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">
+    <circle cx="${c}" cy="${c}" r="${r.toFixed(1)}" fill="none" stroke="var(--panel2)" stroke-width="${strokeW}"></circle>
+    <circle cx="${c}" cy="${c}" r="${r.toFixed(1)}" fill="none" stroke="var(--accent)" stroke-width="${strokeW}" stroke-linecap="round"
+      stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"
+      transform="rotate(-90 ${c} ${c})"></circle>
+  </svg>`;
+}
+
+// Big, at-a-glance summary card at the top of Scale Log: how far along you are toward your target
+// weight (as a ring, not just a bar), your current logging streak, and how many of your aesthetic
+// target ranges you're currently hitting -- the same three numbers a user would otherwise have to
+// piece together from the goal-progress bar, streak banner, and mini-trend cards separately.
+function renderHeroPanel(logs){
+  const wrap = document.getElementById("heroPanelWrap");
+  if(!wrap) return;
+  if(!logs.length){ wrap.innerHTML = ""; return; }
+
+  const targetKg = answers.targetWeightKg;
+  const first = logs[0], last = logs[logs.length-1];
+  const current = last.weightKg;
+
+  let ringHtml = "", weightStatLabel = "current weight";
+  if(targetKg != null){
+    const totalDelta = targetKg - first.weightKg;
+    let pct = Math.abs(totalDelta) < 0.05 ? 100 : ((current - first.weightKg) / totalDelta) * 100;
+    pct = Math.max(0, Math.min(100, pct));
+    const goalReached = Math.abs(current - targetKg) < 0.15;
+    ringHtml = `
+      <div class="hero-ring-wrap">
+        ${heroProgressRing(pct)}
+        <div class="hero-ring-center">
+          <div class="hero-ring-pct">${Math.round(pct)}%</div>
+          <div class="hero-ring-sub">to goal</div>
+        </div>
+        ${goalReached ? `<div class="hero-ring-badge" title="Target weight reached!">${smileyPhotoImg(34, "Target weight reached!")}</div>` : ""}
+      </div>`;
+    weightStatLabel = `current · target ${targetKg.toFixed(1)}kg`;
+  }
+
+  const streakInfo = computeLoggingStreak(logs);
+
+  const targets = getAestheticTargets();
+  let achievedCount = 0, trackedCount = 0;
+  MINI_TREND_METRICS.forEach(m=>{
+    const val = last[m.key];
+    const tgt = targets[m.key];
+    if(val == null || !tgt) return;
+    trackedCount++;
+    if(metricStatusColor(val, tgt, m.judge) === "var(--accent)") achievedCount++;
+  });
+
+  wrap.innerHTML = `
+    <div class="card hero-panel">
+      ${ringHtml}
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <div class="hero-stat-value">${current.toFixed(1)}<span class="hero-stat-unit">kg</span></div>
+          <div class="hero-stat-label">${weightStatLabel}</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-value">${streakInfo.streak}<span class="hero-stat-unit">d</span></div>
+          <div class="hero-stat-label">logging streak</div>
+        </div>
+        ${trackedCount > 0 ? `
+        <div class="hero-stat">
+          <div class="hero-stat-value">${achievedCount}<span class="hero-stat-unit">/${trackedCount}</span></div>
+          <div class="hero-stat-label">target ranges hit</div>
+        </div>` : ""}
+      </div>
+    </div>`;
+}
+
 function renderGoalProgress(logs){
   const wrap = document.getElementById("goalProgressWrap");
   const a = answers;
@@ -4476,6 +4668,8 @@ function renderLogView(){
   refreshDateDayLabel("logDate");
 
   const logs = sortedLogs();
+  renderHeroPanel(logs);
+  renderBodySilhouetteCard(logs);
   renderMilestoneBanner(logs);
   renderStreakBanner(logs);
   renderGoalProgress(logs);
