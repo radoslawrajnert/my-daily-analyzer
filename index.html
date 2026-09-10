@@ -463,19 +463,6 @@
   .goal-progress-summary .big{font-weight:700; color:var(--accent2);}
   .goal-progress-note{color:var(--muted); font-size:.78rem; margin-top:4px;}
 
-  .body-comp-photo-wrap{position:relative; max-width:220px; margin:0 auto; line-height:0;}
-  .body-comp-photo-wrap svg{display:block; margin:0 auto;}
-  .body-comp-legend{max-width:220px; margin:14px auto 0; display:flex; flex-direction:column; gap:7px;}
-  .body-comp-legend-row{display:flex; align-items:center; gap:9px; font-size:.85rem;}
-  .body-comp-swatch{width:12px; height:12px; border-radius:3px; flex:0 0 auto;}
-  .body-comp-legend-label{flex:1; color:var(--muted);}
-  .body-comp-legend-value{font-weight:700; color:var(--text);}
-  .measure-chip-row{display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; justify-content:center;}
-  .measure-chip{background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:8px 16px; text-align:center; min-width:76px;}
-  .measure-chip-label{font-size:.72rem; color:var(--muted); margin-bottom:2px;}
-  .measure-chip-value{font-size:1.05rem; font-weight:800;}
-  .measure-chip-unit{font-size:.72rem; font-weight:600; color:var(--muted); margin-left:1px;}
-
   .body-change{margin:18px 0; padding:18px; background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius);}
   .body-change-title{font-size:.8rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:14px;}
   .body-change-row{display:flex; align-items:center; justify-content:center; gap:22px; flex-wrap:wrap;}
@@ -929,8 +916,6 @@
     </div>
 
     <div id="logView" class="hidden">
-      <div id="bodySilhouetteWrap"></div>
-
       <div class="card">
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <span id="logFormTitle">Add a scale reading</span>
@@ -4187,113 +4172,6 @@ function bodySilhouetteSvg(wf, fillColor){
 // positions the original labels occupied. There is only one reference photo (this male back view);
 // until a matching female photo is provided, this same image is used for every profile.
 
-// The exact outline of the user's reference icon (traced from its own alpha silhouette via OpenCV,
-// same technique as the earlier photo trace), kept fixed -- the user asked explicitly not to change
-// the form. dx offsets from the horizontal center (cx=100), in a 0-200 x 0-462 body space.
-const BODY_SHAPE_PTS = [[-9.4,6.0], [-21.2,20.8], [-14.3,70.0], [-52.7,84.8], [-60.6,101.5], [-69.4,251.2], [-61.5,270.9], [-51.7,276.8], [-44.8,271.9], [-38.9,311.3], [-41.8,383.1], [-34.0,415.6], [-40.9,432.4], [-55.6,441.2], [-56.6,454.0], [-37.9,456.0], [-17.2,438.3], [-15.3,343.7], [-8.4,331.9], [-8.4,295.5], [1.5,260.0], [8.4,330.9], [15.3,347.7], [12.3,383.1], [20.2,401.8], [17.2,438.3], [37.9,456.0], [52.7,456.0], [56.6,441.2], [38.9,430.4], [34.0,414.6], [42.8,383.1], [38.9,311.3], [44.8,277.8], [56.6,274.8], [69.4,259.1], [60.6,102.5], [52.7,84.8], [12.3,67.1], [21.2,36.5], [18.2,11.9], [11.3,6.0]];
-
-function silPath(pts){
-  const d = pts.map(([dx,y]) => `${(100+dx).toFixed(1)} ${y.toFixed(1)}`).join(" L ");
-  return `M ${d} Z`;
-}
-
-// Muscle/body-fat/"other" painted as stacked horizontal bands sized to THIS person's actual logged
-// percentages (not fixed proportions) -- muscle on top, fat next, the remainder ("other": water,
-// bone, organs, etc.) filling the rest, clipped to the traced shape above. Falls back gracefully
-// when only one value (or neither) has been logged yet. A color-coded legend with the exact numbers
-// sits underneath since the bands themselves can be too thin to hold readable text.
-function measurementSilhouetteSvg(composition){
-  const musclePct = composition.musclePct;
-  const bodyFatPct = composition.bodyFatPct;
-  const MUSCLE_C = "#7c9cff", FAT_C = "#f0b854", REST_C = "#8e96a8";
-  let bands, rest;
-  if(musclePct != null && bodyFatPct != null){
-    rest = Math.max(0, 100 - musclePct - bodyFatPct);
-    bands = [{pct:musclePct, color:MUSCLE_C}, {pct:bodyFatPct, color:FAT_C}, {pct:rest, color:REST_C}];
-  } else if(musclePct != null){
-    rest = null;
-    bands = [{pct:musclePct, color:MUSCLE_C}, {pct:Math.max(0,100-musclePct), color:REST_C}];
-  } else if(bodyFatPct != null){
-    rest = null;
-    bands = [{pct:bodyFatPct, color:FAT_C}, {pct:Math.max(0,100-bodyFatPct), color:REST_C}];
-  } else {
-    rest = null;
-    bands = [{pct:100, color:REST_C}];
-  }
-
-  const TOP_Y = 6, totalH = 450;
-  let cursorY = TOP_Y;
-  const bandRects = bands.map(b=>{
-    const bh = totalH * (b.pct/100);
-    const y = cursorY;
-    cursorY += bh;
-    return `<rect x="-50" y="${y.toFixed(1)}" width="300" height="${bh.toFixed(1)}" fill="${b.color}"></rect>`;
-  }).join("");
-
-  const svg = `<svg viewBox="-70 0 340 462" width="100%" height="380" style="max-width:220px;">
-    <clipPath id="bodyShapeClip"><path d="${silPath(BODY_SHAPE_PTS)}"></path></clipPath>
-    <g clip-path="url(#bodyShapeClip)">${bandRects}</g>
-  </svg>`;
-
-  const rows = [
-    {label:"Muscle",   swatch:MUSCLE_C, val:musclePct},
-    {label:"Body fat", swatch:FAT_C,    val:bodyFatPct},
-    {label:"Other",    swatch:REST_C,   val:rest},
-  ];
-  const legend = rows.map(r => `
-    <div class="body-comp-legend-row">
-      <span class="body-comp-swatch" style="background:${r.swatch};"></span>
-      <span class="body-comp-legend-label">${r.label}</span>
-      <span class="body-comp-legend-value">${r.val != null ? Math.round(r.val)+"%" : "\u2014"}</span>
-    </div>`).join("");
-
-  return `<div class="body-comp-photo-wrap">${svg}</div>
-  <div class="body-comp-legend">${legend}</div>`;
-}
-
-function measurementStatChips(vals, targets){
-  const items = [
-    {key:"chestCm", label:"Chest", judge:false},
-    {key:"waistCm", label:"Waist", judge:true},
-    {key:"hipCm",   label:"Hip",   judge:false},
-    {key:"thighCm", label:"Thigh", judge:false},
-    {key:"calfCm",  label:"Calf",  judge:false},
-  ];
-  const chips = items.map(it=>{
-    const val = vals[it.key];
-    if(val == null) return "";
-    const color = metricStatusColor(val, targets[it.key], it.judge) || "var(--accent2)";
-    return `
-      <div class="measure-chip">
-        <div class="measure-chip-label">${it.label}</div>
-        <div class="measure-chip-value" style="color:${color};">${val.toFixed(1)}<span class="measure-chip-unit">cm</span></div>
-      </div>`;
-  }).join("");
-  return chips ? `<div class="measure-chip-row">${chips}</div>` : "";
-}
-
-function renderBodySilhouetteCard(logs){
-  const wrap = document.getElementById("bodySilhouetteWrap");
-  if(!wrap) return;
-  if(!logs.length){ wrap.innerHTML = ""; return; }
-  const last = logs[logs.length-1];
-  const vals = {chestCm:last.chestCm, waistCm:last.waistCm, hipCm:last.hipCm, thighCm:last.thighCm, calfCm:last.calfCm};
-  const composition = {musclePct:last.musclePct, bodyFatPct:last.bodyFatPct};
-  const hasMeasurement = Object.values(vals).some(v => v != null);
-  const hasComposition = composition.musclePct != null || composition.bodyFatPct != null;
-  if(!hasMeasurement && !hasComposition){ wrap.innerHTML = ""; return; }
-
-  const targets = getAestheticTargets();
-
-  wrap.innerHTML = `
-    <div class="card body-silhouette-card">
-      <h2>Body composition &amp; measurements</h2>
-      <div class="step-desc" style="margin-top:0;">Your latest reading (${last.date}) — muscle %, body fat %, and the rest painted on the figure and explained below; other measurements as chips underneath. Green means at or past target, yellow means still working toward it.</div>
-      ${measurementSilhouetteSvg(composition)}
-      ${measurementStatChips(vals, targets)}
-    </div>`;
-}
-
 function bodyFigureHtml(entry, wf, fillColor){
   const front = entry && (entry.photoFront || entry.photo); // fall back to legacy single-photo field
   const back = entry && entry.photoBack;
@@ -4620,7 +4498,6 @@ function renderLogView(){
   refreshDateDayLabel("logDate");
 
   const logs = sortedLogs();
-  renderBodySilhouetteCard(logs);
   renderMilestoneBanner(logs);
   renderStreakBanner(logs);
   renderGoalProgress(logs);
