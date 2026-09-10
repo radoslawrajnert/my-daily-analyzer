@@ -4191,52 +4191,128 @@ function bodySilhouetteSvg(wf, fillColor){
   </svg>`;
 }
 
-// Schematic body figure with the latest chest/waist/hip/thigh/calf readings called out at their
-// approximate body location, colored green/yellow via the same directional target logic as the
-// mini-trend cards -- reuses bodySilhouetteSvg's exact proportions/coordinate system (viewBox
-// 0-100 x 0-160) so the figure stays visually consistent with the body-change comparison above,
-// just widened (viewBox starts at -40 and ends at 140) to leave room for the callout labels.
-function measurementSilhouetteSvg(vals, targets, wf){
+// Front-facing human body outline used as a clip mask, so the muscle%/body-fat% composition bands
+// stack up directly INSIDE the body shape (the same visual language as a typical body-composition
+// infographic -- a figure split into colored horizontal zones) instead of the previous flat
+// single-color mannequin. Male gets broader shoulders and a straight torso; female gets narrower
+// shoulders, a waist taper, and a hip flare (matching the reference image the user sent, which uses
+// a different silhouette per gender). wf (the existing BMI width factor) scales the whole figure.
+// Coordinates are in a 0-200 x 0-460 body space; the returned edge/Y values are reused by the
+// measurement callouts below so they anchor to this same figure.
+function humanBodyClipShapes(wf, female){
   wf = wf || 1;
-  const headR = 13, headCy = 17, shW = 22*wf, shCy = 38, torsoW = 15*wf, torsoTop = 32, torsoH = 50,
-    hipW = 17*wf, hipCy = 88, hipRy = 12, legW = 9*wf, legTop = 96, legBottom = 152;
-  const bodyColor = "var(--panel3)";
+  if(female){
+    const shW = 40*wf, shCy = 74;
+    const hipW = 44*wf, hipCy = 214, hipRy = 28;
+    const legW = 22*wf, legTop = 236, legBottom = 448;
+    const armW = 18*wf, armTop = 92, armBottom = 268, armGapX = shW + armW/2 + 4;
+    const waistX = hipW*0.5;
+    return {
+      shapes: `
+        <ellipse cx="100" cy="${shCy}" rx="${shW.toFixed(1)}" ry="24" fill="#fff"></ellipse>
+        <path d="M ${(100-shW+6).toFixed(1)},70 C ${(100-shW*0.55).toFixed(1)},130 ${(100-waistX).toFixed(1)},170 ${(100-hipW*0.62).toFixed(1)},210 L ${(100+hipW*0.62).toFixed(1)},210 C ${(100+waistX).toFixed(1)},170 ${(100+shW*0.55).toFixed(1)},130 ${(100+shW-6).toFixed(1)},70 Z" fill="#fff"></path>
+        <ellipse cx="100" cy="${hipCy}" rx="${hipW.toFixed(1)}" ry="${hipRy}" fill="#fff"></ellipse>
+        <rect x="${(100-hipW*0.62).toFixed(1)}" y="${legTop}" width="${legW.toFixed(1)}" height="${legBottom-legTop}" rx="${(legW/2).toFixed(1)}" fill="#fff" transform="rotate(-7 ${(100-hipW*0.62+legW/2).toFixed(1)} ${legTop})"></rect>
+        <rect x="${(100+hipW*0.62-legW).toFixed(1)}" y="${legTop}" width="${legW.toFixed(1)}" height="${legBottom-legTop}" rx="${(legW/2).toFixed(1)}" fill="#fff" transform="rotate(7 ${(100+hipW*0.62-legW/2).toFixed(1)} ${legTop})"></rect>
+        <rect x="${(100-armGapX).toFixed(1)}" y="${armTop}" width="${armW.toFixed(1)}" height="${armBottom-armTop}" rx="${(armW/2).toFixed(1)}" fill="#fff"></rect>
+        <rect x="${(100+armGapX-armW).toFixed(1)}" y="${armTop}" width="${armW.toFixed(1)}" height="${armBottom-armTop}" rx="${(armW/2).toFixed(1)}" fill="#fff"></rect>
+        <circle cx="100" cy="34" r="24" fill="#fff"></circle>
+      `,
+      chestEdgeX: shW*0.9, waistEdgeX: waistX, hipEdgeX: hipW, thighEdgeX: hipW*0.62, calfEdgeX: legW*0.7,
+      chestY: 92, waistY: 175, hipY: hipCy, thighY: 300, calfY: 400,
+    };
+  }
+  const shW = 54*wf, shCy = 78;
+  const torsoW = 40*wf, torsoTop = 70, torsoBottom = 232;
+  const hipW = 46*wf, hipCy = 250, hipRy = 26;
+  const legW = 28*wf, legTop = 254, legBottom = 448;
+  const armW = 24*wf, armTop = 88, armBottom = 280, armGapX = shW + armW/2 + 4;
+  return {
+    shapes: `
+      <ellipse cx="100" cy="${shCy}" rx="${shW.toFixed(1)}" ry="28" fill="#fff"></ellipse>
+      <rect x="${(100-torsoW).toFixed(1)}" y="${torsoTop}" width="${(torsoW*2).toFixed(1)}" height="${torsoBottom-torsoTop}" rx="${(torsoW*0.55).toFixed(1)}" fill="#fff"></rect>
+      <ellipse cx="100" cy="${hipCy}" rx="${hipW.toFixed(1)}" ry="${hipRy}" fill="#fff"></ellipse>
+      <rect x="${(100-hipW+4).toFixed(1)}" y="${legTop}" width="${legW.toFixed(1)}" height="${legBottom-legTop}" rx="${(legW/2).toFixed(1)}" fill="#fff" transform="rotate(-8 ${(100-hipW+4+legW/2).toFixed(1)} ${legTop})"></rect>
+      <rect x="${(100+hipW-4-legW).toFixed(1)}" y="${legTop}" width="${legW.toFixed(1)}" height="${legBottom-legTop}" rx="${(legW/2).toFixed(1)}" fill="#fff" transform="rotate(8 ${(100+hipW-4-legW/2).toFixed(1)} ${legTop})"></rect>
+      <rect x="${(100-armGapX).toFixed(1)}" y="${armTop}" width="${armW.toFixed(1)}" height="${armBottom-armTop}" rx="${(armW/2).toFixed(1)}" fill="#fff"></rect>
+      <rect x="${(100+armGapX-armW).toFixed(1)}" y="${armTop}" width="${armW.toFixed(1)}" height="${armBottom-armTop}" rx="${(armW/2).toFixed(1)}" fill="#fff"></rect>
+      <circle cx="100" cy="34" r="26" fill="#fff"></circle>
+    `,
+    chestEdgeX: torsoW+2, waistEdgeX: torsoW-6, hipEdgeX: hipW, thighEdgeX: hipW-6, calfEdgeX: legW*0.7,
+    chestY: 100, waistY: 210, hipY: hipCy, thighY: 320, calfY: 400,
+  };
+}
 
-  const body = `
-    <ellipse cx="50" cy="${shCy}" rx="${shW.toFixed(1)}" ry="13" fill="${bodyColor}"></ellipse>
-    <rect x="${(50-torsoW).toFixed(1)}" y="${torsoTop}" width="${(torsoW*2).toFixed(1)}" height="${torsoH}" rx="${(torsoW*0.7).toFixed(1)}" fill="${bodyColor}"></rect>
-    <ellipse cx="50" cy="${hipCy}" rx="${hipW.toFixed(1)}" ry="${hipRy}" fill="${bodyColor}"></ellipse>
-    <rect x="${(50-hipW+2).toFixed(1)}" y="${legTop}" width="${legW.toFixed(1)}" height="${legBottom-legTop}" rx="${(legW/2).toFixed(1)}" fill="${bodyColor}"></rect>
-    <rect x="${(50+hipW-2-legW).toFixed(1)}" y="${legTop}" width="${legW.toFixed(1)}" height="${legBottom-legTop}" rx="${(legW/2).toFixed(1)}" fill="${bodyColor}"></rect>
-    <circle cx="50" cy="${headCy}" r="${headR}" fill="${bodyColor}"></circle>
-  `;
+// Splits musclePct/bodyFatPct into stacked top-to-bottom bands (muscle on top, body fat below it,
+// everything else -- bone/water/organs -- filling the rest), mirroring the stacked-percentage-band
+// style of typical body-composition infographics. Defensively rescales if muscle+fat somehow exceed
+// 100 (bad/legacy data) so the bands never overflow past the bottom of the figure.
+function bodyCompositionBands(musclePct, bodyFatPct){
+  let m = musclePct != null ? Math.max(0, musclePct) : null;
+  let f = bodyFatPct != null ? Math.max(0, bodyFatPct) : null;
+  if(m != null && f != null && m + f > 100){
+    const scale = 100 / (m + f);
+    m *= scale; f *= scale;
+  }
+  const bands = [];
+  if(m != null) bands.push({label:"Muscle", pct:m, color:"var(--accent2)"});
+  if(f != null) bands.push({label:"Body fat", pct:f, color:"var(--warn)"});
+  if(bands.length === 0) return [{label:"Body", pct:100, color:"var(--panel3)"}];
+  const remainder = Math.max(0, 100 - (m||0) - (f||0));
+  if(remainder > 0) bands.push({label:"Other", pct:remainder, color:"var(--panel3)"});
+  return bands;
+}
+
+// Body-composition figure: muscle%/body-fat% rendered as colored zones stacked inside a gendered
+// human silhouette (clipped so the color bands never spill outside the body outline), plus the
+// existing chest/waist/hip/thigh/calf readings called out as dashed lines to the side, colored
+// green/yellow via the same directional target logic as the mini-trend cards.
+function measurementSilhouetteSvg(vals, targets, wf, female, composition){
+  const body = humanBodyClipShapes(wf, female);
+
+  const TOP_Y = 6, BOTTOM_Y = 452, totalH = BOTTOM_Y - TOP_Y;
+  const bands = bodyCompositionBands(composition.musclePct, composition.bodyFatPct);
+  let cursorY = TOP_Y;
+  const bandRects = bands.map(b=>{
+    const bh = totalH * (b.pct/100);
+    const y = cursorY;
+    cursorY += bh;
+    const showLabel = bh >= 26;
+    // White text with a dark outline (paint-order flips fill/stroke drawing order) stays readable
+    // on every band color, light or dark, the same trick the reference infographic uses.
+    return `
+      <rect x="-30" y="${y.toFixed(1)}" width="260" height="${bh.toFixed(1)}" fill="${b.color}"></rect>
+      ${showLabel ? `<text x="100" y="${(y+bh/2+4).toFixed(1)}" font-size="13" font-weight="800" fill="#fff" stroke="rgba(10,12,17,.55)" stroke-width="3" paint-order="stroke" text-anchor="middle">${Math.round(b.pct)}% ${b.label}</text>` : ""}
+    `;
+  }).join("");
 
   // Alternating left/right sides keep same-side labels far enough apart vertically to never overlap.
   const callouts = [
-    {key:"chestCm", label:"Chest", y:38,  edgeX:torsoW+2, side:"left",  judge:false},
-    {key:"waistCm", label:"Waist", y:72,  edgeX:torsoW-3, side:"right", judge:true},
-    {key:"hipCm",   label:"Hip",   y:hipCy, edgeX:hipW,   side:"left",  judge:false},
-    {key:"thighCm", label:"Thigh", y:112, edgeX:hipW-4,   side:"right", judge:false},
-    {key:"calfCm",  label:"Calf",  y:134, edgeX:legW+2,   side:"left",  judge:false},
+    {key:"chestCm", label:"Chest", y:body.chestY, edgeX:body.chestEdgeX, side:"left",  judge:false},
+    {key:"waistCm", label:"Waist", y:body.waistY, edgeX:body.waistEdgeX, side:"right", judge:true},
+    {key:"hipCm",   label:"Hip",   y:body.hipY,   edgeX:body.hipEdgeX,   side:"left",  judge:false},
+    {key:"thighCm", label:"Thigh", y:body.thighY, edgeX:body.thighEdgeX, side:"right", judge:false},
+    {key:"calfCm",  label:"Calf",  y:body.calfY,  edgeX:body.calfEdgeX,  side:"left",  judge:false},
   ];
-  const LEFT_X = -4, RIGHT_X = 104;
+  const LEFT_X = -26, RIGHT_X = 226;
   const calloutEls = callouts.map(c=>{
     const val = vals[c.key];
     if(val == null) return "";
     const color = metricStatusColor(val, targets[c.key], c.judge) || "var(--accent2)";
-    const bodyX = c.side === "left" ? 50 - c.edgeX : 50 + c.edgeX;
+    const bodyX = c.side === "left" ? 100 - c.edgeX : 100 + c.edgeX;
     const labelX = c.side === "left" ? LEFT_X : RIGHT_X;
     const anchor = c.side === "left" ? "end" : "start";
     return `
-      <line x1="${bodyX.toFixed(1)}" y1="${c.y}" x2="${labelX}" y2="${c.y}" stroke="${color}" stroke-width="1" stroke-dasharray="2,2" opacity="0.75"></line>
-      <circle cx="${bodyX.toFixed(1)}" cy="${c.y}" r="2.6" fill="${color}"></circle>
-      <text x="${labelX}" y="${c.y-4}" font-size="6.5" fill="var(--muted)" text-anchor="${anchor}">${c.label}</text>
-      <text x="${labelX}" y="${c.y+7}" font-size="8.5" font-weight="700" fill="${color}" text-anchor="${anchor}">${val.toFixed(1)}cm</text>
+      <line x1="${bodyX.toFixed(1)}" y1="${c.y}" x2="${labelX}" y2="${c.y}" stroke="${color}" stroke-width="1.4" stroke-dasharray="3,3" opacity="0.85"></line>
+      <circle cx="${bodyX.toFixed(1)}" cy="${c.y}" r="3.2" fill="${color}" stroke="#0a0c11" stroke-width="1"></circle>
+      <text x="${labelX}" y="${c.y-5}" font-size="9" fill="var(--muted)" text-anchor="${anchor}">${c.label}</text>
+      <text x="${labelX}" y="${c.y+9}" font-size="11" font-weight="700" fill="${color}" text-anchor="${anchor}">${val.toFixed(1)}cm</text>
     `;
   }).join("");
 
-  return `<svg viewBox="-40 0 180 160" width="100%" height="260" style="max-width:320px;">
-    ${body}
+  return `<svg viewBox="-70 0 340 460" width="100%" height="380" style="max-width:380px;" data-figure="${female?"female":"male"}">
+    <clipPath id="bodyCompClip">${body.shapes}</clipPath>
+    <g clip-path="url(#bodyCompClip)">${bandRects}</g>
     ${calloutEls}
   </svg>`;
 }
@@ -4247,17 +4323,21 @@ function renderBodySilhouetteCard(logs){
   if(!logs.length){ wrap.innerHTML = ""; return; }
   const last = logs[logs.length-1];
   const vals = {chestCm:last.chestCm, waistCm:last.waistCm, hipCm:last.hipCm, thighCm:last.thighCm, calfCm:last.calfCm};
-  if(!Object.values(vals).some(v => v != null)){ wrap.innerHTML = ""; return; }
+  const composition = {musclePct:last.musclePct, bodyFatPct:last.bodyFatPct};
+  const hasMeasurement = Object.values(vals).some(v => v != null);
+  const hasComposition = composition.musclePct != null || composition.bodyFatPct != null;
+  if(!hasMeasurement && !hasComposition){ wrap.innerHTML = ""; return; }
 
   const targets = getAestheticTargets();
   const bmi = answers.heightCm ? (last.weightKg / Math.pow(answers.heightCm/100, 2)) : null;
   const wf = bodyWidthFactorFromBMI(bmi);
+  const female = (answers.gender||"").toLowerCase().startsWith("female");
 
   wrap.innerHTML = `
     <div class="card body-silhouette-card">
-      <h2>Body measurements</h2>
-      <div class="step-desc" style="margin-top:0;">Your latest reading (${last.date}) mapped onto your body — green means at or past target, yellow means still working toward it.</div>
-      ${measurementSilhouetteSvg(vals, targets, wf)}
+      <h2>Body composition &amp; measurements</h2>
+      <div class="step-desc" style="margin-top:0;">Your latest reading (${last.date}) — muscle % and body fat % as colored zones, other measurements called out as lines. Green means at or past target, yellow means still working toward it.</div>
+      ${measurementSilhouetteSvg(vals, targets, wf, female, composition)}
     </div>`;
 }
 
