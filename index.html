@@ -8065,7 +8065,12 @@ document.getElementById("copyLastExercisesBtn").addEventListener("click", ()=>{
    out of this guided flow (they're tracked separately, distance/duration rather than sets) and
    get auto-filled into today's log immediately, same as the old bulk behavior did for everything.
 --------------------------------------------------------- */
-let guidedWorkoutState = null; // {splitId, splitName, targetDate, total, completedCount, queue:[{category,name}]}
+let guidedWorkoutState = null; // {splitId, splitName, targetDate, total, completedCount, queue:[{category,name}], sessionStartTime}
+
+// Cap on how long a guided session's auto-calculated duration can run, even if the last exercise
+// is finished much later (forgot to close the tab, took a long rest, etc.) -- see
+// finalizeGuidedSessionDuration below.
+const GUIDED_SESSION_MAX_MINUTES = 90;
 
 function startTrainingAction(){
   const splitId = document.getElementById("workoutSplitSelect").value;
@@ -8077,8 +8082,13 @@ function startTrainingAction(){
   }
   const targetDate = document.getElementById("workoutDate").value.trim() || todayStr();
   // The natural "I've just walked into the gym" moment -- immediately books a straightforward
-  // 60-minute strength session (see autoBookOneHourStrengthSession) instead of starting a live
-  // clock you'd have to remember to come back and stop.
+  // 60-minute strength session (see autoBookOneHourStrengthSession) as a safe default, instead of
+  // starting a live clock you'd have to remember to come back and stop. If this call is the one
+  // that actually books it (nothing already recorded for today), the guided card below finishes
+  // the job once you're done: the real elapsed time replaces this default the moment the last
+  // exercise is logged (capped at GUIDED_SESSION_MAX_MINUTES) -- see finalizeGuidedSessionDuration.
+  const bookingFreshly = !getWorkoutSessions()[targetDate] && !getActiveWorkoutSession();
+  const sessionStartTime = Date.now();
   autoBookOneHourStrengthSession(targetDate);
   const splitName = `${split.emoji ? split.emoji+" " : ""}${split.name}`;
 
@@ -8119,6 +8129,10 @@ function startTrainingAction(){
     splitId: split.id, splitName, targetDate,
     total: nonCardio.length, completedCount: 0,
     queue: nonCardio.map(ex=>({category: ex.category, name: ex.name})),
+    // Only set when this call is the one that freshly booked today's session -- if a session (or
+    // a second split later the same day) already existed, we leave its recorded time alone, same
+    // as autoBookOneHourStrengthSession's own guard already does.
+    sessionStartTime: bookingFreshly ? sessionStartTime : null,
   };
   renderWorkoutsView();
   renderGuidedWorkoutCard();
@@ -8163,6 +8177,23 @@ function renderGuidedWorkoutCard(){
   document.getElementById("guidedWorkoutPrevBtn").disabled = (st.completedCount === 0);
 }
 
+// Replaces the default 60-minute auto-booked duration with the real time the session took, the
+// moment the guided card's last exercise is logged -- start to finish, capped at
+// GUIDED_SESSION_MAX_MINUTES so an abandoned tab or a very long rest between sets doesn't inflate
+// it. Only touches the session if it's still exactly what this same guided run booked (see
+// sessionStartTime above) -- if a second split later the same day already booked its own time
+// instead, or the time's been hand-edited since, this leaves it alone rather than overwriting it.
+function finalizeGuidedSessionDuration(st){
+  if(!st || st.sessionStartTime == null) return;
+  const sessions = getWorkoutSessions();
+  const existing = sessions[st.targetDate];
+  if(!existing || existing.startTime !== st.sessionStartTime) return;
+  const elapsedMin = Math.max(0, Math.round((Date.now() - st.sessionStartTime) / 60000));
+  const durationMin = Math.min(elapsedMin, GUIDED_SESSION_MAX_MINUTES);
+  sessions[st.targetDate] = {startTime: st.sessionStartTime, endTime: st.sessionStartTime + durationMin*60000, durationMin};
+  saveWorkoutSessionsObj(sessions);
+}
+
 // "Next" means I did the exercise: save today's numbers for it and move on to whatever's now
 // first in the queue (could be the next exercise, or one that was skipped earlier and cycled
 // back around to the front).
@@ -8186,13 +8217,15 @@ document.getElementById("guidedWorkoutNextBtn").addEventListener("click", ()=>{
   });
   saveWorkoutLogObj(log);
   st.completedCount++;
-  renderWorkoutsView();
   if(!st.queue.length){
+    finalizeGuidedSessionDuration(st);
+    renderWorkoutsView();
     showToast(`${st.splitName} complete — nice work!`);
     guidedWorkoutState = null;
     closeGuidedWorkoutCard();
     return;
   }
+  renderWorkoutsView();
   renderGuidedWorkoutCard();
 });
 
