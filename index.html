@@ -20,6 +20,23 @@
     --shadow-md:0 10px 28px rgba(0,0,0,.4);
     --shadow-glow:0 6px 18px rgba(124,156,255,.28);
   }
+  /* Light theme -- same variable set, opted into via html[data-theme="light"] (set by
+     setTheme/applyTheme in the main script, from the Appearance choice in Settings). Every color
+     in the app is driven off these custom properties, so this one block is the whole theme swap;
+     nothing else needs to know which theme is active. Accent/warn/danger are deepened versions of
+     their dark-mode hues (the pale originals don't have enough contrast against a white panel). */
+  html[data-theme="light"]{
+    color-scheme: light;
+    --bg:#f4f6fb; --panel:#ffffff; --panel2:#eef0f6; --panel3:#e4e7f0;
+    --border:#dde1ea; --border-soft:rgba(10,12,17,.06);
+    --text:#161923; --muted:#6b7386; --accent:#0f9d67; --accent2:#4a63e0;
+    --accent-grad:linear-gradient(135deg, var(--accent2), #3b53c9);
+    --accent-grad-2:linear-gradient(90deg, var(--accent), #12b578);
+    --warn:#b3760f; --danger:#d43e5c;
+    --shadow-sm:0 1px 3px rgba(15,23,42,.10);
+    --shadow-md:0 10px 28px rgba(15,23,42,.12);
+    --shadow-glow:0 6px 18px rgba(74,99,224,.18);
+  }
   *{box-sizing:border-box;}
   /* iOS Safari runs a "text inflation" algorithm that can boost font sizes above what the CSS
      actually specifies, purely based on column width heuristics -- this is the classic reason a
@@ -702,7 +719,15 @@
         <div class="card" id="appSettingsCard">
           <h2>Settings</h2>
 
-          <h3 style="margin-top:0;"><span>Language / Idioma</span></h3>
+          <h3 style="margin-top:0;"><span>Appearance</span></h3>
+          <div class="field"><label>Color theme</label>
+            <select id="themeSelect">
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </div>
+
+          <h3 style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>Language / Idioma</span></h3>
           <div class="field"><label>Language / Idioma</label>
             <select id="langSelect">
               <option value="en">English</option>
@@ -1598,6 +1623,29 @@
 </div>
 
 <script>
+/* ================= Appearance (Dark / Light) =================
+   A device-level preference (like language), not per-user data -- stored in localStorage so it
+   applies even at the login screen, before any profile is chosen. Every color in the app is a CSS
+   custom property (see :root / html[data-theme="light"] in <style> above), so applying the theme
+   is just setting one attribute on <html>; no per-element JS is needed. Run as the very first
+   thing in this script (before anything else executes) so it takes effect the instant the script
+   runs, minimizing the flash of the default dark theme for anyone who's chosen light. Switch lives
+   in Settings, next to Language. */
+const THEME_KEY = "bodyAnalyzer.theme.v1";
+function getTheme(){ return localStorage.getItem(THEME_KEY) || "dark"; }
+function applyTheme(theme){
+  // document.documentElement is always present in a real browser -- guarded here only so this
+  // (called unconditionally at load, before anything else) can't throw in a stripped-down
+  // environment that doesn't stub it out.
+  const root = document && document.documentElement;
+  if(root && typeof root.setAttribute === "function") root.setAttribute("data-theme", theme === "light" ? "light" : "dark");
+}
+function setTheme(theme){
+  localStorage.setItem(THEME_KEY, theme);
+  applyTheme(theme);
+}
+applyTheme(getTheme());
+
 /* ================= i18n (English / Português) =================
    UI-chrome-only translation: nav, buttons, labels, headers, messages.
    Food/recipe database content stays in English. Works by matching
@@ -2611,6 +2659,9 @@ function closeSettings(){
 document.getElementById("langSelect").addEventListener("change", (e)=>{
   setLang(e.target.value);
 });
+document.getElementById("themeSelect").addEventListener("change", (e)=>{
+  setTheme(e.target.value);
+});
 
 document.getElementById("cloudSyncSaveBtn").addEventListener("click", async ()=>{
   const raw = document.getElementById("cloudConfigInput").value;
@@ -3106,8 +3157,9 @@ function switchView(view){
   if(view==="ailog") renderAiLogView();
   if(view==="coach") renderCoachView();
   if(view==="plan"){
-    // Settings fields (Language, AI Assistant, Cloud Sync) now live on General Settings --
-    // refresh them here so they're current regardless of how My Plan was reached.
+    // Settings fields (Appearance, Language, AI Assistant, Cloud Sync) now live on General
+    // Settings -- refresh them here so they're current regardless of how My Plan was reached.
+    document.getElementById("themeSelect").value = getTheme();
     document.getElementById("langSelect").value = getLang();
     document.getElementById("aiProviderSelect").value = getAiProvider();
     document.getElementById("aiApiKeyInput").value = getAiApiKey();
