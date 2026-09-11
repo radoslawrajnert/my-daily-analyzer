@@ -8094,8 +8094,12 @@ function startTrainingAction(){
   // replaces this fallback the moment the last exercise is logged (still capped at
   // GUIDED_SESSION_MAX_MINUTES) -- see finalizeGuidedSessionDuration.
   const bookingFreshly = !getWorkoutSessions()[targetDate] && !getActiveWorkoutSession();
-  const sessionStartTime = Date.now();
   autoBookOneHourStrengthSession(targetDate);
+  // Read back the startTime autoBookOneHourStrengthSession actually persisted, rather than
+  // capturing our own separate Date.now() here -- two independent clock reads a few milliseconds
+  // apart would never compare equal in finalizeGuidedSessionDuration's guard below, silently
+  // stopping it from ever updating the session once you finish.
+  const sessionStartTime = bookingFreshly ? ((getWorkoutSessions()[targetDate] || {}).startTime != null ? getWorkoutSessions()[targetDate].startTime : null) : null;
   const splitName = `${split.emoji ? split.emoji+" " : ""}${split.name}`;
 
   const cardioExercises = split.exercises.filter(ex=>ex.category==="Cardio");
@@ -8135,10 +8139,10 @@ function startTrainingAction(){
     splitId: split.id, splitName, targetDate,
     total: nonCardio.length, completedCount: 0,
     queue: nonCardio.map(ex=>({category: ex.category, name: ex.name})),
-    // Only set when this call is the one that freshly booked today's session -- if a session (or
-    // a second split later the same day) already existed, we leave its recorded time alone, same
-    // as autoBookOneHourStrengthSession's own guard already does.
-    sessionStartTime: bookingFreshly ? sessionStartTime : null,
+    // Only set (non-null) when this call is the one that freshly booked today's session -- if a
+    // session (or a second split later the same day) already existed, we leave its recorded time
+    // alone, same as autoBookOneHourStrengthSession's own guard already does.
+    sessionStartTime,
   };
   renderWorkoutsView();
   renderGuidedWorkoutCard();
