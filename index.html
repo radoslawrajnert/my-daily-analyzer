@@ -6995,14 +6995,18 @@ function stopWorkoutSession(){
   }
   return completed;
 }
-// Auto-book a straightforward 60-minute strength session the moment "Copy last exercises" is
-// clicked -- replaces an earlier confirm-prompt-based "did you finish?" approach that turned out to
-// be too easy to miss (see the exercise-order/pending-based detection this used to do). Booking the
-// time immediately, with no dialog to answer, is simpler and can't be forgotten. Never overwrites a
-// session that's already recorded for the day, whether that's a previous auto-book or a real
-// manually-timed one -- and the "Edit" link on the Day workout log summary is always there
-// afterward if 60 minutes wasn't quite right.
-const AUTO_SESSION_DEFAULT_MINUTES = 60;
+// Auto-book a straightforward strength session the moment "Copy last exercises" is clicked, or
+// Start Training opens the guided card -- replaces an earlier confirm-prompt-based "did you
+// finish?" approach that turned out to be too easy to miss (see the exercise-order/pending-based
+// detection this used to do). Booking the time immediately, with no dialog to answer, is simpler
+// and can't be forgotten. Defaults to the same 90-minute cap the guided session itself never
+// exceeds (see GUIDED_SESSION_MAX_MINUTES) -- for the guided flow this is only ever the fallback
+// if the last exercise never gets logged (forgot to finish, closed the tab, etc.); the real
+// elapsed time replaces it the moment the session actually finishes (see
+// finalizeGuidedSessionDuration). Never overwrites a session that's already recorded for the day,
+// whether that's a previous auto-book or a real manually-timed one -- and the "Edit" link on the
+// Day workout log summary is always there afterward if the number isn't quite right.
+const AUTO_SESSION_DEFAULT_MINUTES = 90;
 function autoBookOneHourStrengthSession(date){
   if(getWorkoutSessions()[date]) return; // already has a real recorded session -- don't clobber it
   if(getActiveWorkoutSession()) return; // a live manual session is already running -- respect it
@@ -8013,8 +8017,8 @@ function beginGuidedWorkoutSession(splitId){
   }
   const targetDate = document.getElementById("workoutDate").value.trim() || todayStr();
   // The natural "I've just walked into the gym" moment -- immediately books a straightforward
-  // 60-minute strength session (see autoBookOneHourStrengthSession) instead of starting a live
-  // clock you'd have to remember to come back and stop.
+  // strength session (see autoBookOneHourStrengthSession) instead of starting a live clock you'd
+  // have to remember to come back and stop.
   autoBookOneHourStrengthSession(targetDate);
   const log = getWorkoutLog();
   if(!log[targetDate]) log[targetDate] = [];
@@ -8082,11 +8086,13 @@ function startTrainingAction(){
   }
   const targetDate = document.getElementById("workoutDate").value.trim() || todayStr();
   // The natural "I've just walked into the gym" moment -- immediately books a straightforward
-  // 60-minute strength session (see autoBookOneHourStrengthSession) as a safe default, instead of
-  // starting a live clock you'd have to remember to come back and stop. If this call is the one
-  // that actually books it (nothing already recorded for today), the guided card below finishes
-  // the job once you're done: the real elapsed time replaces this default the moment the last
-  // exercise is logged (capped at GUIDED_SESSION_MAX_MINUTES) -- see finalizeGuidedSessionDuration.
+  // 90-minute strength session (see autoBookOneHourStrengthSession) as a safe fallback, instead of
+  // starting a live clock you'd have to remember to come back and stop -- if you never finish the
+  // guided card below (forgot to log the last exercise, closed the tab, etc.), this 90-minute
+  // number is what stays. If this call is the one that actually books it (nothing already recorded
+  // for today), the guided card finishes the job properly once you're done: the real elapsed time
+  // replaces this fallback the moment the last exercise is logged (still capped at
+  // GUIDED_SESSION_MAX_MINUTES) -- see finalizeGuidedSessionDuration.
   const bookingFreshly = !getWorkoutSessions()[targetDate] && !getActiveWorkoutSession();
   const sessionStartTime = Date.now();
   autoBookOneHourStrengthSession(targetDate);
@@ -8154,7 +8160,9 @@ function renderGuidedWorkoutCard(){
   document.getElementById("guidedWorkoutProgressLabel").textContent = `Exercise ${position} of ${st.total} — ${pct}% of today's session done`;
   document.getElementById("guidedWorkoutProgressFill").style.width = pct + "%";
   document.getElementById("guidedWorkoutCategory").textContent = current.category;
-  document.getElementById("guidedWorkoutExerciseName").textContent = current.name;
+  // Same video/photo/notes reference icon used everywhere else next to an exercise name -- lets
+  // you check form or your own notes for it without leaving the guided card.
+  document.getElementById("guidedWorkoutExerciseName").innerHTML = `${current.name}${exerciseRefIconHtml(current.name)}`;
 
   const last = findLastLoggedExercise(current.name, st.targetDate);
   const setsInput = document.getElementById("guidedWorkoutSets");
@@ -8177,7 +8185,7 @@ function renderGuidedWorkoutCard(){
   document.getElementById("guidedWorkoutPrevBtn").disabled = (st.completedCount === 0);
 }
 
-// Replaces the default 60-minute auto-booked duration with the real time the session took, the
+// Replaces the 90-minute auto-booked fallback with the real time the session took, the
 // moment the guided card's last exercise is logged -- start to finish, capped at
 // GUIDED_SESSION_MAX_MINUTES so an abandoned tab or a very long rest between sets doesn't inflate
 // it. Only touches the session if it's still exactly what this same guided run booked (see
