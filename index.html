@@ -1450,6 +1450,35 @@
 
 <div class="toast" id="toast"></div>
 
+<div class="modal-overlay hidden" id="guidedWorkoutOverlay">
+  <div class="modal-box" style="max-width:440px;">
+    <h3><span id="guidedWorkoutSplitLabel">Training</span><button type="button" class="close-x" id="guidedWorkoutCloseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></h3>
+
+    <div class="step-desc" style="margin-top:0;" id="guidedWorkoutProgressLabel"></div>
+    <div class="goal-bar" style="margin:6px 0 20px;"><div class="goal-bar-fill" id="guidedWorkoutProgressFill" style="width:0%;"></div></div>
+
+    <div style="text-align:center; margin-bottom:20px;">
+      <div style="font-size:.78rem; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;" id="guidedWorkoutCategory"></div>
+      <div style="font-size:1.4rem; font-weight:800; margin-top:4px;" id="guidedWorkoutExerciseName"></div>
+      <div class="step-desc" style="margin-top:6px;" id="guidedWorkoutLastNote"></div>
+    </div>
+
+    <div class="row-inline">
+      <div class="field"><label>Sets</label><input type="number" id="guidedWorkoutSets" min="1" max="20"></div>
+      <div class="field"><label>Reps</label><input type="number" id="guidedWorkoutReps" min="1" max="100"></div>
+      <div class="field"><label>Weight (kg)</label><input type="number" id="guidedWorkoutWeight" min="0" max="500" step="any"></div>
+    </div>
+
+    <div class="nav" style="justify-content:space-between; margin-top:18px; flex-wrap:wrap; gap:8px;">
+      <button type="button" class="secondary" id="guidedWorkoutPrevBtn">‹ Previous</button>
+      <span style="display:flex; gap:8px;">
+        <button type="button" class="secondary" id="guidedWorkoutSkipBtn">Skip</button>
+        <button type="button" id="guidedWorkoutNextBtn">Next →</button>
+      </span>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="helpOverlay">
   <div class="modal-box">
     <h3><span id="helpTitle"></span><button type="button" class="close-x" id="helpCloseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></h3>
@@ -7972,10 +8001,10 @@ function findLastLoggedExercise(exerciseName, beforeDate){
 // workoutEntryRepsLabel/WeightLabel/workoutCardioDurationLabel) -- ready to Edit with real numbers
 // once you've actually done it. Uses the Split field's current selection rather than a separate
 // picker -- you'd already pick it before logging anyway.
-// Shared by both the top "Start Training" banner button and the "Copy last exercises" button
-// below the form -- they're really the same guided action: given a chosen split, book the
-// session time and seed the exercise checklist straight from that split's own defined pattern.
-// Kept as one function so the two entry points can never drift out of sync with each other.
+// Used by the "Copy last exercises" button below the form: given a chosen split, book the
+// session time and seed the whole exercise checklist at once, straight from that split's own
+// defined pattern. (The "Start Training" banner button above used to share this too, but now
+// opens the one-exercise-at-a-time guided card instead -- see startTrainingAction below.)
 function beginGuidedWorkoutSession(splitId){
   const split = getWorkoutSplits().find(s=>s.id===splitId);
   if(!split || !Array.isArray(split.exercises) || !split.exercises.length){
@@ -8028,17 +8057,187 @@ document.getElementById("copyLastExercisesBtn").addEventListener("click", ()=>{
   beginGuidedWorkoutSession(splitId);
 });
 
-// The prominent "Start Training" banner button at the top of Workout Log -- the first, most
-// obvious click the moment you've picked up your phone at the gym: choose Split, tap this, and it
-// books the session time + fills in today's exercise checklist (still fully adjustable per set)
-// in one go. Same underlying action as "Copy last exercises" above, just surfaced as the guided
-// first step rather than a secondary button.
+/* ---------------------------------------------------------
+   GUIDED WORKOUT SESSION -- the "Start Training" banner button opens a one-exercise-at-a-time
+   card instead of dumping the whole split into the table at once: the exact order the split
+   defines them in, a progress bar ("exercise 3 of 8"), Sets/Reps/Weight pre-filled from last
+   time (still editable), and Next / Skip / Previous. Cardio exercises in the split's pattern stay
+   out of this guided flow (they're tracked separately, distance/duration rather than sets) and
+   get auto-filled into today's log immediately, same as the old bulk behavior did for everything.
+--------------------------------------------------------- */
+let guidedWorkoutState = null; // {splitId, splitName, targetDate, total, completedCount, queue:[{category,name}]}
+
 function startTrainingAction(){
   const splitId = document.getElementById("workoutSplitSelect").value;
   if(!splitId){ showToast("Pick a Split above first, then Start Training"); return; }
-  beginGuidedWorkoutSession(splitId);
+  const split = getWorkoutSplits().find(s=>s.id===splitId);
+  if(!split || !Array.isArray(split.exercises) || !split.exercises.length){
+    showToast(`${split ? split.name : "This split"} has no exercise list defined yet — add one in My Plan → "My splits" first`);
+    return;
+  }
+  const targetDate = document.getElementById("workoutDate").value.trim() || todayStr();
+  // The natural "I've just walked into the gym" moment -- immediately books a straightforward
+  // 60-minute strength session (see autoBookOneHourStrengthSession) instead of starting a live
+  // clock you'd have to remember to come back and stop.
+  autoBookOneHourStrengthSession(targetDate);
+  const splitName = `${split.emoji ? split.emoji+" " : ""}${split.name}`;
+
+  const cardioExercises = split.exercises.filter(ex=>ex.category==="Cardio");
+  if(cardioExercises.length){
+    const log = getWorkoutLog();
+    if(!log[targetDate]) log[targetDate] = [];
+    cardioExercises.forEach(ex=>{
+      const last = findLastLoggedExercise(ex.name, targetDate);
+      if(last){
+        log[targetDate].push({
+          id: genWorkoutId(), splitId: split.id, splitName, category: ex.category, exercise: ex.name, isCardio:true,
+          sets: last.sets, reps: last.reps, repsList: last.repsList, weightKg: last.weightKg, weightLevel: last.weightLevel,
+          weightKgList: last.weightKgList, weightLevelList: last.weightLevelList,
+          distanceKm: last.distanceKm, speedKmh: last.speedKmh, durationMin: last.durationMin, cardioKcal: last.cardioKcal,
+        });
+      } else {
+        log[targetDate].push({
+          id: genWorkoutId(), splitId: split.id, splitName, category: ex.category, exercise: ex.name,
+          isCardio:true, pending: true,
+          sets: null, reps: null, repsList: null, weightKg: null, weightLevel: null,
+          weightKgList: null, weightLevelList: null,
+          distanceKm: null, speedKmh: null, durationMin: null, cardioKcal: null,
+        });
+      }
+    });
+    saveWorkoutLogObj(log);
+  }
+
+  const nonCardio = split.exercises.filter(ex=>ex.category!=="Cardio");
+  if(!nonCardio.length){
+    showToast(cardioExercises.length ? `${cardioExercises.length} cardio exercise(s) added — ${split.name} has no other exercises to guide you through` : `${split.name} has no exercises defined yet`);
+    renderWorkoutsView();
+    return;
+  }
+
+  guidedWorkoutState = {
+    splitId: split.id, splitName, targetDate,
+    total: nonCardio.length, completedCount: 0,
+    queue: nonCardio.map(ex=>({category: ex.category, name: ex.name})),
+  };
+  renderWorkoutsView();
+  renderGuidedWorkoutCard();
+  document.getElementById("guidedWorkoutOverlay").classList.remove("hidden");
 }
 window.startTrainingAction = startTrainingAction;
+
+function closeGuidedWorkoutCard(){
+  document.getElementById("guidedWorkoutOverlay").classList.add("hidden");
+}
+
+function renderGuidedWorkoutCard(){
+  const st = guidedWorkoutState;
+  if(!st || !st.queue.length) return;
+  const current = st.queue[0];
+  document.getElementById("guidedWorkoutSplitLabel").textContent = st.splitName;
+  const position = st.completedCount + 1;
+  const pct = Math.round((st.completedCount / st.total) * 100);
+  document.getElementById("guidedWorkoutProgressLabel").textContent = `Exercise ${position} of ${st.total} — ${pct}% of today's session done`;
+  document.getElementById("guidedWorkoutProgressFill").style.width = pct + "%";
+  document.getElementById("guidedWorkoutCategory").textContent = current.category;
+  document.getElementById("guidedWorkoutExerciseName").textContent = current.name;
+
+  const last = findLastLoggedExercise(current.name, st.targetDate);
+  const setsInput = document.getElementById("guidedWorkoutSets");
+  const repsInput = document.getElementById("guidedWorkoutReps");
+  const weightInput = document.getElementById("guidedWorkoutWeight");
+  const noteEl = document.getElementById("guidedWorkoutLastNote");
+  if(last){
+    const lastReps = last.reps != null ? last.reps : (Array.isArray(last.repsList) ? last.repsList[0] : null);
+    const lastWeight = last.weightKg != null ? last.weightKg : (Array.isArray(last.weightKgList) ? last.weightKgList[last.weightKgList.length-1] : null);
+    setsInput.value = last.sets != null ? last.sets : "";
+    repsInput.value = lastReps != null ? lastReps : "";
+    weightInput.value = lastWeight != null ? lastWeight : "";
+    noteEl.textContent = `Last time (${last.date}): ${last.sets != null ? last.sets : "?"} × ${lastReps != null ? lastReps : "?"}${lastWeight != null ? ` @ ${lastWeight} kg` : ""}`;
+  } else {
+    setsInput.value = "";
+    repsInput.value = "";
+    weightInput.value = "";
+    noteEl.textContent = "Never logged before — enter today's numbers";
+  }
+  document.getElementById("guidedWorkoutPrevBtn").disabled = (st.completedCount === 0);
+}
+
+// "Next" means I did the exercise: save today's numbers for it and move on to whatever's now
+// first in the queue (could be the next exercise, or one that was skipped earlier and cycled
+// back around to the front).
+document.getElementById("guidedWorkoutNextBtn").addEventListener("click", ()=>{
+  const st = guidedWorkoutState;
+  if(!st || !st.queue.length) return;
+  const current = st.queue.shift();
+  const setsVal = document.getElementById("guidedWorkoutSets").value;
+  const repsVal = document.getElementById("guidedWorkoutReps").value;
+  const weightVal = document.getElementById("guidedWorkoutWeight").value;
+  const sets = setsVal !== "" ? parseFloat(setsVal) : null;
+  const reps = repsVal !== "" ? parseFloat(repsVal) : null;
+  const weightKg = weightVal !== "" ? parseFloat(weightVal) : null;
+  const log = getWorkoutLog();
+  if(!log[st.targetDate]) log[st.targetDate] = [];
+  log[st.targetDate].push({
+    id: genWorkoutId(), splitId: st.splitId, splitName: st.splitName, category: current.category, exercise: current.name,
+    isCardio: false, pending: (sets==null && reps==null && weightKg==null),
+    sets, reps, repsList: null, weightKg, weightLevel: null, weightKgList: null, weightLevelList: null,
+    distanceKm: null, speedKmh: null, durationMin: null, cardioKcal: null,
+  });
+  saveWorkoutLogObj(log);
+  st.completedCount++;
+  renderWorkoutsView();
+  if(!st.queue.length){
+    showToast(`${st.splitName} complete — nice work!`);
+    guidedWorkoutState = null;
+    closeGuidedWorkoutCard();
+    return;
+  }
+  renderGuidedWorkoutCard();
+});
+
+// "Skip" means the machine's busy right now -- push this exercise to the back of today's queue
+// (nothing gets logged for it yet) and move straight to whatever's next.
+document.getElementById("guidedWorkoutSkipBtn").addEventListener("click", ()=>{
+  const st = guidedWorkoutState;
+  if(!st || st.queue.length < 2){ showToast("Nothing left to skip to"); return; }
+  st.queue.push(st.queue.shift());
+  renderGuidedWorkoutCard();
+});
+
+// "Previous" steps back to the exercise you just finished, in case you want to double check or
+// redo it -- un-logs the entry Next just saved (so redoing it doesn't create a duplicate row) and
+// puts it back at the front of the queue.
+document.getElementById("guidedWorkoutPrevBtn").addEventListener("click", ()=>{
+  const st = guidedWorkoutState;
+  if(!st || st.completedCount === 0) return;
+  const log = getWorkoutLog();
+  const entries = log[st.targetDate] || [];
+  for(let i=entries.length-1; i>=0; i--){
+    if(entries[i].splitId === st.splitId && !entries[i].isCardio){
+      const removed = entries.splice(i,1)[0];
+      st.queue.unshift({category: removed.category, name: removed.exercise});
+      break;
+    }
+  }
+  saveWorkoutLogObj(log);
+  st.completedCount--;
+  renderWorkoutsView();
+  renderGuidedWorkoutCard();
+});
+
+document.getElementById("guidedWorkoutCloseBtn").addEventListener("click", ()=>{
+  // Closing early doesn't discard anything already logged via Next -- it just stops prompting
+  // for the rest. The remaining exercises can always be added normally from the form below.
+  guidedWorkoutState = null;
+  closeGuidedWorkoutCard();
+});
+document.getElementById("guidedWorkoutOverlay").addEventListener("click", (e)=>{
+  if(e.target.id === "guidedWorkoutOverlay"){
+    guidedWorkoutState = null;
+    closeGuidedWorkoutCard();
+  }
+});
 
 document.getElementById("workoutForm").addEventListener("submit", (e)=>{
   e.preventDefault();
@@ -9222,7 +9421,7 @@ function renderWorkoutTimerWidget(){
     : "Not training right now";
   const bodyHtml = booked
     ? `${formatClockTime(booked.startTime)}–${formatClockTime(booked.endTime)} (${booked.durationMin} min) <a href="#" onclick="openWorkoutSessionEditModal('${formDate}'); return false;" style="margin-left:6px;">Edit</a> · <a href="#" onclick="deleteWorkoutSessionForDate('${formDate}'); return false;">Delete</a><br>Training again today? Pick the next Split above and click Start Training again.`
-    : "Pick a Split above, then Start Training — books a 1h session and fills in the exercise checklist for it in one go.";
+    : "Pick a Split above, then Start Training — books a 1h session and walks you through its exercises one at a time.";
   wrap.innerHTML = `
     <div class="workout-timer-banner">
       <div class="workout-timer-info">
