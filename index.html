@@ -397,11 +397,9 @@
   .missing-data-banner{display:flex; align-items:center; gap:12px; background:rgba(241,107,131,.16); border:2px solid var(--danger); border-radius:var(--radius); padding:12px 16px; margin-bottom:16px; box-shadow:0 4px 14px rgba(241,107,131,.18);}
   .missing-data-banner svg{width:24px; height:24px; flex:0 0 auto; color:var(--danger);}
   .missing-data-banner-text{font-weight:800; font-size:.92rem; color:var(--danger); line-height:1.4;}
-  /* Creatine card icon is a black-outline-on-transparent PNG (see CREATINE_ICON_B64), so it's
-     invisible against the default dark theme without inverting it; the light theme un-inverts it
-     since the outline already reads fine on a white panel there. */
-  .creatine-icon{display:block; filter:invert(1);}
-  html[data-theme="light"] .creatine-icon{filter:none;}
+  /* Creatine card icon is a full-color PNG (see CREATINE_ICON_B64), so it needs no dark/light
+     theme filter -- it reads fine against both panel colors as-is. */
+  .creatine-icon{display:block;}
 
   .workout-timer-banner{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px; margin-bottom:18px;}
   .workout-timer-banner.active{background:rgba(78,225,163,.08); border-color:rgba(78,225,163,.32);}
@@ -785,7 +783,7 @@
 
           <h3 style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>Credits</span></h3>
           <div class="step-desc" style="margin-top:0;"><a href="https://www.flaticon.com/free-icons/smile" title="smile icons" target="_blank" rel="noopener">Smile icons created by juicy_fish - Flaticon</a></div>
-          <div class="step-desc" style="margin-top:4px;"><a href="https://www.flaticon.com/free-icon/whey-protein_11309798" title="whey protein icon" target="_blank" rel="noopener">Whey Protein icon created by Fahrul Saputra - Flaticon</a></div>
+          <div class="step-desc" style="margin-top:4px;"><a href="https://www.flaticon.com/free-icon/whey-protein_11309801" title="whey protein icon" target="_blank" rel="noopener">Whey Protein icon created by Fahrul Saputra - Flaticon</a></div>
         </div>
       </div>
 
@@ -1698,8 +1696,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.07";
+const APP_VERSION = "1.08";
 const CHANGELOG = [
+  { version: "1.08", date: "2026-09-13", desc: "Swapped the Creatine card's icon for the full-color Whey Protein icon (was the black-outline version), which no longer needs a dark-theme color filter." },
   { version: "1.07", date: "2026-09-13", desc: "Added a Creatine (3g) check to the Nutrition Log -- its own small card at the top asking whether you've taken it, with a red warning if today isn't marked yet." },
   { version: "1.06", date: "2026-09-13", desc: "Coach export now lists every exercise in every split (Upper A/B, Lower A/B, Cardio, etc.), not just the 12 most recent. Loaded AI feedback is now matched per-exercise and shown as a Coach note while guiding through Start Training." },
   { version: "1.05", date: "2026-09-13", desc: "Moved the Body profile step (and the rest of the profile wizard) from General Settings into Scale Log Settings." },
@@ -4941,10 +4940,10 @@ function setCreatineTaken(date, flag){
   saveCreatineLogObj(obj);
 }
 
-// Whey Protein icon by Fahrul Saputra - Flaticon (see Settings > Credits for attribution).
-// Black-outline-on-transparent PNG, so the CSS class ".creatine-icon" inverts it in dark mode
-// and un-inverts it under the light theme (see html[data-theme="light"] .creatine-icon rule).
-const CREATINE_ICON_B64 = "iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAACXBIWXMAAE69AABOvQFzamgUAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAABrBJREFUeJztnVuoVUUYx3/nHDUrOVmZQoZmlopdLLOgQiJKLc0LhA9SEELZQw8+RGSRQZim3QmihCToIbpZkB2KIpLILmiShp4KTbM0NEizOHnd9jBH1LNn1t5n71nzzVrz/WBgs/Zmz3+++dZc1vpmBhRFURRFURRFURRFURRFURRFUUpLi7SAGgwFpgFjgCFAX1k5dXMY2A10Ah3ALlk5xeNyjOEqwLGCpwqwCrjMq4VKzDzgEPIV5zsdAR7yaKdS8hjyFZV3WujNWiVjFuVo8mulCjDDk82aWAaB/YEfgeGO7zuBn4EOoAvY5clWKekHjMYMXm1s7/7uYChBsXMv9rtlBzA2Z12l5D6yfa2bB6UEeuAWzAmz1eLtBSaLKisB/YCJmAGpje3d3x0MJSg2plNdvi5gGdCe8t2byI+Q1QF6MInsvv9pSXFF5giqm/6yFmA/2QU5CtwuqK3wnAdchxk5HcQ0i8mHgikeTgqjfw2yl6MSD8swXX/JC2S3AB0plQIRZLm9nAeJhKQlEIPQKk5RFEVRFEVRFEVRFEVRFEVRlLzeAg74pFXBM6ovVOwAAAAASUVORK5CYII=";
+// Whey Protein icon by Fahrul Saputra - Flaticon, "color lineal-color" style (see Settings >
+// Credits for attribution). Full-color PNG, so unlike a black-outline glyph it doesn't need a
+// dark-mode invert filter -- it reads fine on both the dark and light theme as-is.
+const CREATINE_ICON_B64 = "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";
 
 function renderCreatineCard(date){
   const wrap = document.getElementById("creatineCardWrap");
