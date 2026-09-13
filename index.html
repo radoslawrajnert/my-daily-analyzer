@@ -89,6 +89,11 @@
   .card h2{margin-top:0; font-size:1.2rem; font-weight:800; letter-spacing:-.01em; display:flex; align-items:center; gap:8px;}
   .card .step-desc{color:var(--muted); font-size:.88rem; margin-top:-8px; margin-bottom:18px;}
 
+  .changelog-entry{border:1px solid var(--border); border-radius:8px; padding:8px 12px; background:var(--card-alt, transparent);}
+  .changelog-entry-head{display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:.85rem;}
+  .changelog-entry-date{color:var(--muted); font-size:.78rem;}
+  .changelog-entry-desc{color:var(--muted); font-size:.82rem; margin-top:3px;}
+
   .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
   .grid.single{grid-template-columns:1fr;}
   @media (max-width:600px){.grid{grid-template-columns:1fr;}}
@@ -768,6 +773,11 @@
               <button type="button" id="cloudSyncSaveBtn">Save & connect</button>
             </span>
           </div>
+
+          <h3 style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>Version</span></h3>
+          <div class="step-desc" style="margin-top:0;">Which build of the app you're currently running, and a history of what's changed -- handy for confirming a re-publish actually took effect.</div>
+          <div class="field"><label>Current version</label><div id="appVersionNumber" style="font-weight:700; font-size:1.05rem;"></div></div>
+          <div id="appChangelogList" style="max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; margin-top:10px;"></div>
 
           <h3 style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>Credits</span></h3>
           <div class="step-desc" style="margin-top:0;"><a href="https://www.flaticon.com/free-icons/smile" title="smile icons" target="_blank" rel="noopener">Smile icons created by juicy_fish - Flaticon</a></div>
@@ -1664,6 +1674,33 @@ function setTheme(theme){
   applyTheme(theme);
 }
 applyTheme(getTheme());
+
+/* ================= App version & changelog =================
+   A simple, hand-maintained version number + change history so it's always clear which build of the
+   app is currently loaded (came up because the app is edited often and re-published to GitHub Pages,
+   and it got hard to tell whether a given browser tab had the latest changes). Not user data -- this
+   is app metadata, the same for every profile on this device, so it isn't stored in localStorage; it
+   just lives here in code. Convention going forward: every time a change ships, APP_VERSION goes up
+   by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
+   short plain-language description of what changed. Shown read-only in Settings -> General Settings,
+   under "Version". */
+const APP_VERSION = "1.00";
+const CHANGELOG = [
+  { version: "1.00", date: "2026-09-13", desc: "Added a Version section to Settings, showing the current version number and this change history." }
+];
+function renderVersionInfo(){
+  const numEl = document.getElementById("appVersionNumber");
+  if(numEl) numEl.textContent = "v" + APP_VERSION;
+  const listEl = document.getElementById("appChangelogList");
+  if(!listEl) return;
+  listEl.innerHTML = CHANGELOG.map(entry =>
+    `<div class="changelog-entry">
+      <div class="changelog-entry-head"><strong>v${entry.version}</strong><span class="changelog-entry-date">${entry.date}</span></div>
+      <div class="changelog-entry-desc">${entry.desc}</div>
+    </div>`
+  ).join("");
+}
+window.renderVersionInfo = renderVersionInfo;
 
 /* ================= i18n (English / Português) =================
    UI-chrome-only translation: nav, buttons, labels, headers, messages.
@@ -3188,6 +3225,7 @@ function switchView(view){
     document.getElementById("langSelect").value = getLang();
     document.getElementById("aiProviderSelect").value = getAiProvider();
     document.getElementById("aiApiKeyInput").value = getAiApiKey();
+    renderVersionInfo();
     refreshCloudSyncSettingsUI();
     syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI(); syncAestheticTargetsUI();
     // "My splits" and "My exercises" (moved here from the Workout Log tab, reachable now only by
