@@ -397,6 +397,11 @@
   .missing-data-banner{display:flex; align-items:center; gap:12px; background:rgba(241,107,131,.16); border:2px solid var(--danger); border-radius:var(--radius); padding:12px 16px; margin-bottom:16px; box-shadow:0 4px 14px rgba(241,107,131,.18);}
   .missing-data-banner svg{width:24px; height:24px; flex:0 0 auto; color:var(--danger);}
   .missing-data-banner-text{font-weight:800; font-size:.92rem; color:var(--danger); line-height:1.4;}
+  /* Creatine card icon is a black-outline-on-transparent PNG (see CREATINE_ICON_B64), so it's
+     invisible against the default dark theme without inverting it; the light theme un-inverts it
+     since the outline already reads fine on a white panel there. */
+  .creatine-icon{display:block; filter:invert(1);}
+  html[data-theme="light"] .creatine-icon{filter:none;}
 
   .workout-timer-banner{display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius); padding:14px 18px; margin-bottom:18px;}
   .workout-timer-banner.active{background:rgba(78,225,163,.08); border-color:rgba(78,225,163,.32);}
@@ -780,6 +785,7 @@
 
           <h3 style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>Credits</span></h3>
           <div class="step-desc" style="margin-top:0;"><a href="https://www.flaticon.com/free-icons/smile" title="smile icons" target="_blank" rel="noopener">Smile icons created by juicy_fish - Flaticon</a></div>
+          <div class="step-desc" style="margin-top:4px;"><a href="https://www.flaticon.com/free-icon/whey-protein_11309798" title="whey protein icon" target="_blank" rel="noopener">Whey Protein icon created by Fahrul Saputra - Flaticon</a></div>
         </div>
       </div>
 
@@ -1088,6 +1094,8 @@
     </div>
 
     <div id="foodView" class="hidden">
+      <div class="card" id="creatineCardWrap"></div>
+
       <div class="card">
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <span id="foodFormTitle">Log food</span>
@@ -1690,8 +1698,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.06";
+const APP_VERSION = "1.07";
 const CHANGELOG = [
+  { version: "1.07", date: "2026-09-13", desc: "Added a Creatine (3g) check to the Nutrition Log -- its own small card at the top asking whether you've taken it, with a red warning if today isn't marked yet." },
   { version: "1.06", date: "2026-09-13", desc: "Coach export now lists every exercise in every split (Upper A/B, Lower A/B, Cardio, etc.), not just the 12 most recent. Loaded AI feedback is now matched per-exercise and shown as a Coach note while guiding through Start Training." },
   { version: "1.05", date: "2026-09-13", desc: "Moved the Body profile step (and the rest of the profile wizard) from General Settings into Scale Log Settings." },
   { version: "1.04", date: "2026-09-13", desc: "Moved the version + date tag out of the header entirely -- it now sits as a quiet line at the very bottom of the page." },
@@ -4907,6 +4916,66 @@ function getFoodDayNote(date){
   return getFoodDayNotes()[date] || "";
 }
 
+// --- Creatine (3g) daily check -- a simple yes/no marker for the day, separate from structured
+// food entries, same day-keyed dictionary convention as workoutRestDays/foodDayNotes. Shown as its
+// own small card at the top of Nutrition Log with a loud red warning (same style as the missing
+// food/workout data banner) whenever TODAY hasn't been marked yet -- a live same-day reminder,
+// not a look-back at yesterday like that other banner. ---
+function getCreatineLog(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  return (u && u.creatineLog) ? u.creatineLog : {};
+}
+function saveCreatineLogObj(obj){
+  const users = getUsers();
+  if(!users[currentUserEmail]) return;
+  users[currentUserEmail].creatineLog = obj;
+  saveUsers(users);
+}
+function isCreatineTaken(date){
+  return !!getCreatineLog()[date];
+}
+function setCreatineTaken(date, flag){
+  const obj = getCreatineLog();
+  if(flag){ obj[date] = true; } else { delete obj[date]; }
+  saveCreatineLogObj(obj);
+}
+
+// Whey Protein icon by Fahrul Saputra - Flaticon (see Settings > Credits for attribution).
+// Black-outline-on-transparent PNG, so the CSS class ".creatine-icon" inverts it in dark mode
+// and un-inverts it under the light theme (see html[data-theme="light"] .creatine-icon rule).
+const CREATINE_ICON_B64 = "iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAACXBIWXMAAE69AABOvQFzamgUAAAAGXRFWHRTb2Z0d2FyZQB3d3cuaW5rc2NhcGUub3Jnm+48GgAABrBJREFUeJztnVuoVUUYx3/nHDUrOVmZQoZmlopdLLOgQiJKLc0LhA9SEELZQw8+RGSRQZim3QmihCToIbpZkB2KIpLILmiShp4KTbM0NEizOHnd9jBH1LNn1t5n71nzzVrz/WBgs/Zmz3+++dZc1vpmBhRFURRFURRFURRFURRFURRFUUpLi7SAGgwFpgFjgCFAX1k5dXMY2A10Ah3ALlk5xeNyjOEqwLGCpwqwCrjMq4VKzDzgEPIV5zsdAR7yaKdS8hjyFZV3WujNWiVjFuVo8mulCjDDk82aWAaB/YEfgeGO7zuBn4EOoAvY5clWKekHjMYMXm1s7/7uYChBsXMv9rtlBzA2Z12l5D6yfa2bB6UEeuAWzAmz1eLtBSaLKisB/YCJmAGpje3d3x0MJSg2plNdvi5gGdCe8t2byI+Q1QF6MInsvv9pSXFF5giqm/6yFmA/2QU5CtwuqK3wnAdchxk5HcQ0i8mHgikeTgqjfw2yl6MSD8swXX/JC2S3AB0plQIRZLm9nAeJhKQlEIPQKk5RFEVRFEVRFEVRFEVRFEVRlLzeAg74pFXBM6ovVOwAAAAASUVORK5CYII=";
+
+function renderCreatineCard(date){
+  const wrap = document.getElementById("creatineCardWrap");
+  if(!wrap) return;
+  const day = date || todayStr();
+  const taken = isCreatineTaken(day);
+  const isToday = day === todayStr();
+  const showWarning = isToday && !taken;
+  wrap.innerHTML = `
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <img class="creatine-icon" width="28" height="28" alt="" src="data:image/png;base64,${CREATINE_ICON_B64}">
+        <div style="font-weight:700;">Did you take Creatine 3g${isToday ? " today" : ""}?</div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button type="button" id="creatineYesBtn" class="${taken ? "" : "secondary"}">${taken ? "✓ Taken" : "Yes"}</button>
+        <button type="button" id="creatineNoBtn" class="${taken ? "secondary" : ""}" ${taken ? "" : "disabled"}>Not yet</button>
+      </div>
+    </div>
+    ${showWarning ? `
+    <div class="missing-data-banner" style="margin-top:12px; margin-bottom:0;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <div class="missing-data-banner-text">You haven't taken your Creatine (3g) yet today.</div>
+    </div>` : ""}
+  `;
+  const yesBtn = document.getElementById("creatineYesBtn");
+  const noBtn = document.getElementById("creatineNoBtn");
+  if(yesBtn) yesBtn.addEventListener("click", ()=>{ setCreatineTaken(day, true); renderCreatineCard(day); });
+  if(noBtn) noBtn.addEventListener("click", ()=>{ setCreatineTaken(day, false); renderCreatineCard(day); });
+}
+
 function genFoodId(){
   return "f" + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
 }
@@ -6243,6 +6312,7 @@ function renderFoodView(){
     foodMealDefaulted = true;
   }
   const entries = getEntriesForDate(date);
+  renderCreatineCard(date);
   renderFoodStreakBanner();
   renderMissingDataWarningBanner();
   renderFoodSummary(entries, date);
