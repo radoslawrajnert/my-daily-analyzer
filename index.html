@@ -1499,6 +1499,9 @@
       <div style="font-size:.78rem; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;" id="guidedWorkoutCategory"></div>
       <div style="font-size:1.4rem; font-weight:800; margin-top:4px;" id="guidedWorkoutExerciseName"></div>
       <div class="step-desc" style="margin-top:6px;" id="guidedWorkoutLastNote"></div>
+      <div class="hidden" id="guidedWorkoutCoachAdviceWrap" style="margin-top:10px; padding:10px 12px; border-radius:8px; background:var(--panel2); border:1px solid var(--border); text-align:left; font-size:.85rem;">
+        <strong style="color:var(--accent2);">Coach note:</strong> <span id="guidedWorkoutCoachAdviceText"></span>
+      </div>
     </div>
 
     <div class="row-inline">
@@ -1687,8 +1690,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.05";
+const APP_VERSION = "1.06";
 const CHANGELOG = [
+  { version: "1.06", date: "2026-09-13", desc: "Coach export now lists every exercise in every split (Upper A/B, Lower A/B, Cardio, etc.), not just the 12 most recent. Loaded AI feedback is now matched per-exercise and shown as a Coach note while guiding through Start Training." },
   { version: "1.05", date: "2026-09-13", desc: "Moved the Body profile step (and the rest of the profile wizard) from General Settings into Scale Log Settings." },
   { version: "1.04", date: "2026-09-13", desc: "Moved the version + date tag out of the header entirely -- it now sits as a quiet line at the very bottom of the page." },
   { version: "1.03", date: "2026-09-13", desc: "Moved the header version + date tag to its own line below the top bar -- it was overlapping the name/logout row awkwardly." },
@@ -8359,6 +8363,22 @@ function renderGuidedWorkoutCard(){
     weightInput.value = "";
     noteEl.textContent = "Never logged before — enter today's numbers";
   }
+
+  // Surfaces whatever the most recently loaded AI coach feedback said about THIS exercise
+  // specifically (see getLatestCoachAdviceForExercise) -- e.g. "Squat: hold current load, form
+  // looked shaky on the last set" shows right while you're about to do that exact exercise, not
+  // buried in a report you'd have to go re-read on the Coach tab. Hidden entirely when there's no
+  // feedback saved yet, or the latest one never mentioned this exercise by name.
+  const adviceWrap = document.getElementById("guidedWorkoutCoachAdviceWrap");
+  const adviceText = document.getElementById("guidedWorkoutCoachAdviceText");
+  const advice = getLatestCoachAdviceForExercise(current.name);
+  if(advice){
+    adviceText.textContent = advice;
+    adviceWrap.classList.remove("hidden");
+  } else {
+    adviceWrap.classList.add("hidden");
+  }
+
   document.getElementById("guidedWorkoutPrevBtn").disabled = (st.completedCount === 0);
 }
 
@@ -12385,36 +12405,62 @@ function buildCoachExport(userNotes, attachments, skipped){
       if(cardioSessions){
         lines.push(`- Cardio: ${cardioSessions} session${cardioSessions===1?"":"s"}, ${Math.round(cardioMinutes)} min total, ~${Math.round(cardioKcalTotal)} kcal burned`);
       }
-      const stats = computeWorkoutStats().slice(0, 12);
-      if(stats.length){
-        lines.push(`- Best weight and estimated one-rep max per exercise (all-time, not just last 90 days):`);
-        stats.forEach(s=>{
-          const bits = [];
-          if(s.bestWeight != null) bits.push(`best ${s.bestWeight} kg`);
-          if(s.bestOneRepMax != null) bits.push(`est. 1RM ~${Math.round(s.bestOneRepMax)} kg`);
-          bits.push(`${s.sessions} session${s.sessions===1?"":"s"}, last on ${s.lastDate}`);
-          lines.push(`  - ${s.exercise} (${s.category}): ${bits.join(", ")}`);
-        });
-        // Same deterministic progressive-overload nudge and plateau flag already shown in the
-        // Workout Log tab's own stats table (see suggestNextLoad/detectLiftPlateau) -- reused here
-        // rather than asking the reviewing AI to invent a suggestion from just best-weight/1RM
-        // alone, so its Exercise Progression Guidance section is grounded in the app's own numbers.
-        const progressionLines = [];
-        stats.forEach(s=>{
-          const next = suggestNextLoad(s.exercise);
-          if(!next) return;
-          const plateau = detectLiftPlateau(s.exercise);
-          let line = `  - ${s.exercise}: last top set ${describeOverloadSet(next.last)} on ${next.date}, suggested next ${describeOverloadSet(next.suggestion)}`;
-          if(plateau) line += ` -- PLATEAUED: no new PR in the last ${plateau.sessions} sessions (best still ${plateau.bestWeight} kg, since ${plateau.sinceDate})`;
-          progressionLines.push(line);
-        });
-        if(progressionLines.length){
-          lines.push(`- Progressive overload status per exercise (this device's own deterministic suggestion, not a guess -- use it to inform section 6 below):`);
-          lines.push(...progressionLines);
-        }
-      }
     } else {
       lines.push("- No workouts logged in the last 90 days.");
+    }
+    lines.push("");
+
+    // Every currently-defined split and every exercise in it -- not just whatever happened to be
+    // trained most recently -- so the coach can give exercise-specific guidance (section 6) for
+    // ALL of them, not only the exercises that make a "most recent 12" cut. Listed outside the
+    // workoutDays check above so the splits themselves still show up (as "not logged yet") even in
+    // a quiet stretch, since the templates exist independent of recent activity.
+    lines.push("## Your splits & every exercise in each");
+    lines.push("_So you can give exercise-specific guidance for every exercise across every split, not just the ones trained most recently._");
+    const splitsForExport = getWorkoutSplits();
+    if(!splitsForExport.length){
+      lines.push("- No splits defined yet.");
+    } else {
+      // Same deterministic progressive-overload nudge and plateau flag already shown in the
+      // Workout Log tab's own stats table (see suggestNextLoad/detectLiftPlateau) -- reused here,
+      // per exercise, rather than asking the reviewing AI to invent a suggestion from just
+      // best-weight/1RM alone, so its Exercise Progression Guidance section is grounded in the
+      // app's own numbers.
+      const statsByName = new Map(computeWorkoutStats().map(s=>[s.exercise.trim().toLowerCase(), s]));
+      const namedInSomeSplit = new Set();
+      const describeExercise = (name, category)=>{
+        const stat = statsByName.get(String(name).trim().toLowerCase());
+        if(!stat) return `- ${name} (${category}): not logged yet`;
+        const bits = [];
+        if(stat.bestWeight != null) bits.push(`best ${stat.bestWeight} kg`);
+        if(stat.bestOneRepMax != null) bits.push(`est. 1RM ~${Math.round(stat.bestOneRepMax)} kg`);
+        bits.push(`${stat.sessions} session${stat.sessions===1?"":"s"}, last on ${stat.lastDate}`);
+        const next = suggestNextLoad(name);
+        if(next) bits.push(`suggested next ${describeOverloadSet(next.suggestion)}`);
+        const plateau = detectLiftPlateau(name);
+        if(plateau) bits.push(`PLATEAUED -- no new PR in the last ${plateau.sessions} sessions (best still ${plateau.bestWeight} kg, since ${plateau.sinceDate})`);
+        return `- ${name} (${category}): ${bits.join(", ")}`;
+      };
+      splitsForExport.forEach(split=>{
+        const label = `${split.emoji ? split.emoji + " " : ""}${split.name}`;
+        lines.push(`### ${label}`);
+        if(!split.exercises || !split.exercises.length){
+          lines.push("- (no exercises defined yet)");
+          return;
+        }
+        split.exercises.forEach(ex=>{
+          namedInSomeSplit.add(String(ex.name).trim().toLowerCase());
+          lines.push(describeExercise(ex.name, ex.category));
+        });
+      });
+      // Anything ever logged that isn't part of any CURRENT split (a one-off exercise, or a split
+      // that's since been renamed/deleted) still gets covered here, so nothing you've actually done
+      // silently disappears from the export just because it's not on a template right now.
+      const leftovers = computeWorkoutStats().filter(s => !namedInSomeSplit.has(s.exercise.trim().toLowerCase()));
+      if(leftovers.length){
+        lines.push(`### Other logged exercises (not in any current split)`);
+        leftovers.forEach(s => lines.push(describeExercise(s.exercise, s.category)));
+      }
     }
     lines.push("");
   }
@@ -12495,6 +12541,56 @@ const COACH_SECTION_TITLES = [
 const HEADING_STYLE = "margin:22px 0 8px; padding-top:14px; border-top:1px solid var(--border); font-size:1.05rem; color:var(--accent2);";
 const FIRST_HEADING_STYLE = "margin:0 0 8px; padding-top:0; border-top:none; font-size:1.05rem; color:var(--accent2);";
 
+// --- Per-exercise coach advice lookup -- lets the guided workout card (Start Training) surface
+// whatever the loaded AI feedback said about the exercise currently on screen, e.g. while working
+// through Lower A's exercises one at a time. Reuses the same heading-recognition heuristic as
+// renderMarkdownLite below (a bare "6. Exercise Progression Guidance" line, a bolded title, or a
+// markdown # header) to find the boundaries of that one section within the saved feedback text. ---
+function coachHeadingBareTitle(line){
+  return String(line || "").trim()
+    .replace(/^\d+\.\s+/, "")
+    .replace(/^\*\*(.+)\*\*$/, "$1")
+    .replace(/^#{1,4}\s+/, "")
+    .replace(/:$/, "")
+    .trim();
+}
+function extractCoachSectionText(raw, sectionTitle){
+  const lines = String(raw || "").replace(/\r\n/g, "\n").split("\n");
+  let start = -1;
+  for(let i=0;i<lines.length;i++){
+    if(coachHeadingBareTitle(lines[i]).toLowerCase() === sectionTitle.toLowerCase()){ start = i+1; break; }
+  }
+  if(start === -1) return "";
+  let end = lines.length;
+  for(let i=start;i<lines.length;i++){
+    const bare = coachHeadingBareTitle(lines[i]).toLowerCase();
+    if(bare && COACH_SECTION_TITLES.some(t => t.toLowerCase() === bare)){ end = i; break; }
+  }
+  return lines.slice(start, end).join("\n").trim();
+}
+// The coach export's own instructions explicitly allow grouping several exercises onto one line
+// ("Squat & Deadlift: hold current load..."), so this matches on substring/case-insensitive
+// inclusion rather than requiring the exercise to be the entire line -- a grouped mention still
+// surfaces for each exercise named in it.
+function findExerciseAdviceLine(sectionText, exerciseName){
+  if(!sectionText || !exerciseName) return null;
+  const name = String(exerciseName).trim().toLowerCase();
+  if(!name) return null;
+  const lines = sectionText.split("\n").map(l=>l.replace(/^[*-]\s+/, "").trim()).filter(Boolean);
+  const hit = lines.find(l => l.toLowerCase().includes(name));
+  return hit || null;
+}
+// Looks up the most recently saved coach feedback's Exercise Progression Guidance for one specific
+// exercise. Returns null if no feedback has been saved yet, or the latest one never mentioned this
+// exercise by name -- callers should treat that as "nothing to show" rather than an error.
+function getLatestCoachAdviceForExercise(exerciseName){
+  const notes = getCoachNotes();
+  if(!notes.length) return null;
+  const latest = notes.slice().sort((x,y)=> new Date(y.date) - new Date(x.date))[0];
+  const section = extractCoachSectionText(latest.text, "Exercise Progression Guidance");
+  return findExerciseAdviceLine(section, exerciseName);
+}
+
 function renderMarkdownLite(raw){
   const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const inlineFormat = s => esc(s)
@@ -12521,9 +12617,11 @@ function renderMarkdownLite(raw){
     const trimmed = lines[i];
     if(!trimmed){ flushList(); continue; }
     let m;
-    // Strip a leading "N. " and/or wrapping **bold** to compare against our known section
-    // titles regardless of exactly how the model formatted the line.
-    const bareTitle = trimmed.replace(/^\d+\.\s+/, "").replace(/^\*\*(.+)\*\*$/, "$1").replace(/:$/, "").trim();
+    // Strip a leading "N. " and/or wrapping **bold**/markdown "#" to compare against our known
+    // section titles regardless of exactly how the model formatted the line (same heuristic
+    // extractCoachSectionText uses to find these same section boundaries for the per-exercise
+    // advice lookup -- see coachHeadingBareTitle above).
+    const bareTitle = coachHeadingBareTitle(trimmed);
     if(COACH_SECTION_TITLES.some(t => t.toLowerCase() === bareTitle.toLowerCase())){
       flushList();
       pushHeading(bareTitle);
