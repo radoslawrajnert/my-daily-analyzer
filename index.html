@@ -2804,9 +2804,11 @@ function renderBackupReminderBanner(){
    amber streak-banner.due nudge used elsewhere) that flags when yesterday has NO real nutrition
    entries and/or NO real workout entries logged at all. Scoped to yesterday specifically -- today
    is still in progress and shouldn't be flagged as "forgotten" while there's still time left in
-   the day to log it. Unlike the strength rest-day guardrail (which deliberately does NOT nag on
-   legitimate rest/cardio days), this checks every single day without exception, since food is a
-   daily habit and the user has explicitly asked for workout to be treated the same way here.
+   the day to log it. Workout is treated like a daily habit the same way food is -- checked every
+   day -- with one deliberate exception: a day explicitly marked as a Rest Day (see the Set Rest
+   Day button/isRestDay in the Workout Log) is a real, intentional record that nothing was meant to
+   be logged that day, so it never counts as "forgotten" workout data. Food still gets no such
+   exemption -- eating happens on rest days too.
 --------------------------------------------------------- */
 function yesterdayStr(){
   return localDateStr(new Date(new Date(todayStr()+"T00:00:00").getTime() - 86400000));
@@ -2821,7 +2823,7 @@ function missingDataStatusForYesterday(){
   // "pending" entries are planned-but-not-yet-done placeholders (see workoutCardioDurationLabel) --
   // they don't count as the day actually having been logged.
   const realWorkoutEntries = (workoutLog[y] || []).filter(e => !e.pending);
-  const missingWorkout = realWorkoutEntries.length === 0;
+  const missingWorkout = realWorkoutEntries.length === 0 && !isRestDay(y);
   return {missingFood, missingWorkout, date:y};
 }
 
