@@ -694,8 +694,6 @@
       </div>
 
       <div id="planGroupGeneral">
-        <div class="progress" id="progress"></div>
-
         <div class="card" id="tabVisibilityCard">
           <h2>Visible tabs</h2>
           <div class="step-desc" style="margin-top:0;">Hide any tabs you don't use so the nav bar only shows what matters to you. Scale Log always stays visible since it's the home view.</div>
@@ -783,22 +781,6 @@
           <h3 style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>Credits</span></h3>
           <div class="step-desc" style="margin-top:0;"><a href="https://www.flaticon.com/free-icons/smile" title="smile icons" target="_blank" rel="noopener">Smile icons created by juicy_fish - Flaticon</a></div>
         </div>
-
-        <div class="form-shell" id="formShell">
-          <form id="intakeForm" autocomplete="off"></form>
-        </div>
-
-        <div class="card report" id="reportCard">
-          <div id="reportBody"></div>
-          <div class="actions-row">
-            <button class="secondary" id="editBtn">← Edit answers</button>
-            <button id="downloadMdBtn">Download report (.md)</button>
-            <button class="secondary" id="downloadJsonBtn">Download JSON profile</button>
-            <button class="ghost" id="copyJsonBtn">Copy JSON</button>
-          </div>
-          <h2 class="section" style="margin-top:24px;">JSON Profile</h2>
-          <pre class="json" id="jsonPreview"></pre>
-        </div>
       </div>
 
       <div id="planGroupScaleLog" class="hidden">
@@ -823,6 +805,24 @@
           <div class="nav" style="justify-content:flex-end;">
             <button type="button" id="saveAestheticTargetsBtn">Save →</button>
           </div>
+        </div>
+
+        <div class="progress" id="progress"></div>
+
+        <div class="form-shell" id="formShell">
+          <form id="intakeForm" autocomplete="off"></form>
+        </div>
+
+        <div class="card report" id="reportCard">
+          <div id="reportBody"></div>
+          <div class="actions-row">
+            <button class="secondary" id="editBtn">← Edit answers</button>
+            <button id="downloadMdBtn">Download report (.md)</button>
+            <button class="secondary" id="downloadJsonBtn">Download JSON profile</button>
+            <button class="ghost" id="copyJsonBtn">Copy JSON</button>
+          </div>
+          <h2 class="section" style="margin-top:24px;">JSON Profile</h2>
+          <pre class="json" id="jsonPreview"></pre>
         </div>
       </div>
 
@@ -1687,8 +1687,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.04";
+const APP_VERSION = "1.05";
 const CHANGELOG = [
+  { version: "1.05", date: "2026-09-13", desc: "Moved the Body profile step (and the rest of the profile wizard) from General Settings into Scale Log Settings." },
   { version: "1.04", date: "2026-09-13", desc: "Moved the version + date tag out of the header entirely -- it now sits as a quiet line at the very bottom of the page." },
   { version: "1.03", date: "2026-09-13", desc: "Moved the header version + date tag to its own line below the top bar -- it was overlapping the name/logout row awkwardly." },
   { version: "1.02", date: "2026-09-13", desc: "Added a small version + date tag to the top-right corner of the header, so the current build is visible at a glance without opening Settings." },
