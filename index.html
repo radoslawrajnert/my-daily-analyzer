@@ -1684,8 +1684,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.00";
+const APP_VERSION = "1.01";
 const CHANGELOG = [
+  { version: "1.01", date: "2026-09-13", desc: "Fixed a confusing rest-day message that could say \"You've trained 0 days in a row\" as the reason to rest -- it now explains the actual reason (streak or weekly training cap)." },
   { version: "1.00", date: "2026-09-13", desc: "Added a Version section to Settings, showing the current version number and this change history." }
 ];
 function renderVersionInfo(){
@@ -7060,6 +7061,25 @@ function shouldRestFromStrength(date){
   const weeklyCapHit = settings.weeklyCapEnabled && strengthTrainedDaysThisWeekBefore(date) >= settings.weeklyCap;
   return streakHit || weeklyCapHit;
 }
+// Plain-language reason `date` is a recommended rest day, matching whichever rule(s) above actually
+// fired. Needed because the streak count and the weekly-cap count are independent numbers -- quoting
+// the streak alone (as this used to do everywhere) produced nonsense like "You've trained 0 days in
+// a row" on a day that was really flagged by the weekly cap instead (e.g. after a manually-marked
+// Rest Day resets the streak to 0 while the week's strength-day count is still over the cap).
+function restGuardrailReasonText(date){
+  const settings = getRestGuardrailSettings();
+  const streak = strengthTrainingStreakEndingOn(shiftDateStr(date, -1));
+  const streakHit = settings.streakEnabled && streak >= settings.streakDays;
+  const weeklyCount = strengthTrainedDaysThisWeekBefore(date);
+  const weeklyCapHit = settings.weeklyCapEnabled && weeklyCount >= settings.weeklyCap;
+  if(streakHit && weeklyCapHit){
+    return `You've trained ${streak} days in a row, and already hit your ${settings.weeklyCap}-day weekly training cap.`;
+  }
+  if(weeklyCapHit){
+    return `You've already trained ${weeklyCount} days this week, hitting your ${settings.weeklyCap}-day weekly training cap.`;
+  }
+  return `You've trained ${streak} days in a row.`;
+}
 
 // --- Manual Rest Day marker -- separate from the automatic guardrail above. This is a deliberate,
 // user-ticked flag on a specific calendar date ("I'm resting today, on purpose"), not a computed
@@ -8476,9 +8496,8 @@ document.getElementById("workoutForm").addEventListener("submit", (e)=>{
     const originalEntry = alreadyEditing ? (getWorkoutLog()[editingWorkoutDate] || []).find(en=>en.id===editingWorkoutId) : null;
     const isNewTrainingActivity = !alreadyEditing || (originalEntry && originalEntry.pending);
     if(isNewTrainingActivity && shouldRestFromStrength(date)){
-      const streak = strengthTrainingStreakEndingOn(shiftDateStr(date, -1));
       const proceed = (typeof confirm === "function")
-        ? confirm(`You've trained ${streak} days in a row — today is a recommended rest day for strength training. Cardio is fine, but log this strength set anyway?`)
+        ? confirm(`${restGuardrailReasonText(date)} Today is a recommended rest day for strength training. Cardio is fine, but log this strength set anyway?`)
         : true;
       if(!proceed) return;
     }
@@ -9708,11 +9727,10 @@ function renderWorkoutRestBanner(date){
   // this, browsing back to an already-trained day, or one you trained through the warning on,
   // would keep showing "don't train" for something that already happened.
   if(date < todayStr() || isStrengthTrainedDate(date) || !shouldRestFromStrength(date)){ wrap.innerHTML = ""; return; }
-  const streak = strengthTrainingStreakEndingOn(shiftDateStr(date, -1));
   wrap.innerHTML = `
     <div class="workout-rest-banner">
       <div class="workout-rest-banner-title">${ICON_BAN}Don't train (strength) — ${date}</div>
-      <div class="workout-rest-banner-body">You've trained ${streak} days in a row. This is a recommended rest day for lifting so your muscles can recover — cardio is completely fine. Logging a strength set today will ask you to confirm first.</div>
+      <div class="workout-rest-banner-body">${restGuardrailReasonText(date)} This is a recommended rest day for lifting so your muscles can recover — cardio is completely fine. Logging a strength set today will ask you to confirm first.</div>
     </div>
   `;
 }
