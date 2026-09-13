@@ -59,9 +59,9 @@
   ::-webkit-scrollbar-thumb:hover{background:var(--muted);}
 
   .wrap{max-width:1680px; margin:0 auto; padding:36px 20px 80px;}
-  header.top{margin-bottom:32px; position:relative;}
-  .header-version-tag{position:absolute; top:0; right:0; font-size:.68rem; color:var(--muted); opacity:.55; letter-spacing:.02em; user-select:none;}
-  @media (max-width:600px){ .header-version-tag{display:none;} }
+  header.top{margin-bottom:32px;}
+  .header-version-tag{display:block; text-align:right; margin-top:6px; font-size:.68rem; color:var(--muted); opacity:.55; letter-spacing:.02em; user-select:none;}
+  @media (max-width:600px){ .header-version-tag{text-align:left;} }
   .topbar{display:flex; align-items:center; justify-content:space-between; gap:20px; padding-bottom:22px; border-bottom:1px solid var(--border-soft);}
   .brand{display:flex; align-items:center; gap:14px; text-align:left; margin:0; min-width:0;}
   .brand-icon{
@@ -1687,8 +1687,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.02";
+const APP_VERSION = "1.03";
 const CHANGELOG = [
+  { version: "1.03", date: "2026-09-13", desc: "Moved the header version + date tag to its own line below the top bar -- it was overlapping the name/logout row awkwardly." },
   { version: "1.02", date: "2026-09-13", desc: "Added a small version + date tag to the top-right corner of the header, so the current build is visible at a glance without opening Settings." },
   { version: "1.01", date: "2026-09-13", desc: "Fixed a confusing rest-day message that could say \"You've trained 0 days in a row\" as the reason to rest -- it now explains the actual reason (streak or weekly training cap)." },
   { version: "1.00", date: "2026-09-13", desc: "Added a Version section to Settings, showing the current version number and this change history." }
