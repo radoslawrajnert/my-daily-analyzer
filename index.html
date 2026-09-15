@@ -1720,8 +1720,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.19";
+const APP_VERSION = "1.20";
 const CHANGELOG = [
+  { version: "1.20", date: "2026-09-15", desc: "Redesigned the Calorie/Protein bars: fixed-width bars (not stretched to fill the whole row) shifted right of center, matching the neater look of the Workout Stats charts. The daily check-in results grid below is aligned to the exact same day-columns as those bars again, with the category label back on the same line as its row, and a day with no answer yet now shows a small hollow-circle placeholder instead of nothing." },
   { version: "1.19", date: "2026-09-15", desc: "Reverted the Calorie/Protein bars back to full width, same as before this narrowing back-and-forth started -- back to the plain look, no visual narrowing/centering trick." },
   { version: "1.18", date: "2026-09-15", desc: "Calorie/Protein bars are a bit slimmer again (82% width, centered in their day-slot) -- full width read as too blocky. Fixed the check-in section's \"Stomach problems\" label wrapping onto two lines (widened the label column). Days with no check-in answer yet now render nothing at all -- no icon, no background box -- instead of a light gray placeholder square." },
   { version: "1.17", date: "2026-09-15", desc: "Calorie/Protein bars are back to full width (v1.16's 60% narrowing still left a visible gap between columns) -- only the thin shared gap separates adjacent days now. Redesigned the daily check-in results section: each category's row of Yes/No cells now sits on the same line as its label (Creatine, Good Sleep, etc.), the 14 dates live in a single row below all the categories instead of repeated above each one, and answered cells no longer have a colored background behind the check/forbidden icon -- just the icon on a transparent cell." },
@@ -5246,37 +5247,44 @@ function renderDailyQuestionsHeatmap(){
   for(let i = days - 1; i >= 0; i--) dateList.push(shiftDateStr(today, -i));
   const shortDate = (d)=>{ const [,mm,dd] = d.split("-"); return `${dd}.${mm}`; };
 
-  // Wide enough (and nowrap) so "Stomach problems" -- the longest label -- stays on one line
-  // instead of wrapping to two.
-  const LABEL_COL = "136px";
-  const dqRow = (labelHtml, cellsHtml, extraStyle)=> `<div style="display:grid; grid-template-columns:${LABEL_COL} 1fr; align-items:center; gap:8px;${extraStyle||""}"><div style="font-size:.78rem; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${labelHtml}</div><div style="display:grid; grid-template-columns:repeat(${days},1fr); gap:2px;">${cellsHtml}</div></div>`;
+  // v1.20: the category label sits inline with its row again (not stacked above it) -- there's
+  // room because the fixed-width, right-shifted bars (see dailyChartBarX) leave the left ~25% of
+  // the row empty. Each day's cell is absolutely positioned at dailyChartBarCenterPct(days, i)%, the
+  // SAME x the bar charts above use for that day, so a column lines up across calories/protein/
+  // check-in no matter which one you're looking at. The label's own box is capped at that same
+  // left boundary so it can never overlap the first day's column.
+  const firstColPct = (dailyChartBarX(days, 0) / DAILY_CHART_GRID.w * 100).toFixed(3);
+  const rowHtml = (labelHtml, cellsHtml, extraStyle)=> `<div style="position:relative; height:20px;${extraStyle||""}"><div style="position:absolute; left:0; top:0; width:calc(${firstColPct}% - 6px); height:20px; display:flex; align-items:center; font-size:.78rem; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${labelHtml}</div>${cellsHtml}</div>`;
 
-  // Cells are a fixed, compact height, sized independently of the grid column width so they stay
-  // small and consistent regardless of card width. Each cell gets a stable id so it can be wired up
-  // as a click target to edit that day's answer, the same way the Nutrition Log card's Yes/No
-  // buttons are. A day with no answer yet renders nothing at all -- no icon, no background -- so it
-  // reads as blank space rather than a placeholder box; it's still clickable (via the invisible
-  // cell div) to go answer it.
+  // Cells are a fixed, compact size and absolutely positioned, so they stay small and consistent
+  // regardless of card width. Each cell gets a stable id so it can be wired up as a click target to
+  // edit that day's answer, the same way the Nutrition Log card's Yes/No buttons are. A day with no
+  // answer yet renders a small hollow circle (not nothing, not a filled placeholder box) -- reads as
+  // "open" rather than blank or answered; it's still clickable to go answer it.
+  const notAnsweredIcon = `<span style="width:9px; height:9px; border-radius:50%; border:1px solid var(--border); display:inline-block;"></span>`;
   const strips = active.map(q=>{
-    const cellsHtml = dateList.map(d=>{
-      let title = "Not answered", icon = "";
+    const cellsHtml = dateList.map((d,i)=>{
+      let title = "Not answered", icon = notAnsweredIcon;
       if(isDailyQuestionAnswered(q.id, d)){
         const val = getDailyAnswer(q.id, d);
         title = val ? "Yes" : "No";
         const iconB64 = val ? CORRECT_ICON_B64 : FORBIDDEN_ICON_B64;
         icon = `<img src="data:image/png;base64,${iconB64}" alt="${title}" style="width:16px; height:16px; object-fit:contain; display:block;">`;
       }
-      return `<div id="dqHeatCell_${q.id}_${d}" style="height:20px; border-radius:3px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center;" title="${escAttr(q.question)} — ${d}: ${title} (click to change)">${icon}</div>`;
+      const pct = dailyChartBarCenterPct(days, i).toFixed(3);
+      return `<div id="dqHeatCell_${q.id}_${d}" style="position:absolute; left:${pct}%; top:0; transform:translateX(-50%); height:20px; border-radius:3px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center;" title="${escAttr(q.question)} — ${d}: ${title} (click to change)">${icon}</div>`;
     }).join("");
-    return dqRow(q.settingLabel, cellsHtml, " margin-bottom:6px;");
+    return rowHtml(q.settingLabel, cellsHtml, " margin-bottom:6px;");
   }).join("");
 
   // Dates now live in one row underneath every category instead of a header repeated above each
-  // one -- the label column is left blank here so the dates still land exactly under their day's
-  // column via the same grid.
-  const dateRow = dqRow("", dateList.map(d=>
-    `<div style="text-align:center; font-size:.68rem; color:var(--muted); white-space:nowrap; overflow:hidden;">${shortDate(d)}</div>`
-  ).join(""), " margin-top:2px;");
+  // one -- the label box is left blank here so the dates still land exactly under their day's
+  // column via the same dailyChartBarCenterPct positions.
+  const dateCellsHtml = dateList.map((d,i)=>{
+    const pct = dailyChartBarCenterPct(days, i).toFixed(3);
+    return `<div style="position:absolute; left:${pct}%; top:0; transform:translateX(-50%); text-align:center; font-size:.68rem; color:var(--muted); white-space:nowrap;">${shortDate(d)}</div>`;
+  }).join("");
+  const dateRow = rowHtml("", dateCellsHtml, " height:14px; margin-top:2px;");
 
   wrap.innerHTML = `
     ${strips}
@@ -5284,7 +5292,7 @@ function renderDailyQuestionsHeatmap(){
     <div style="display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:14px;">
       <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><img src="data:image/png;base64,${CORRECT_ICON_B64}" alt="Yes" style="width:14px; height:14px; object-fit:contain;">Yes</span>
       <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><img src="data:image/png;base64,${FORBIDDEN_ICON_B64}" alt="No" style="width:14px; height:14px; object-fit:contain;">No</span>
-      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; border:1px dashed var(--border);"></span>Not answered</span>
+      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="display:inline-block; width:9px; height:9px; border-radius:50%; border:1px solid var(--border);"></span>Not answered</span>
     </div>
   `;
   active.forEach(q=>{
@@ -6336,26 +6344,30 @@ function computeDailyCalorieSeries(days){ return computeDailyMetricSeries(days, 
 
 // Shared horizontal geometry for every "one column per day" widget on Nutrition Log -- the
 // Calorie/Protein trend bar charts (SVG, viewBox width DAILY_CHART_GRID.w) and the daily check-in
-// heatmap below them (a plain CSS grid) both derive their day-column positions from these same
-// four numbers, so a percentage-of-container column in one lines up EXACTLY with the same day's
-// column in the other, at any viewport width -- neither one hardcodes its own pad/gap/bar math.
-const DAILY_CHART_GRID = { w: 720, pad: 24, padRight: 56, gap: 4 };
-// Returns a CSS grid-template-columns string (percentages of DAILY_CHART_GRID.w) for `n` equal day
-// columns: left pad, then n bar-width columns separated by n-1 gap columns, then right pad. Used by
-// renderDailyBarChart's day-label positions (implicitly, via the same w/pad/padRight/gap) and
-// directly by renderDailyQuestionsHeatmap, so both always agree on where day i's column sits.
-function dailyChartColumnTemplate(n){
-  const { w, pad, padRight, gap } = DAILY_CHART_GRID;
+// heatmap below them (plain CSS, absolutely positioned) both derive their day-column x-positions
+// from dailyChartBarX/dailyChartBarCenterPct below, so a percentage-of-container column in one
+// lines up EXACTLY with the same day's column in the other, at any viewport width. v1.20: bars are
+// a fixed width (not stretched to fill each day's slot) and the whole block sits shifted right of
+// center -- 70% of the leftover space on the left, 30% on the right -- per direct visual sign-off,
+// rather than filling the row edge-to-edge or being symmetrically centered.
+const DAILY_CHART_GRID = { w: 720, pad: 24, padRight: 56, barW: 22, gap: 8, alignFrac: 0.70 };
+// Left-x (in DAILY_CHART_GRID viewBox units) of day i's fixed-width bar, for a chart with n total
+// days. Both renderDailyBarChart and renderDailyQuestionsHeatmap call this (the latter via
+// dailyChartBarCenterPct) so they always agree on where day i's column sits.
+function dailyChartBarX(n, i){
+  const { w, pad, padRight, barW, gap, alignFrac } = DAILY_CHART_GRID;
   const chartRight = w - padRight;
-  const barW = (chartRight - pad - gap * (n - 1)) / n;
-  const pct = px => (px / w * 100).toFixed(4) + "%";
-  const cols = [pct(pad)];
-  for(let i = 0; i < n; i++){
-    cols.push(pct(barW));
-    if(i < n - 1) cols.push(pct(gap));
-  }
-  cols.push(pct(padRight));
-  return cols.join(" ");
+  const contentAvail = chartRight - pad;
+  const content = n*barW + (n-1)*gap;
+  const slack = Math.max(contentAvail - content, 0);
+  const start = pad + slack * alignFrac;
+  return start + i*(barW+gap);
+}
+// Horizontal CENTER of day i's column, as a percentage of DAILY_CHART_GRID.w -- what the check-in
+// heatmap (plain CSS, not an SVG viewBox) needs to position its absolutely-placed cells/labels.
+function dailyChartBarCenterPct(n, i){
+  const { w, barW } = DAILY_CHART_GRID;
+  return (dailyChartBarX(n, i) + barW/2) / w * 100;
 }
 
 // Generic day-by-day bar chart vs a target line — value labels above logged bars, date labels
@@ -6371,20 +6383,20 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   }
   const hitTest = opts.hitTest || ((v,t)=> v >= t);
 
-  const { w, pad, padRight, gap } = DAILY_CHART_GRID;
+  const { w, pad, padRight, barW } = DAILY_CHART_GRID;
   const h = 160;
   const chartRight = w - padRight;
+  const n = series.length;
   const maxVal = Math.max(targetValue || 0, ...series.map(s=>s.value), 1) * 1.15;
-  const barW = (chartRight - pad - gap*(series.length-1)) / series.length;
   const yFor = v => h - pad - (v/maxVal)*(h - pad*2);
 
-  // History on this one -- v1.14 (50%), v1.16 (60%), and v1.18 (82%) each tried a visually-narrower,
-  // centered bar; each time it read as either too much gap or just not what was wanted. Settling
-  // back on full-slot-width, same as v1.17/v1.15: the bar fills its whole day-slot, only the shared
-  // `gap` (a few px in a 720-unit viewBox) separates adjacent days. Leave this alone going forward
-  // unless explicitly asked again -- this exact dimension has flip-flopped enough times already.
+  // History on this one -- v1.14 (50%), v1.16 (60%), and v1.18 (82%) each tried a visually-narrower
+  // bar centered in its own full-width day-slot; each read as either too much gap or not what was
+  // wanted. v1.20 changes tack: fixed-width (not stretched) bars, the whole block shifted right of
+  // center -- see dailyChartBarX, shared with the check-in heatmap below so its columns still line
+  // up with these bars.
   const bars = series.map((s,i)=>{
-    const x = pad + i*(barW+gap);
+    const x = dailyChartBarX(n, i);
     const barX = x;
     const y = yFor(s.value);
     const barH = Math.max(h - pad - y, 0);
