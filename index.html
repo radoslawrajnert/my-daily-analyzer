@@ -290,8 +290,12 @@
   .ai-match-badge{font-size:.72rem; white-space:nowrap; padding:2px 7px; border-radius:999px; background:rgba(78,225,163,.14); color:var(--accent); border:1px solid rgba(78,225,163,.3);}
   .ai-match-badge.ai-match-database{background:rgba(124,156,255,.14); color:var(--accent2); border-color:rgba(124,156,255,.3);}
   .ai-match-badge.ai-match-none{background:rgba(240,184,84,.14); color:var(--warn); border-color:rgba(240,184,84,.3);}
-  .chart-date-label{cursor:pointer;}
-  .chart-date-label:hover{fill:var(--accent2) !important; font-weight:600;}
+  /* v1.23: bar-chart value/date labels are plain absolutely-positioned HTML now (not SVG <text>),
+     so they render at the exact size/color of the check-in results date row instead of being
+     stretched wider by the chart SVG's non-uniform scaling. */
+  .bar-value-label{position:absolute; transform:translate(-50%,-100%); font-size:.68rem; color:var(--muted); white-space:nowrap; pointer-events:none;}
+  .chart-date-label{position:absolute; transform:translateX(-50%); font-size:.68rem; color:var(--muted); white-space:nowrap; cursor:pointer;}
+  .chart-date-label:hover{color:var(--accent2) !important; font-weight:600;}
   .user-name-pill{display:flex; align-items:center; gap:8px;}
   .user-avatar{
     width:28px; height:28px; border-radius:50%; background:var(--accent-grad); color:#0a0c11;
@@ -1720,8 +1724,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.22";
+const APP_VERSION = "1.23";
 const CHANGELOG = [
+  { version: "1.23", date: "2026-09-15", desc: "Fixed the Calorie/Protein charts' bar-value and date labels rendering visibly larger/bolder than the rest of the app -- they were SVG text inside a horizontally-stretched chart, so a given font-size always came out wider than plain HTML text. Moved every label to plain HTML overlaid on the chart, now matching the exact size/color of the daily check-in results' date row. Also fixed the check-in heatmap's \"Stomach problems\" icon: a No (no stomach problems) now correctly shows the green checkmark and a Yes shows the warn-colored cross -- it's the one question phrased so Yes is the bad outcome." },
   { version: "1.22", date: "2026-09-15", desc: "Calorie/Protein charts are 20% taller (160 -> 192) -- same bar width and position, just more vertical room for each column." },
   { version: "1.21", date: "2026-09-15", desc: "Shifted the Calorie/Protein bars further right again (90% of the leftover row space on the left, 10% on the right, up from v1.20's 70/30) -- the check-in results grid below stays aligned to the same day-columns since both share the same geometry. Also swapped the check-in heatmap's Yes/No PNG icons for plain colored checkmark/cross symbols." },
   { version: "1.20", date: "2026-09-15", desc: "Redesigned the Calorie/Protein bars: fixed-width bars (not stretched to fill the whole row) shifted right of center, matching the neater look of the Workout Stats charts. The daily check-in results grid below is aligned to the exact same day-columns as those bars again, with the category label back on the same line as its row, and a day with no answer yet now shows a small hollow-circle placeholder instead of nothing." },
@@ -4962,10 +4967,15 @@ function getFoodDayNote(date){
 // heatmap under Protein per day. Creatine is the original single-question version of this feature
 // and stays on by default for that reason; the other three default off so nothing new appears until
 // the person opts in. ---
+// goodValue marks which raw answer (true/false) counts as the POSITIVE outcome for the heatmap's
+// check/cross coloring -- omitted (undefined) means the default, "Yes is good". "Stomach problems"
+// is phrased the other way around (a Yes means something went wrong), so it's the one question that
+// needs goodValue:false -- a No there ("I did NOT have stomach problems") is the good answer and
+// should render as a green checkmark, not an orange cross, even though the raw stored value is false.
 const DAILY_CONDITION_QUESTIONS = [
   { id: "creatine", settingLabel: "Creatine",        question: "Did you take Creatine 3g?" },
   { id: "sleep",    settingLabel: "Good Sleep",       question: "Did you sleep well?" },
-  { id: "stomach",  settingLabel: "Stomach problems", question: "Did you have stomach problems?" },
+  { id: "stomach",  settingLabel: "Stomach problems", question: "Did you have stomach problems?", goodValue: false },
   { id: "water",    settingLabel: "Water intake",     question: "Did you drink enough water?" }
 ];
 // Creatine and Water intake are tied to what's being logged in Nutrition Log, so they stay on that
@@ -5270,7 +5280,11 @@ function renderDailyQuestionsHeatmap(){
       if(isDailyQuestionAnswered(q.id, d)){
         const val = getDailyAnswer(q.id, d);
         title = val ? "Yes" : "No";
-        icon = val
+        // The icon reflects whether this answer is the GOOD outcome, not literally whether it was
+        // "Yes" -- for most questions Yes is good, but "Stomach problems" is phrased the other way
+        // (goodValue:false), so a No there is the positive answer and gets the green check.
+        const isGood = q.goodValue === false ? !val : val;
+        icon = isGood
           ? `<span style="color:var(--accent); font-size:14px; font-weight:700; line-height:1;">&#10003;</span>`
           : `<span style="color:var(--warn); font-size:14px; font-weight:700; line-height:1;">&#10005;</span>`;
       }
@@ -6399,28 +6413,41 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   // wanted. v1.20 changes tack: fixed-width (not stretched) bars, the whole block shifted right of
   // center -- see dailyChartBarX, shared with the check-in heatmap below so its columns still line
   // up with these bars.
-  const bars = series.map((s,i)=>{
+  //
+  // v1.23: every label (bar values, dates, target line) moved OUT of the <svg> into plain HTML
+  // overlays. SVG text sits inside a viewBox stretched non-uniformly by preserveAspectRatio="none"
+  // (width:100% but a fixed pixel height), so a given font-size renders visibly wider/bolder than
+  // normal HTML text at any container width wider than the 720-unit viewBox -- that's why these
+  // labels always looked bigger than the check-in results' date row below them, even with a smaller
+  // font-size number. Plain HTML text has no such distortion, so labels here now use the exact same
+  // font-size/color as that date row (.68rem, var(--muted)) and finally match everywhere. The SVG
+  // itself now only draws the bars and the dashed target line -- geometry, not text.
+  let bars = "", valueLabels = "", dateLabels = "";
+  series.forEach((s,i)=>{
     const x = dailyChartBarX(n, i);
-    const barX = x;
     const y = yFor(s.value);
     const barH = Math.max(h - pad - y, 0);
     const hit = targetValue ? hitTest(s.value, targetValue) : true;
     const color = !s.logged ? "var(--border)" : (hit ? "var(--accent)" : "var(--warn)");
-    const rect = `<rect x="${barX.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(barW,1).toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${s.date}: ${Math.round(s.value)}${opts.unit}</title></rect>`;
-    // Value label above each logged bar; skip unlogged (empty) days to avoid clutter.
-    const label = s.logged
-      ? `<text x="${(x+barW/2).toFixed(1)}" y="${Math.max(y-4, 9).toFixed(1)}" font-size="9" fill="var(--muted)" text-anchor="middle">${Math.round(s.value)}</text>`
-      : "";
+    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(barW,1).toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${s.date}: ${Math.round(s.value)}${opts.unit}</title></rect>`;
+    const pct = dailyChartBarCenterPct(n, i).toFixed(3);
+    // Value label above each logged bar; skip unlogged (empty) days to avoid clutter. The SVG's
+    // height style matches its viewBox height exactly (no vertical stretch), so a plain px offset
+    // lines up with the bar underneath it without any percentage math.
+    if(s.logged){
+      const labelY = Math.max(y - 4, 9);
+      valueLabels += `<div class="bar-value-label" style="left:${pct}%; top:${labelY.toFixed(1)}px;">${Math.round(s.value)}</div>`;
+    }
     // Date label below each bar (day.month) — clickable to jump the whole app to that date.
-    const dateLabel = `<text class="chart-date-label" x="${(x+barW/2).toFixed(1)}" y="${(h-pad+12).toFixed(1)}" font-size="8" fill="var(--muted)" text-anchor="middle" onclick="jumpToDate('${s.date}')"><title>Switch the whole app to ${s.date}</title>${formatShortDate(s.date)}</text>`;
-    return rect + label + dateLabel;
-  }).join("");
+    dateLabels += `<div class="chart-date-label" style="left:${pct}%; top:${(h-pad+8).toFixed(1)}px;" onclick="jumpToDate('${s.date}')" title="Switch the whole app to ${s.date}">${formatShortDate(s.date)}</div>`;
+  });
 
-  let targetLine = "";
+  let targetLine = "", targetLabel = "";
   if(targetValue){
     const yT = yFor(targetValue);
-    targetLine = `<line x1="${pad}" y1="${yT.toFixed(1)}" x2="${chartRight}" y2="${yT.toFixed(1)}" stroke="var(--accent2)" stroke-width="1.5" stroke-dasharray="4 4"></line>
-    <text x="${chartRight+4}" y="${(yT+3).toFixed(1)}" font-size="10" fill="var(--accent2)">${Math.round(targetValue)}${opts.unit}</text>`;
+    targetLine = `<line x1="${pad}" y1="${yT.toFixed(1)}" x2="${chartRight}" y2="${yT.toFixed(1)}" stroke="var(--accent2)" stroke-width="1.5" stroke-dasharray="4 4"></line>`;
+    const targetPct = (chartRight / w * 100).toFixed(3);
+    targetLabel = `<div class="bar-value-label" style="left:${targetPct}%; top:${yT.toFixed(1)}px; transform:translate(6px,-50%); color:var(--accent2);">${Math.round(targetValue)}${opts.unit}</div>`;
   }
 
   const avgVal = loggedSeries.reduce((s,x)=>s+x.value, 0) / loggedSeries.length;
@@ -6429,10 +6456,15 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   wrap.innerHTML = `
     <div class="trend-label">Average ${Math.round(avgVal)}${opts.unit}/day over ${loggedSeries.length} logged day${loggedSeries.length===1?"":"s"}${targetValue?` · ${opts.hitLabel||"Hit target"} ${daysHitTarget}/${loggedSeries.length} days`:""}</div>
     ${targetValue ? `<div class="trend-legend"><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--accent);"></span>${opts.hitSwatchLabel||"Hit target"}</span><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--warn);"></span>${opts.missSwatchLabel||"Under target"}</span></div>` : ""}
-    <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%; height:${h}px;">
-      ${bars}
-      ${targetLine}
-    </svg>
+    <div style="position:relative; height:${h}px;">
+      <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%; height:${h}px; display:block;">
+        ${bars}
+        ${targetLine}
+      </svg>
+      ${valueLabels}
+      ${dateLabels}
+      ${targetLabel}
+    </div>
     ${!targetValue ? `<div class="goal-progress-note">${opts.noTargetText}</div>` : ""}
   `;
 }
