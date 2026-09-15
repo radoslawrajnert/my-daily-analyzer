@@ -1708,8 +1708,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.10";
+const APP_VERSION = "1.11";
 const CHANGELOG = [
+  { version: "1.11", date: "2026-09-15", desc: "Fixed the daily check-in heatmap's date columns not lining up under Protein/Calorie per day's bars -- it now shares the exact same column geometry as those charts, so every day's column sits precisely under that day's bar." },
   { version: "1.10", date: "2026-09-15", desc: "Daily check-in card: Good Sleep, Stomach problems and Water intake now each get their own icon (not just Creatine), and the red warning is now a single combined message naming everything still unanswered today instead of one repeated banner per question." },
   { version: "1.09", date: "2026-09-15", desc: "Turned the Creatine check into a configurable set of daily physical condition questions (Settings -> Nutrition Log Settings): Creatine, Good Sleep, Stomach problems, Water intake. Whichever are turned on appear together in Nutrition Log with exact yes/no wording and a red warning if today is still unanswered, plus a new heatmap of the last two weeks' results under Protein per day." },
   { version: "1.08", date: "2026-09-13", desc: "Swapped the Creatine card's icon for the full-color Whey Protein icon (was the black-outline version), which no longer needs a dark-theme color filter." },
@@ -5089,11 +5090,14 @@ function renderDailyQuestionsCard(date){
   });
 }
 
-// Heatmap of the last 14 days' answers for every ENABLED question, one row per question -- placed
-// under "Protein per day" so the two daily-tracking heatmaps/charts read as one continuous section.
-// Green = Yes, red = No, and a neutral dot = not answered that day (including any day before the
-// question was turned on, which is indistinguishable from "forgot to answer" and that's fine -- both
-// just mean there's no data for that cell).
+// Heatmap of the last 14 days' answers for every ENABLED question, one strip per question -- placed
+// under "Protein per day" so the two daily-tracking widgets read as one continuous section. Built
+// as a CSS grid using dailyChartColumnTemplate(14) -- the EXACT same left-pad/bar-width/gap/right-pad
+// percentages as renderDailyBarChart's SVG above it -- so every day's column sits precisely under
+// that same day's bar, at any viewport width; no table, no separate label column that would throw
+// the alignment off. Green = Yes, red = No, and a neutral dot = not answered that day (including any
+// day before the question was turned on, which is indistinguishable from "forgot to answer" and
+// that's fine -- both just mean there's no data for that cell).
 function renderDailyQuestionsHeatmap(){
   const wrap = document.getElementById("dailyQuestionsHeatmapWrap");
   if(!wrap) return;
@@ -5108,27 +5112,35 @@ function renderDailyQuestionsHeatmap(){
   const dateList = [];
   for(let i = days - 1; i >= 0; i--) dateList.push(shiftDateStr(today, -i));
   const shortDate = (d)=>{ const [,mm,dd] = d.split("-"); return `${dd}.${mm}`; };
-  const headerCells = dateList.map(d=>`<th style="text-align:center; font-size:.7rem; color:var(--muted); font-weight:400;">${shortDate(d)}</th>`).join("");
-  const rows = active.map(q=>{
-    const cells = dateList.map(d=>{
+  const columnTemplate = dailyChartColumnTemplate(days);
+  // Every grid row (the date header and each question's strip) emits the exact same sequence of
+  // children -- leading pad, then [day cell, gap] pairs for every day but the last, then a final
+  // day cell, then trailing pad -- so they all land in the same columnTemplate slots by plain grid
+  // auto-placement, no explicit grid-column indices needed.
+  const gridRow = (dayCellsHtml, extraStyle)=> `<div style="display:grid; grid-template-columns:${columnTemplate}; align-items:center;${extraStyle||""}"><div></div>${dayCellsHtml}<div></div></div>`;
+  const daySequence = (renderCell)=> dateList.map((d,i)=> renderCell(d,i) + (i < days-1 ? "<div></div>" : "")).join("");
+
+  const header = gridRow(daySequence(d=>
+    `<div style="text-align:center; font-size:.68rem; color:var(--muted); white-space:nowrap; overflow:hidden;">${shortDate(d)}</div>`
+  ));
+
+  const strips = active.map(q=>{
+    const row = gridRow(daySequence(d=>{
       let bg = "var(--panel3)", title = "Not answered";
       if(isDailyQuestionAnswered(q.id, d)){
         const val = getDailyAnswer(q.id, d);
         bg = val ? "#4ee1a3" : "#f16b83";
         title = val ? "Yes" : "No";
       }
-      return `<td style="padding:2px;"><div style="width:100%; aspect-ratio:1; min-width:16px; border-radius:4px; background:${bg};" title="${escAttr(q.question)} — ${d}: ${title}"></div></td>`;
-    }).join("");
-    return `<tr><td style="white-space:nowrap; font-size:.78rem; color:var(--muted); padding-right:8px;">${q.settingLabel}</td>${cells}</tr>`;
+      return `<div style="padding:2px 1px;"><div style="aspect-ratio:1; border-radius:4px; background:${bg};" title="${escAttr(q.question)} — ${d}: ${title}"></div></div>`;
+    }));
+    return `<div style="font-size:.78rem; color:var(--muted); font-weight:600; margin-top:12px; margin-bottom:2px;">${q.settingLabel}</div>${row}`;
   }).join("");
+
   wrap.innerHTML = `
-    <div class="table-scroll">
-      <table class="log-table" style="table-layout:fixed; width:100%; min-width:600px;">
-        <thead><tr><th style="width:110px;"></th>${headerCells}</tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:10px;">
+    ${header}
+    ${strips}
+    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:14px;">
       <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:#4ee1a3;"></span>Yes</span>
       <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:#f16b83;"></span>No</span>
       <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:var(--panel3);"></span>Not answered</span>
@@ -6174,6 +6186,30 @@ function computeDailyMetricSeries(days, field){
 function computeDailyProteinSeries(days){ return computeDailyMetricSeries(days, "proteinG"); }
 function computeDailyCalorieSeries(days){ return computeDailyMetricSeries(days, "kcal"); }
 
+// Shared horizontal geometry for every "one column per day" widget on Nutrition Log -- the
+// Calorie/Protein trend bar charts (SVG, viewBox width DAILY_CHART_GRID.w) and the daily check-in
+// heatmap below them (a plain CSS grid) both derive their day-column positions from these same
+// four numbers, so a percentage-of-container column in one lines up EXACTLY with the same day's
+// column in the other, at any viewport width -- neither one hardcodes its own pad/gap/bar math.
+const DAILY_CHART_GRID = { w: 720, pad: 24, padRight: 56, gap: 4 };
+// Returns a CSS grid-template-columns string (percentages of DAILY_CHART_GRID.w) for `n` equal day
+// columns: left pad, then n bar-width columns separated by n-1 gap columns, then right pad. Used by
+// renderDailyBarChart's day-label positions (implicitly, via the same w/pad/padRight/gap) and
+// directly by renderDailyQuestionsHeatmap, so both always agree on where day i's column sits.
+function dailyChartColumnTemplate(n){
+  const { w, pad, padRight, gap } = DAILY_CHART_GRID;
+  const chartRight = w - padRight;
+  const barW = (chartRight - pad - gap * (n - 1)) / n;
+  const pct = px => (px / w * 100).toFixed(4) + "%";
+  const cols = [pct(pad)];
+  for(let i = 0; i < n; i++){
+    cols.push(pct(barW));
+    if(i < n - 1) cols.push(pct(gap));
+  }
+  cols.push(pct(padRight));
+  return cols.join(" ");
+}
+
 // Generic day-by-day bar chart vs a target line — value labels above logged bars, date labels
 // below every bar, bars colored by a caller-supplied "hit target" test so calories (close-to,
 // either direction) and protein (at-least) can use different notions of "on track".
@@ -6187,10 +6223,10 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   }
   const hitTest = opts.hitTest || ((v,t)=> v >= t);
 
-  const w = 720, h = 160, pad = 24, padRight = 56;
+  const { w, pad, padRight, gap } = DAILY_CHART_GRID;
+  const h = 160;
   const chartRight = w - padRight;
   const maxVal = Math.max(targetValue || 0, ...series.map(s=>s.value), 1) * 1.15;
-  const gap = 4;
   const barW = (chartRight - pad - gap*(series.length-1)) / series.length;
   const yFor = v => h - pad - (v/maxVal)*(h - pad*2);
 
