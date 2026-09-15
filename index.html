@@ -1720,8 +1720,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.15";
+const APP_VERSION = "1.16";
 const CHANGELOG = [
+  { version: "1.16", date: "2026-09-15", desc: "Fixed a real bug in the Guided Workout card: clicking Previous (to double-check or redo an exercise) un-logged it but then re-filled the form from an older logged session instead of the numbers you'd just entered, silently discarding them if you clicked Next again. Previous now restores exactly what you just typed. Also made the Calorie/Protein bars and check-in heatmap cells 60% width (centered in their column) -- a lighter narrowing than the earlier 50% version that was reverted for leaving too much gap." },
   { version: "1.15", date: "2026-09-15", desc: "Reverted the previous version's narrower bars/cells (too much gap between columns) -- Calorie/Protein bars and check-in heatmap cells fill their full column again. Check-in cells now show an actual checkmark/forbidden-sign icon for Yes/No, not just a color. Fixed the Guided Workout card's Reps/Weight fields to accept a comma list (e.g. 40,41,42) for pyramid/drop sets, same as the main Workout Log form -- they were plain number inputs that couldn't even contain a comma." },
   { version: "1.14", date: "2026-09-15", desc: "Made the Calorie/Protein per day bars and the daily check-in heatmap cells 50% narrower -- each still sits in the same aligned day-column, just drawn thinner and centered within it." },
   { version: "1.13", date: "2026-09-15", desc: "Fixed the Calorie/Protein per day charts rendering narrower than the card and drifting out of alignment with the daily check-in heatmap below them -- the SVG wasn't stretching to the full card width (browser default letterboxing), so it now fills it exactly like the heatmap does." },
@@ -5267,10 +5268,9 @@ function renderDailyQuestionsHeatmap(){
         const iconB64 = val ? CORRECT_ICON_B64 : FORBIDDEN_ICON_B64;
         icon = `<img src="data:image/png;base64,${iconB64}" alt="${title}" style="width:100%; height:100%; object-fit:contain; display:block;">`;
       }
-      // v1.14 shrank this to width:50% centered, but that left the cells looking far apart rather
-      // than narrower. Reverted: the cell fills its full grid column again, so cells sit close
-      // together while still landing exactly under the bar chart's columns above.
-      return `<div style="padding:1px;"><div id="dqHeatCell_${q.id}_${d}" style="height:14px; border-radius:3px; background:${bg}; cursor:pointer; display:flex; align-items:center; justify-content:center;" title="${escAttr(q.question)} — ${d}: ${title} (click to change)">${icon}</div></div>`;
+      // Matches the bar chart's VISUAL_BAR_RATIO above: 60% width, centered in its grid column --
+      // narrower than a full-width cell but without the wide gaps the earlier 50% version had.
+      return `<div style="padding:1px;"><div id="dqHeatCell_${q.id}_${d}" style="height:14px; width:60%; margin:0 auto; border-radius:3px; background:${bg}; cursor:pointer; display:flex; align-items:center; justify-content:center;" title="${escAttr(q.question)} — ${d}: ${title} (click to change)">${icon}</div></div>`;
     }));
     return `<div style="font-size:.78rem; color:var(--muted); font-weight:600; margin-top:12px; margin-bottom:2px;">${q.settingLabel}</div>${row}`;
   }).join("");
@@ -6375,18 +6375,20 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   const barW = (chartRight - pad - gap*(series.length-1)) / series.length;
   const yFor = v => h - pad - (v/maxVal)*(h - pad*2);
 
-  // v1.14 tried drawing each bar at half its slot's width, centered -- but that left a big empty gap
-  // on both sides of every bar, which read as the columns being far apart rather than narrower.
-  // Reverted: the bar now fills its full day-slot again (only the small shared `gap` separates
-  // adjacent days), so the columns sit close together while still lining up with the heatmap below.
+  // v1.14 drew each bar at 50% of its slot's width, centered -- rejected as too much empty gap
+  // between adjacent bars. This is a lighter touch: 60% width, still centered in the same day-slot
+  // (so date alignment with the heatmap below is untouched), which reads as clearly narrower without
+  // opening up the wide gaps the 50% version had.
+  const VISUAL_BAR_RATIO = 0.6;
+  const visualBarW = barW * VISUAL_BAR_RATIO;
   const bars = series.map((s,i)=>{
     const x = pad + i*(barW+gap);
-    const barX = x;
+    const barX = x + (barW - visualBarW) / 2;
     const y = yFor(s.value);
     const barH = Math.max(h - pad - y, 0);
     const hit = targetValue ? hitTest(s.value, targetValue) : true;
     const color = !s.logged ? "var(--border)" : (hit ? "var(--accent)" : "var(--warn)");
-    const rect = `<rect x="${barX.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(barW,1).toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${s.date}: ${Math.round(s.value)}${opts.unit}</title></rect>`;
+    const rect = `<rect x="${barX.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(visualBarW,1).toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${s.date}: ${Math.round(s.value)}${opts.unit}</title></rect>`;
     // Value label above each logged bar; skip unlogged (empty) days to avoid clutter.
     const label = s.logged
       ? `<text x="${(x+barW/2).toFixed(1)}" y="${Math.max(y-4, 9).toFixed(1)}" font-size="9" fill="var(--muted)" text-anchor="middle">${Math.round(s.value)}</text>`
@@ -8782,11 +8784,16 @@ function renderGuidedWorkoutCard(){
   // you check form or your own notes for it without leaving the guided card.
   document.getElementById("guidedWorkoutExerciseName").innerHTML = `${current.name}${exerciseRefIconHtml(current.name)}`;
 
-  const last = findLastLoggedExercise(current.name, st.targetDate);
   const setsInput = document.getElementById("guidedWorkoutSets");
   const repsInput = document.getElementById("guidedWorkoutReps");
   const weightInput = document.getElementById("guidedWorkoutWeight");
   const noteEl = document.getElementById("guidedWorkoutLastNote");
+  // "Previous" un-logs the entry you just saved for this exercise and hands it back here as
+  // current.justEntered (see guidedWorkoutPrevBtn below) -- prefill from THAT, not from
+  // findLastLoggedExercise's search through history, otherwise going back to double-check or
+  // tweak a number you just typed would silently swap it for an older logged value instead.
+  const je = current.justEntered;
+  const last = je || findLastLoggedExercise(current.name, st.targetDate);
   if(last){
     // Pre-fill the full comma-separated list when the last session used different reps/weight per
     // set (a pyramid/drop set), not just its first or last value -- so redoing that exact pattern is
@@ -8798,7 +8805,9 @@ function renderGuidedWorkoutCard(){
     repsInput.value = lastRepsDisplay;
     weightInput.value = lastWeightDisplay;
     const noteReps = lastRepsDisplay || "?";
-    noteEl.textContent = `Last time (${last.date}): ${last.sets != null ? last.sets : "?"} × ${noteReps}${lastWeightDisplay ? ` @ ${lastWeightDisplay} kg` : ""}`;
+    noteEl.textContent = je
+      ? `You just entered: ${last.sets != null ? last.sets : "?"} × ${noteReps}${lastWeightDisplay ? ` @ ${lastWeightDisplay} kg` : ""} — edit and continue`
+      : `Last time (${last.date}): ${last.sets != null ? last.sets : "?"} × ${noteReps}${lastWeightDisplay ? ` @ ${lastWeightDisplay} kg` : ""}`;
   } else {
     setsInput.value = "";
     repsInput.value = "";
@@ -8908,7 +8917,10 @@ document.getElementById("guidedWorkoutSkipBtn").addEventListener("click", ()=>{
 
 // "Previous" steps back to the exercise you just finished, in case you want to double check or
 // redo it -- un-logs the entry Next just saved (so redoing it doesn't create a duplicate row) and
-// puts it back at the front of the queue.
+// puts it back at the front of the queue, carrying its actual sets/reps/weight along as
+// justEntered so renderGuidedWorkoutCard prefills the number you really typed, not an older
+// logged value for this exercise (that was the bug -- Previous used to silently swap your just-
+// entered number for whatever was logged the last time you did this exercise on an earlier day).
 document.getElementById("guidedWorkoutPrevBtn").addEventListener("click", ()=>{
   const st = guidedWorkoutState;
   if(!st || st.completedCount === 0) return;
@@ -8917,7 +8929,10 @@ document.getElementById("guidedWorkoutPrevBtn").addEventListener("click", ()=>{
   for(let i=entries.length-1; i>=0; i--){
     if(entries[i].splitId === st.splitId && !entries[i].isCardio){
       const removed = entries.splice(i,1)[0];
-      st.queue.unshift({category: removed.category, name: removed.exercise});
+      st.queue.unshift({category: removed.category, name: removed.exercise, justEntered: {
+        sets: removed.sets, reps: removed.reps, repsList: removed.repsList,
+        weightKg: removed.weightKg, weightKgList: removed.weightKgList,
+      }});
       break;
     }
   }
