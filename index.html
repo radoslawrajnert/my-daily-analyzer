@@ -6387,7 +6387,7 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   const hitTest = opts.hitTest || ((v,t)=> v >= t);
 
   const { w, pad, padRight, barW } = DAILY_CHART_GRID;
-  const h = 160;
+  const h = 192; // v1.22: 20% taller than the original 160, per follow-up feedback -- taller columns, same width/position.
   const chartRight = w - padRight;
   const n = series.length;
   const maxVal = Math.max(targetValue || 0, ...series.map(s=>s.value), 1) * 1.15;
