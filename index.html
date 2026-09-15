@@ -1724,8 +1724,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.23";
+const APP_VERSION = "1.24";
 const CHANGELOG = [
+  { version: "1.24", date: "2026-09-15", desc: "Date labels are zero-padded everywhere now (02.09, not 2.9) -- matches the daily check-in results' date row. This was a single shared function (formatShortDate), so it fixes the Calorie/Protein charts, the Workout Stats volume chart, and every banner/toast that mentions a date, all at once." },
   { version: "1.23", date: "2026-09-15", desc: "Fixed the Calorie/Protein charts' bar-value and date labels rendering visibly larger/bolder than the rest of the app -- they were SVG text inside a horizontally-stretched chart, so a given font-size always came out wider than plain HTML text. Moved every label to plain HTML overlaid on the chart, now matching the exact size/color of the daily check-in results' date row. Also fixed the check-in heatmap's \"Stomach problems\" icon: a No (no stomach problems) now correctly shows the green checkmark and a Yes shows the warn-colored cross -- it's the one question phrased so Yes is the bad outcome." },
   { version: "1.22", date: "2026-09-15", desc: "Calorie/Protein charts are 20% taller (160 -> 192) -- same bar width and position, just more vertical room for each column." },
   { version: "1.21", date: "2026-09-15", desc: "Shifted the Calorie/Protein bars further right again (90% of the leftover row space on the left, 10% on the right, up from v1.20's 70/30) -- the check-in results grid below stays aligned to the same day-columns since both share the same geometry. Also swapped the check-in heatmap's Yes/No PNG icons for plain colored checkmark/cross symbols." },
@@ -6315,11 +6316,17 @@ function renderNutritionTrends(){
   </div>`;
 }
 
-// Short "D.M" date label for the protein chart's x-axis (e.g. "2026-08-15" -> "15.8").
+// Short "DD.MM" date label used across the app's charts, banners, and toasts (e.g. "2026-09-02" ->
+// "02.09") -- zero-padded to match the check-in results date row, which was always DD.MM straight
+// from the already-zero-padded ISO date string. This one used parseInt() and stripped the leading
+// zero (producing "2.9" instead of "02.09"), which is why it read as a different, smaller-looking
+// format everywhere it was used even after the font-size fix. Every caller shares this one function,
+// so fixing it here fixes the Calorie/Protein charts, the Workout Stats volume chart, banners, and
+// toasts all at once.
 function formatShortDate(dateStr){
   const parts = String(dateStr).split("-");
   if(parts.length !== 3) return dateStr;
-  return `${parseInt(parts[2],10)}.${parseInt(parts[1],10)}`;
+  return `${parts[2]}.${parts[1]}`;
 }
 
 // Friendly "when" label for a recent date -- "today"/"yesterday" for the last two days, the
