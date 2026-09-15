@@ -832,6 +832,16 @@
 
       <div id="planGroupNutrition" class="hidden">
         <div class="card">
+          <h2>Daily physical condition questions</h2>
+          <div class="step-desc" style="margin-top:0;">Turn on the yes/no check-ins you want to answer each day in Nutrition Log. Whichever ones are on show up there together as one small card, with a red warning if today's answer is still missing — and their results build up into a heatmap under Protein per day.</div>
+          <div class="field" style="display:flex; flex-direction:column; gap:10px;">
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_creatine" style="width:auto;"> Creatine <span style="color:var(--muted); font-weight:400;">— "Did you take Creatine 3g?"</span></label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_sleep" style="width:auto;"> Good Sleep <span style="color:var(--muted); font-weight:400;">— "Did you sleep well?"</span></label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_stomach" style="width:auto;"> Stomach problems <span style="color:var(--muted); font-weight:400;">— "Did you have stomach problems?"</span></label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_water" style="width:auto;"> Water intake <span style="color:var(--muted); font-weight:400;">— "Did you drink enough water?"</span></label>
+          </div>
+        </div>
+        <div class="card">
           <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
             <span id="packageFormTitle">My products / My meals</span>
             <span style="display:flex; align-items:center; gap:8px; font-size:.78rem; font-weight:400; color:var(--muted);">
@@ -1092,7 +1102,7 @@
     </div>
 
     <div id="foodView" class="hidden">
-      <div class="card" id="creatineCardWrap"></div>
+      <div class="card" id="dailyQuestionsCardWrap"></div>
 
       <div class="card">
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
@@ -1176,6 +1186,8 @@
         <div id="calorieTrendWrap"></div>
         <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Protein per day <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks vs. target</span></div>
         <div id="proteinTrendWrap"></div>
+        <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Daily check-in results <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks</span></div>
+        <div id="dailyQuestionsHeatmapWrap"></div>
       </div>
     </div>
 
@@ -1696,8 +1708,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.08";
+const APP_VERSION = "1.09";
 const CHANGELOG = [
+  { version: "1.09", date: "2026-09-15", desc: "Turned the Creatine check into a configurable set of daily physical condition questions (Settings -> Nutrition Log Settings): Creatine, Good Sleep, Stomach problems, Water intake. Whichever are turned on appear together in Nutrition Log with exact yes/no wording and a red warning if today is still unanswered, plus a new heatmap of the last two weeks' results under Protein per day." },
   { version: "1.08", date: "2026-09-13", desc: "Swapped the Creatine card's icon for the full-color Whey Protein icon (was the black-outline version), which no longer needs a dark-theme color filter." },
   { version: "1.07", date: "2026-09-13", desc: "Added a Creatine (3g) check to the Nutrition Log -- its own small card at the top asking whether you've taken it, with a red warning if today isn't marked yet." },
   { version: "1.06", date: "2026-09-13", desc: "Coach export now lists every exercise in every split (Upper A/B, Lower A/B, Cardio, etc.), not just the 12 most recent. Loaded AI feedback is now matched per-exercise and shown as a Coach note while guiding through Start Training." },
@@ -3254,7 +3267,7 @@ function switchView(view){
     document.getElementById("aiApiKeyInput").value = getAiApiKey();
     renderVersionInfo();
     refreshCloudSyncSettingsUI();
-    syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI(); syncAestheticTargetsUI();
+    syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI(); syncAestheticTargetsUI(); syncDailyQuestionsSettingsUI();
     // "My splits" and "My exercises" (moved here from the Workout Log tab, reachable now only by
     // clicking your name) need their own refresh on open -- renderWorkoutsView() also keeps them
     // current whenever the Workout Log tab itself is visited, but My Plan can be opened without
@@ -4915,29 +4928,96 @@ function getFoodDayNote(date){
   return getFoodDayNotes()[date] || "";
 }
 
-// --- Creatine (3g) daily check -- a simple yes/no marker for the day, separate from structured
-// food entries, same day-keyed dictionary convention as workoutRestDays/foodDayNotes. Shown as its
-// own small card at the top of Nutrition Log with a loud red warning (same style as the missing
-// food/workout data banner) whenever TODAY hasn't been marked yet -- a live same-day reminder,
-// not a look-back at yesterday like that other banner. ---
-function getCreatineLog(){
+// --- Daily physical condition questions -- a configurable set of yes/no daily check-ins (Settings >
+// Nutrition Log Settings decides which ones are turned on). Whichever are enabled show up together
+// as one small card at the top of Nutrition Log, each with a loud red warning (same style as the
+// missing food/workout data banner) whenever TODAY hasn't been answered yet -- a live same-day
+// reminder, not a look-back at yesterday like that other banner -- and their answers build up into a
+// heatmap under Protein per day. Creatine is the original single-question version of this feature
+// and stays on by default for that reason; the other three default off so nothing new appears until
+// the person opts in. ---
+const DAILY_CONDITION_QUESTIONS = [
+  { id: "creatine", settingLabel: "Creatine",        question: "Did you take Creatine 3g?" },
+  { id: "sleep",    settingLabel: "Good Sleep",       question: "Did you sleep well?" },
+  { id: "stomach",  settingLabel: "Stomach problems", question: "Did you have stomach problems?" },
+  { id: "water",    settingLabel: "Water intake",     question: "Did you drink enough water?" }
+];
+function getDailyQuestionsEnabled(){
   const users = getUsers();
   const u = users[currentUserEmail];
-  return (u && u.creatineLog) ? u.creatineLog : {};
+  const stored = (u && u.dailyQuestionsEnabled) ? u.dailyQuestionsEnabled : {};
+  const out = {};
+  DAILY_CONDITION_QUESTIONS.forEach(q=>{
+    out[q.id] = stored[q.id] !== undefined ? !!stored[q.id] : (q.id === "creatine");
+  });
+  return out;
 }
-function saveCreatineLogObj(obj){
+function saveDailyQuestionsEnabled(obj){
   const users = getUsers();
   if(!users[currentUserEmail]) return;
-  users[currentUserEmail].creatineLog = obj;
+  users[currentUserEmail].dailyQuestionsEnabled = obj;
   saveUsers(users);
 }
+function isDailyQuestionEnabled(qid){
+  return !!getDailyQuestionsEnabled()[qid];
+}
+function setDailyQuestionEnabled(qid, flag){
+  const cur = getDailyQuestionsEnabled();
+  cur[qid] = !!flag;
+  saveDailyQuestionsEnabled(cur);
+}
+
+// Per-question day-keyed answer log -- true=Yes, false=No, and the KEY BEING ABSENT means "not
+// answered yet" (distinct from a "No" answer, unlike the old single-question Creatine storage where
+// "not taken" and "not marked" were the same thing). getDailyQuestionLogRaw lazily migrates the
+// original creatineLog the first time "creatine" is read under the new unified storage, so existing
+// Creatine history from before this was generalized isn't lost.
+function getDailyQuestionLogRaw(qid){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u) return {};
+  if(!u.dailyQuestionsLog) u.dailyQuestionsLog = {};
+  if(u.dailyQuestionsLog[qid] === undefined){
+    u.dailyQuestionsLog[qid] = (qid === "creatine" && u.creatineLog) ? Object.assign({}, u.creatineLog) : {};
+    saveUsers(users);
+  }
+  return u.dailyQuestionsLog[qid];
+}
+function saveDailyQuestionLog(qid, obj){
+  const users = getUsers();
+  if(!users[currentUserEmail]) return;
+  if(!users[currentUserEmail].dailyQuestionsLog) users[currentUserEmail].dailyQuestionsLog = {};
+  users[currentUserEmail].dailyQuestionsLog[qid] = obj;
+  saveUsers(users);
+}
+function getDailyAnswer(qid, date){
+  const log = getDailyQuestionLogRaw(qid);
+  return Object.prototype.hasOwnProperty.call(log, date) ? !!log[date] : undefined;
+}
+function isDailyQuestionAnswered(qid, date){
+  return Object.prototype.hasOwnProperty.call(getDailyQuestionLogRaw(qid), date);
+}
+function setDailyAnswer(qid, date, value){
+  const log = getDailyQuestionLogRaw(qid);
+  log[date] = !!value;
+  saveDailyQuestionLog(qid, log);
+}
+function clearDailyAnswer(qid, date){
+  const log = getDailyQuestionLogRaw(qid);
+  delete log[date];
+  saveDailyQuestionLog(qid, log);
+}
+
+// Legacy Creatine-only wrappers -- kept so any earlier data/tests written against the single-question
+// version of this feature keep working unchanged, now backed by the generic per-question log above.
+function getCreatineLog(){
+  return getDailyQuestionLogRaw("creatine");
+}
 function isCreatineTaken(date){
-  return !!getCreatineLog()[date];
+  return getDailyAnswer("creatine", date) === true;
 }
 function setCreatineTaken(date, flag){
-  const obj = getCreatineLog();
-  if(flag){ obj[date] = true; } else { delete obj[date]; }
-  saveCreatineLogObj(obj);
+  if(flag){ setDailyAnswer("creatine", date, true); } else { clearDailyAnswer("creatine", date); }
 }
 
 // Whey Protein icon by Fahrul Saputra - Flaticon, "color lineal-color" style (see Settings >
@@ -4945,35 +5025,117 @@ function setCreatineTaken(date, flag){
 // dark-mode invert filter -- it reads fine on both the dark and light theme as-is.
 const CREATINE_ICON_B64 = "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";
 
-function renderCreatineCard(date){
-  const wrap = document.getElementById("creatineCardWrap");
+// Renders the combined "Daily check-in" card -- one row per ENABLED question (in the fixed order
+// above), each with Yes/No buttons and its own red warning if today's answer is still missing. If
+// nothing is enabled the card is left empty (not just hidden -- there's nothing to show).
+function renderDailyQuestionsCard(date){
+  const wrap = document.getElementById("dailyQuestionsCardWrap");
   if(!wrap) return;
   const day = date || todayStr();
-  const taken = isCreatineTaken(day);
   const isToday = day === todayStr();
-  const showWarning = isToday && !taken;
-  wrap.innerHTML = `
-    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
-      <div style="display:flex; align-items:center; gap:10px;">
-        <img class="creatine-icon" width="28" height="28" alt="" src="data:image/png;base64,${CREATINE_ICON_B64}">
-        <div style="font-weight:700;">Did you take Creatine 3g${isToday ? " today" : ""}?</div>
+  const enabled = getDailyQuestionsEnabled();
+  const active = DAILY_CONDITION_QUESTIONS.filter(q => enabled[q.id]);
+  if(!active.length){ wrap.innerHTML = ""; return; }
+  const warnIconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+  const rows = active.map((q, i)=>{
+    const answered = isDailyQuestionAnswered(q.id, day);
+    const answer = getDailyAnswer(q.id, day);
+    const icon = q.id === "creatine" ? `<img class="creatine-icon" width="28" height="28" alt="" src="data:image/png;base64,${CREATINE_ICON_B64}">` : "";
+    const warning = (isToday && !answered) ? `
+      <div class="missing-data-banner" style="margin-top:10px; margin-bottom:0;">
+        ${warnIconSvg}
+        <div class="missing-data-banner-text">You haven't answered "${q.question}" yet today.</div>
+      </div>` : "";
+    return `
+    <div style="padding:${i===0 ? "0" : "14px"} 0 0; ${i===0 ? "" : "border-top:1px solid var(--border); margin-top:14px;"}">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          ${icon}
+          <div style="font-weight:700;">${q.question}</div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" id="dqYesBtn_${q.id}" class="${answer === true ? "" : "secondary"}">Yes</button>
+          <button type="button" id="dqNoBtn_${q.id}" class="${answer === false ? "" : "secondary"}">No</button>
+        </div>
       </div>
-      <div style="display:flex; gap:8px;">
-        <button type="button" id="creatineYesBtn" class="${taken ? "" : "secondary"}">${taken ? "✓ Taken" : "Yes"}</button>
-        <button type="button" id="creatineNoBtn" class="${taken ? "secondary" : ""}" ${taken ? "" : "disabled"}>Not yet</button>
-      </div>
-    </div>
-    ${showWarning ? `
-    <div class="missing-data-banner" style="margin-top:12px; margin-bottom:0;">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      <div class="missing-data-banner-text">You haven't taken your Creatine (3g) yet today.</div>
-    </div>` : ""}
-  `;
-  const yesBtn = document.getElementById("creatineYesBtn");
-  const noBtn = document.getElementById("creatineNoBtn");
-  if(yesBtn) yesBtn.addEventListener("click", ()=>{ setCreatineTaken(day, true); renderCreatineCard(day); });
-  if(noBtn) noBtn.addEventListener("click", ()=>{ setCreatineTaken(day, false); renderCreatineCard(day); });
+      ${warning}
+    </div>`;
+  }).join("");
+  wrap.innerHTML = rows;
+  active.forEach(q=>{
+    const yesBtn = document.getElementById(`dqYesBtn_${q.id}`);
+    const noBtn = document.getElementById(`dqNoBtn_${q.id}`);
+    if(yesBtn) yesBtn.addEventListener("click", ()=>{ setDailyAnswer(q.id, day, true); renderDailyQuestionsCard(day); renderDailyQuestionsHeatmap(); });
+    if(noBtn) noBtn.addEventListener("click", ()=>{ setDailyAnswer(q.id, day, false); renderDailyQuestionsCard(day); renderDailyQuestionsHeatmap(); });
+  });
 }
+
+// Heatmap of the last 14 days' answers for every ENABLED question, one row per question -- placed
+// under "Protein per day" so the two daily-tracking heatmaps/charts read as one continuous section.
+// Green = Yes, red = No, and a neutral dot = not answered that day (including any day before the
+// question was turned on, which is indistinguishable from "forgot to answer" and that's fine -- both
+// just mean there's no data for that cell).
+function renderDailyQuestionsHeatmap(){
+  const wrap = document.getElementById("dailyQuestionsHeatmapWrap");
+  if(!wrap) return;
+  const enabled = getDailyQuestionsEnabled();
+  const active = DAILY_CONDITION_QUESTIONS.filter(q => enabled[q.id]);
+  if(!active.length){
+    wrap.innerHTML = `<div class="empty-note">No daily check-in questions turned on — enable some in Settings → Nutrition Log Settings.</div>`;
+    return;
+  }
+  const days = 14;
+  const today = todayStr();
+  const dateList = [];
+  for(let i = days - 1; i >= 0; i--) dateList.push(shiftDateStr(today, -i));
+  const shortDate = (d)=>{ const [,mm,dd] = d.split("-"); return `${dd}.${mm}`; };
+  const headerCells = dateList.map(d=>`<th style="text-align:center; font-size:.7rem; color:var(--muted); font-weight:400;">${shortDate(d)}</th>`).join("");
+  const rows = active.map(q=>{
+    const cells = dateList.map(d=>{
+      let bg = "var(--panel3)", title = "Not answered";
+      if(isDailyQuestionAnswered(q.id, d)){
+        const val = getDailyAnswer(q.id, d);
+        bg = val ? "#4ee1a3" : "#f16b83";
+        title = val ? "Yes" : "No";
+      }
+      return `<td style="padding:2px;"><div style="width:100%; aspect-ratio:1; min-width:16px; border-radius:4px; background:${bg};" title="${escAttr(q.question)} — ${d}: ${title}"></div></td>`;
+    }).join("");
+    return `<tr><td style="white-space:nowrap; font-size:.78rem; color:var(--muted); padding-right:8px;">${q.settingLabel}</td>${cells}</tr>`;
+  }).join("");
+  wrap.innerHTML = `
+    <div class="table-scroll">
+      <table class="log-table" style="table-layout:fixed; width:100%; min-width:600px;">
+        <thead><tr><th style="width:110px;"></th>${headerCells}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:10px;">
+      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:#4ee1a3;"></span>Yes</span>
+      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:#f16b83;"></span>No</span>
+      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:var(--panel3);"></span>Not answered</span>
+    </div>
+  `;
+}
+// Refreshes just the Settings checkboxes (call whenever My Plan opens, regardless of which sub-tab).
+function syncDailyQuestionsSettingsUI(){
+  const enabled = getDailyQuestionsEnabled();
+  DAILY_CONDITION_QUESTIONS.forEach(q=>{
+    const cb = document.getElementById(`dqEnabledCb_${q.id}`);
+    if(cb) cb.checked = enabled[q.id];
+  });
+}
+DAILY_CONDITION_QUESTIONS.forEach(q=>{
+  const cb = document.getElementById(`dqEnabledCb_${q.id}`);
+  if(!cb) return;
+  cb.addEventListener("change", ()=>{
+    setDailyQuestionEnabled(q.id, cb.checked);
+    showToast("Daily check-in questions updated");
+    // Refresh Nutrition Log immediately if it happens to already be open, not just after the next
+    // time the person navigates there.
+    const foodViewEl = document.getElementById("foodView");
+    if(foodViewEl && !foodViewEl.classList.contains("hidden") && typeof renderFoodView === "function") renderFoodView();
+  });
+});
 
 function genFoodId(){
   return "f" + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
@@ -6311,7 +6473,7 @@ function renderFoodView(){
     foodMealDefaulted = true;
   }
   const entries = getEntriesForDate(date);
-  renderCreatineCard(date);
+  renderDailyQuestionsCard(date);
   renderFoodStreakBanner();
   renderMissingDataWarningBanner();
   renderFoodSummary(entries, date);
@@ -6325,6 +6487,7 @@ function renderFoodView(){
   renderNutritionTrends();
   renderCalorieTrendChart();
   renderProteinTrendChart();
+  renderDailyQuestionsHeatmap();
   renderProteinTodayNudge();
   renderPackagesView();
 }
