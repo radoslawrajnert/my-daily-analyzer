@@ -1720,8 +1720,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.20";
+const APP_VERSION = "1.21";
 const CHANGELOG = [
+  { version: "1.21", date: "2026-09-15", desc: "Shifted the Calorie/Protein bars further right again (90% of the leftover row space on the left, 10% on the right, up from v1.20's 70/30) -- the check-in results grid below stays aligned to the same day-columns since both share the same geometry. Also swapped the check-in heatmap's Yes/No PNG icons for plain colored checkmark/cross symbols." },
   { version: "1.20", date: "2026-09-15", desc: "Redesigned the Calorie/Protein bars: fixed-width bars (not stretched to fill the whole row) shifted right of center, matching the neater look of the Workout Stats charts. The daily check-in results grid below is aligned to the exact same day-columns as those bars again, with the category label back on the same line as its row, and a day with no answer yet now shows a small hollow-circle placeholder instead of nothing." },
   { version: "1.19", date: "2026-09-15", desc: "Reverted the Calorie/Protein bars back to full width, same as before this narrowing back-and-forth started -- back to the plain look, no visual narrowing/centering trick." },
   { version: "1.18", date: "2026-09-15", desc: "Calorie/Protein bars are a bit slimmer again (82% width, centered in their day-slot) -- full width read as too blocky. Fixed the check-in section's \"Stomach problems\" label wrapping onto two lines (widened the label column). Days with no check-in answer yet now render nothing at all -- no icon, no background box -- instead of a light gray placeholder square." },
@@ -5268,8 +5269,9 @@ function renderDailyQuestionsHeatmap(){
       if(isDailyQuestionAnswered(q.id, d)){
         const val = getDailyAnswer(q.id, d);
         title = val ? "Yes" : "No";
-        const iconB64 = val ? CORRECT_ICON_B64 : FORBIDDEN_ICON_B64;
-        icon = `<img src="data:image/png;base64,${iconB64}" alt="${title}" style="width:16px; height:16px; object-fit:contain; display:block;">`;
+        icon = val
+          ? `<span style="color:var(--accent); font-size:14px; font-weight:700; line-height:1;">&#10003;</span>`
+          : `<span style="color:var(--warn); font-size:14px; font-weight:700; line-height:1;">&#10005;</span>`;
       }
       const pct = dailyChartBarCenterPct(days, i).toFixed(3);
       return `<div id="dqHeatCell_${q.id}_${d}" style="position:absolute; left:${pct}%; top:0; transform:translateX(-50%); height:20px; border-radius:3px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center;" title="${escAttr(q.question)} — ${d}: ${title} (click to change)">${icon}</div>`;
@@ -5290,8 +5292,8 @@ function renderDailyQuestionsHeatmap(){
     ${strips}
     ${dateRow}
     <div style="display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:14px;">
-      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><img src="data:image/png;base64,${CORRECT_ICON_B64}" alt="Yes" style="width:14px; height:14px; object-fit:contain;">Yes</span>
-      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><img src="data:image/png;base64,${FORBIDDEN_ICON_B64}" alt="No" style="width:14px; height:14px; object-fit:contain;">No</span>
+      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="color:var(--accent); font-size:14px; font-weight:700; line-height:1;">&#10003;</span>Yes</span>
+      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="color:var(--warn); font-size:14px; font-weight:700; line-height:1;">&#10005;</span>No</span>
       <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="display:inline-block; width:9px; height:9px; border-radius:50%; border:1px solid var(--border);"></span>Not answered</span>
     </div>
   `;
@@ -6348,9 +6350,10 @@ function computeDailyCalorieSeries(days){ return computeDailyMetricSeries(days, 
 // from dailyChartBarX/dailyChartBarCenterPct below, so a percentage-of-container column in one
 // lines up EXACTLY with the same day's column in the other, at any viewport width. v1.20: bars are
 // a fixed width (not stretched to fill each day's slot) and the whole block sits shifted right of
-// center -- 70% of the leftover space on the left, 30% on the right -- per direct visual sign-off,
-// rather than filling the row edge-to-edge or being symmetrically centered.
-const DAILY_CHART_GRID = { w: 720, pad: 24, padRight: 56, barW: 22, gap: 8, alignFrac: 0.70 };
+// center. v1.21: shifted further right again (90% of the leftover space on the left, 10% on the
+// right, up from v1.20's 70/30) per follow-up feedback, rather than filling the row edge-to-edge
+// or being symmetrically centered.
+const DAILY_CHART_GRID = { w: 720, pad: 24, padRight: 56, barW: 22, gap: 8, alignFrac: 0.90 };
 // Left-x (in DAILY_CHART_GRID viewBox units) of day i's fixed-width bar, for a chart with n total
 // days. Both renderDailyBarChart and renderDailyQuestionsHeatmap call this (the latter via
 // dailyChartBarCenterPct) so they always agree on where day i's column sits.
