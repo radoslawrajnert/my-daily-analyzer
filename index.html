@@ -1724,8 +1724,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.25";
+const APP_VERSION = "1.26";
 const CHANGELOG = [
+  { version: "1.26", date: "2026-09-15", desc: "Fixed a bug where a photo added to an exercise's reference (via the small circle icon next to an exercise name in the Day log) could disappear after leaving and re-entering the site. Cause: the photo was being embedded in the cloud sync data, which risked failing silently and then, on the next visit, letting a stale cloud copy overwrite the photo you'd just saved locally. Reference photos now always stay on this device (only the note syncs to the cloud), so they can no longer get wiped out that way." },
   { version: "1.25", date: "2026-09-15", desc: "Nutrition Log's Creatine/Water intake check-in: once you answer Yes or No, the buttons disappear -- there's nothing left to choose, so leaving them up just made an answered question look unanswered. A small colored checkmark/cross badge takes their place instead, showing what you answered; click it to change your answer." },
   { version: "1.24", date: "2026-09-15", desc: "Date labels are zero-padded everywhere now (02.09, not 2.9) -- matches the daily check-in results' date row. This was a single shared function (formatShortDate), so it fixes the Calorie/Protein charts, the Workout Stats volume chart, and every banner/toast that mentions a date, all at once." },
   { version: "1.23", date: "2026-09-15", desc: "Fixed the Calorie/Protein charts' bar-value and date labels rendering visibly larger/bolder than the rest of the app -- they were SVG text inside a horizontally-stretched chart, so a given font-size always came out wider than plain HTML text. Moved every label to plain HTML overlaid on the chart, now matching the exact size/color of the daily check-in results' date row. Also fixed the check-in heatmap's \"Stomach problems\" icon: a No (no stomach problems) now correctly shows the green checkmark and a Yes shows the warn-colored cross -- it's the one question phrased so Yes is the bad outcome." },
@@ -2445,7 +2446,39 @@ function sanitizeForCloud(u){
       return rest;
     });
   }
+  // Per-exercise reference photos: same reasoning as scale-log photos (see comment above) -- a
+  // handful of these embedded as base64 can push the whole document past Firestore's 1MB limit,
+  // which fails the WHOLE sync (not just this field) and, worse, leaves the cloud copy stale so a
+  // later pull can wipe the photo back out locally (see mergeExerciseReferences). Unlike scale
+  // photos these aren't uploaded to Storage either, so for now they simply stay device-local --
+  // only the note travels to the cloud.
+  if(clone.exerciseReferences && typeof clone.exerciseReferences === "object"){
+    const refs = {};
+    Object.keys(clone.exerciseReferences).forEach(k=>{
+      const r = clone.exerciseReferences[k] || {};
+      refs[k] = { note: r.note || "" };
+    });
+    clone.exerciseReferences = refs;
+  }
   return clone;
+}
+
+// Cloud copy of an exercise reference never carries the actual photo bytes (stripped in
+// sanitizeForCloud above). So on pull, always keep this device's own local photo -- exactly like
+// mergeScaleLogPhotos keeps a local scale photo over a stale/missing cloud URL -- while still
+// picking up a note that was added or edited from another device.
+function mergeExerciseReferences(cloudRefs, localRefs){
+  const local = localRefs || {};
+  const cloud = cloudRefs || {};
+  const keys = new Set(Object.keys(local).concat(Object.keys(cloud)));
+  const merged = {};
+  keys.forEach(k=>{
+    const l = local[k], c = cloud[k];
+    const photo = (l && l.photo) || null;
+    const note = (l && l.note) || (c && c.note) || "";
+    if(photo || note) merged[k] = {photo, note};
+  });
+  return merged;
 }
 
 // Merges the {date -> {photoFrontUrl, photoBackUrl, photoUrl}} map from syncScaleLogPhotosToCloud
@@ -2614,6 +2647,7 @@ async function pullFromCloud(email){
     users[email] = Object.assign({}, local, cloudData, {
       email,
       scaleLogs: mergeScaleLogPhotos(cloudData.scaleLogs, local.scaleLogs),
+      exerciseReferences: mergeExerciseReferences(cloudData.exerciseReferences, local.exerciseReferences),
     });
     localStorage.setItem(USERS_KEY, JSON.stringify(users)); // direct write — avoids re-triggering a push of what we just pulled
     return true;
