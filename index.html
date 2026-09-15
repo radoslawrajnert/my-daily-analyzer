@@ -1724,8 +1724,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.24";
+const APP_VERSION = "1.25";
 const CHANGELOG = [
+  { version: "1.25", date: "2026-09-15", desc: "Nutrition Log's Creatine/Water intake check-in: once you answer Yes or No, the buttons disappear -- there's nothing left to choose, so leaving them up just made an answered question look unanswered. A small colored checkmark/cross badge takes their place instead, showing what you answered; click it to change your answer." },
   { version: "1.24", date: "2026-09-15", desc: "Date labels are zero-padded everywhere now (02.09, not 2.9) -- matches the daily check-in results' date row. This was a single shared function (formatShortDate), so it fixes the Calorie/Protein charts, the Workout Stats volume chart, and every banner/toast that mentions a date, all at once." },
   { version: "1.23", date: "2026-09-15", desc: "Fixed the Calorie/Protein charts' bar-value and date labels rendering visibly larger/bolder than the rest of the app -- they were SVG text inside a horizontally-stretched chart, so a given font-size always came out wider than plain HTML text. Moved every label to plain HTML overlaid on the chart, now matching the exact size/color of the daily check-in results' date row. Also fixed the check-in heatmap's \"Stomach problems\" icon: a No (no stomach problems) now correctly shows the green checkmark and a Yes shows the warn-colored cross -- it's the one question phrased so Yes is the bad outcome." },
   { version: "1.22", date: "2026-09-15", desc: "Calorie/Protein charts are 20% taller (160 -> 192) -- same bar width and position, just more vertical room for each column." },
@@ -5153,8 +5154,20 @@ function renderDailyQuestionsCard(date){
     </div>` : "";
   const rows = active.map((q, i)=>{
     const answer = getDailyAnswer(q.id, day);
+    const answered = isDailyQuestionAnswered(q.id, day);
     const iconB64 = DAILY_QUESTION_ICON_B64[q.id];
     const icon = iconB64 ? `<img class="creatine-icon" width="28" height="28" alt="" src="data:image/png;base64,${iconB64}">` : "";
+    // Once answered, the Yes/No buttons disappear -- there's nothing left to choose, so a live
+    // button pair just reads as unanswered even when it isn't. A small clickable badge takes their
+    // place instead: it states the answer and still opens the edit popup (same one the heatmap cells
+    // use) if the person wants to change it, so nothing is actually less editable, just less noisy.
+    const isGood = q.goodValue === false ? !answer : answer;
+    const answerControl = answered
+      ? `<button type="button" id="dqAnsweredBadge_${q.id}" class="secondary" style="display:inline-flex; align-items:center; gap:6px; color:${isGood ? "var(--accent)" : "var(--warn)"};" title="Click to change your answer"><span style="font-weight:700; line-height:1;">${isGood ? "&#10003;" : "&#10005;"}</span>${answer ? "Yes" : "No"}</button>`
+      : `<div style="display:flex; gap:8px;">
+          <button type="button" id="dqYesBtn_${q.id}" class="secondary">Yes</button>
+          <button type="button" id="dqNoBtn_${q.id}" class="secondary">No</button>
+        </div>`;
     return `
     <div style="padding:${i===0 ? "0" : "14px"} 0 0; ${i===0 ? "" : "border-top:1px solid var(--border); margin-top:14px;"}">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
@@ -5162,10 +5175,7 @@ function renderDailyQuestionsCard(date){
           ${icon}
           <div style="font-weight:700;">${q.question}</div>
         </div>
-        <div style="display:flex; gap:8px;">
-          <button type="button" id="dqYesBtn_${q.id}" class="${answer === true ? "" : "secondary"}">Yes</button>
-          <button type="button" id="dqNoBtn_${q.id}" class="${answer === false ? "" : "secondary"}">No</button>
-        </div>
+        ${answerControl}
       </div>
     </div>`;
   }).join("");
@@ -5173,8 +5183,10 @@ function renderDailyQuestionsCard(date){
   active.forEach(q=>{
     const yesBtn = document.getElementById(`dqYesBtn_${q.id}`);
     const noBtn = document.getElementById(`dqNoBtn_${q.id}`);
+    const badge = document.getElementById(`dqAnsweredBadge_${q.id}`);
     if(yesBtn) yesBtn.addEventListener("click", ()=>{ setDailyAnswer(q.id, day, true); renderDailyQuestionsCard(day); renderDailyQuestionsHeatmap(); });
     if(noBtn) noBtn.addEventListener("click", ()=>{ setDailyAnswer(q.id, day, false); renderDailyQuestionsCard(day); renderDailyQuestionsHeatmap(); });
+    if(badge) badge.addEventListener("click", ()=> openDailyQuestionEditModal(q.id, day));
   });
 }
 
@@ -5203,8 +5215,11 @@ function renderDailyQuestionsPopupBody(questions, date){
   questions.forEach(q=>{
     const yesBtn = document.getElementById(`dqPopupYesBtn_${q.id}`);
     const noBtn = document.getElementById(`dqPopupNoBtn_${q.id}`);
-    if(yesBtn) yesBtn.addEventListener("click", ()=>{ setDailyAnswer(q.id, date, true); renderDailyQuestionsPopupBody(questions, date); renderDailyQuestionsHeatmap(); });
-    if(noBtn) noBtn.addEventListener("click", ()=>{ setDailyAnswer(q.id, date, false); renderDailyQuestionsPopupBody(questions, date); renderDailyQuestionsHeatmap(); });
+    // Also refresh the Nutrition Log card (harmless no-op if it's not currently rendering this same
+    // date) -- this modal is now also reachable by clicking the card's own "answered" badge, so an
+    // edit made here needs to update that badge/card too, not just the heatmap.
+    if(yesBtn) yesBtn.addEventListener("click", ()=>{ setDailyAnswer(q.id, date, true); renderDailyQuestionsPopupBody(questions, date); renderDailyQuestionsHeatmap(); renderDailyQuestionsCard(date); });
+    if(noBtn) noBtn.addEventListener("click", ()=>{ setDailyAnswer(q.id, date, false); renderDailyQuestionsPopupBody(questions, date); renderDailyQuestionsHeatmap(); renderDailyQuestionsCard(date); });
   });
 }
 function closeDailyQuestionsPopup(){
