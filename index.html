@@ -1720,8 +1720,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.17";
+const APP_VERSION = "1.18";
 const CHANGELOG = [
+  { version: "1.18", date: "2026-09-15", desc: "Calorie/Protein bars are a bit slimmer again (82% width, centered in their day-slot) -- full width read as too blocky. Fixed the check-in section's \"Stomach problems\" label wrapping onto two lines (widened the label column). Days with no check-in answer yet now render nothing at all -- no icon, no background box -- instead of a light gray placeholder square." },
   { version: "1.17", date: "2026-09-15", desc: "Calorie/Protein bars are back to full width (v1.16's 60% narrowing still left a visible gap between columns) -- only the thin shared gap separates adjacent days now. Redesigned the daily check-in results section: each category's row of Yes/No cells now sits on the same line as its label (Creatine, Good Sleep, etc.), the 14 dates live in a single row below all the categories instead of repeated above each one, and answered cells no longer have a colored background behind the check/forbidden icon -- just the icon on a transparent cell." },
   { version: "1.16", date: "2026-09-15", desc: "Fixed a real bug in the Guided Workout card: clicking Previous (to double-check or redo an exercise) un-logged it but then re-filled the form from an older logged session instead of the numbers you'd just entered, silently discarding them if you clicked Next again. Previous now restores exactly what you just typed. Also made the Calorie/Protein bars and check-in heatmap cells 60% width (centered in their column) -- a lighter narrowing than the earlier 50% version that was reverted for leaving too much gap." },
   { version: "1.15", date: "2026-09-15", desc: "Reverted the previous version's narrower bars/cells (too much gap between columns) -- Calorie/Protein bars and check-in heatmap cells fill their full column again. Check-in cells now show an actual checkmark/forbidden-sign icon for Yes/No, not just a color. Fixed the Guided Workout card's Reps/Weight fields to accept a comma list (e.g. 40,41,42) for pyramid/drop sets, same as the main Workout Log form -- they were plain number inputs that couldn't even contain a comma." },
@@ -5244,24 +5245,27 @@ function renderDailyQuestionsHeatmap(){
   for(let i = days - 1; i >= 0; i--) dateList.push(shiftDateStr(today, -i));
   const shortDate = (d)=>{ const [,mm,dd] = d.split("-"); return `${dd}.${mm}`; };
 
-  const LABEL_COL = "100px";
-  const dqRow = (labelHtml, cellsHtml, extraStyle)=> `<div style="display:grid; grid-template-columns:${LABEL_COL} 1fr; align-items:center; gap:8px;${extraStyle||""}"><div style="font-size:.78rem; color:var(--muted); font-weight:600;">${labelHtml}</div><div style="display:grid; grid-template-columns:repeat(${days},1fr); gap:2px;">${cellsHtml}</div></div>`;
+  // Wide enough (and nowrap) so "Stomach problems" -- the longest label -- stays on one line
+  // instead of wrapping to two.
+  const LABEL_COL = "136px";
+  const dqRow = (labelHtml, cellsHtml, extraStyle)=> `<div style="display:grid; grid-template-columns:${LABEL_COL} 1fr; align-items:center; gap:8px;${extraStyle||""}"><div style="font-size:.78rem; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${labelHtml}</div><div style="display:grid; grid-template-columns:repeat(${days},1fr); gap:2px;">${cellsHtml}</div></div>`;
 
   // Cells are a fixed, compact height, sized independently of the grid column width so they stay
   // small and consistent regardless of card width. Each cell gets a stable id so it can be wired up
   // as a click target to edit that day's answer, the same way the Nutrition Log card's Yes/No
-  // buttons are.
+  // buttons are. A day with no answer yet renders nothing at all -- no icon, no background -- so it
+  // reads as blank space rather than a placeholder box; it's still clickable (via the invisible
+  // cell div) to go answer it.
   const strips = active.map(q=>{
     const cellsHtml = dateList.map(d=>{
-      let bg = "var(--panel3)", title = "Not answered", icon = "";
+      let title = "Not answered", icon = "";
       if(isDailyQuestionAnswered(q.id, d)){
         const val = getDailyAnswer(q.id, d);
         title = val ? "Yes" : "No";
-        bg = "transparent";
         const iconB64 = val ? CORRECT_ICON_B64 : FORBIDDEN_ICON_B64;
         icon = `<img src="data:image/png;base64,${iconB64}" alt="${title}" style="width:16px; height:16px; object-fit:contain; display:block;">`;
       }
-      return `<div id="dqHeatCell_${q.id}_${d}" style="height:20px; border-radius:3px; background:${bg}; cursor:pointer; display:flex; align-items:center; justify-content:center;" title="${escAttr(q.question)} — ${d}: ${title} (click to change)">${icon}</div>`;
+      return `<div id="dqHeatCell_${q.id}_${d}" style="height:20px; border-radius:3px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center;" title="${escAttr(q.question)} — ${d}: ${title} (click to change)">${icon}</div>`;
     }).join("");
     return dqRow(q.settingLabel, cellsHtml, " margin-bottom:6px;");
   }).join("");
@@ -5279,7 +5283,7 @@ function renderDailyQuestionsHeatmap(){
     <div style="display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:14px;">
       <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><img src="data:image/png;base64,${CORRECT_ICON_B64}" alt="Yes" style="width:14px; height:14px; object-fit:contain;">Yes</span>
       <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><img src="data:image/png;base64,${FORBIDDEN_ICON_B64}" alt="No" style="width:14px; height:14px; object-fit:contain;">No</span>
-      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:var(--panel3);"></span>Not answered</span>
+      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; border:1px dashed var(--border);"></span>Not answered</span>
     </div>
   `;
   active.forEach(q=>{
@@ -6373,18 +6377,21 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   const barW = (chartRight - pad - gap*(series.length-1)) / series.length;
   const yFor = v => h - pad - (v/maxVal)*(h - pad*2);
 
-  // v1.14 (50%) and v1.16 (60%) both tried a visually-narrower bar centered in its slot -- both
-  // read as the columns having a gap between them, which is exactly what was asked to go away.
-  // Back to a full-slot-width bar: only the shared `gap` (a few px out of a 720-unit viewBox)
-  // separates adjacent days, which is as close to zero space as two distinct bars can get.
+  // History on this one: v1.14 (50%) and v1.16 (60%) both drew a visibly narrower bar, centered in
+  // its slot -- both times the gap that opened up between adjacent bars was rejected as too much.
+  // v1.17 went back to full width, which then read as too blocky/fat. v1.18 settles on a light 82%
+  // -- clearly slimmer than a full-width block, but the resulting gap (a few px of native `gap` plus
+  // a small sliver from the narrowing) stays subtle rather than reading as columns spaced apart.
+  const VISUAL_BAR_RATIO = 0.82;
+  const visualBarW = barW * VISUAL_BAR_RATIO;
   const bars = series.map((s,i)=>{
     const x = pad + i*(barW+gap);
-    const barX = x;
+    const barX = x + (barW - visualBarW) / 2;
     const y = yFor(s.value);
     const barH = Math.max(h - pad - y, 0);
     const hit = targetValue ? hitTest(s.value, targetValue) : true;
     const color = !s.logged ? "var(--border)" : (hit ? "var(--accent)" : "var(--warn)");
-    const rect = `<rect x="${barX.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(barW,1).toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${s.date}: ${Math.round(s.value)}${opts.unit}</title></rect>`;
+    const rect = `<rect x="${barX.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(visualBarW,1).toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${s.date}: ${Math.round(s.value)}${opts.unit}</title></rect>`;
     // Value label above each logged bar; skip unlogged (empty) days to avoid clutter.
     const label = s.logged
       ? `<text x="${(x+barW/2).toFixed(1)}" y="${Math.max(y-4, 9).toFixed(1)}" font-size="9" fill="var(--muted)" text-anchor="middle">${Math.round(s.value)}</text>`
