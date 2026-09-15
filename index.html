@@ -1675,6 +1675,16 @@
   </div>
 </div>
 
+<div class="modal-overlay hidden" id="dailyQuestionsPopupOverlay">
+  <div class="modal-box" style="max-width:420px;">
+    <h3><span id="dailyQuestionsPopupTitle">Quick check-in</span><button type="button" class="close-x" id="dailyQuestionsPopupCloseX"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></h3>
+    <div id="dailyQuestionsPopupBody"></div>
+    <div class="nav" style="justify-content:center; margin-top:16px;">
+      <button type="button" id="dailyQuestionsPopupDoneBtn">Done</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ================= Appearance (Dark / Light) =================
    A device-level preference (like language), not per-user data -- stored in localStorage so it
@@ -1708,8 +1718,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.11";
+const APP_VERSION = "1.12";
 const CHANGELOG = [
+  { version: "1.12", date: "2026-09-15", desc: "Good Sleep and Stomach problems moved off the Nutrition Log card (Creatine and Water intake stay there) and are now asked once via a popup the first time you log anything for the day; click any heatmap cell to answer late or change a past answer. Also shrank the check-in heatmap cells, which were rendering oversized." },
   { version: "1.11", date: "2026-09-15", desc: "Fixed the daily check-in heatmap's date columns not lining up under Protein/Calorie per day's bars -- it now shares the exact same column geometry as those charts, so every day's column sits precisely under that day's bar." },
   { version: "1.10", date: "2026-09-15", desc: "Daily check-in card: Good Sleep, Stomach problems and Water intake now each get their own icon (not just Creatine), and the red warning is now a single combined message naming everything still unanswered today instead of one repeated banner per question." },
   { version: "1.09", date: "2026-09-15", desc: "Turned the Creatine check into a configurable set of daily physical condition questions (Settings -> Nutrition Log Settings): Creatine, Good Sleep, Stomach problems, Water intake. Whichever are turned on appear together in Nutrition Log with exact yes/no wording and a red warning if today is still unanswered, plus a new heatmap of the last two weeks' results under Protein per day." },
@@ -3786,6 +3797,7 @@ document.getElementById("logForm").addEventListener("submit", (e)=>{
   exitLogEditMode();
   renderLogView();
   showToast(wasEditing || idx>=0 ? "Reading updated" : "Reading added");
+  maybeShowDailyQuestionsPopup();
 });
 
 function deleteLogEntry(date){
@@ -4944,6 +4956,12 @@ const DAILY_CONDITION_QUESTIONS = [
   { id: "stomach",  settingLabel: "Stomach problems", question: "Did you have stomach problems?" },
   { id: "water",    settingLabel: "Water intake",     question: "Did you drink enough water?" }
 ];
+// Creatine and Water intake are tied to what's being logged in Nutrition Log, so they stay on that
+// card at all times. Good Sleep and Stomach problems aren't naturally a "food" question, so instead
+// of cluttering the card they're asked once via an automatic popup the first time anything is logged
+// that day (see maybeShowDailyQuestionsPopup) -- and can always be changed afterward from the heatmap.
+const NUTRITION_CARD_QUESTION_IDS = ["creatine", "water"];
+const POPUP_QUESTION_IDS = ["sleep", "stomach"];
 function getDailyQuestionsEnabled(){
   const users = getUsers();
   const u = users[currentUserEmail];
@@ -5010,6 +5028,48 @@ function clearDailyAnswer(qid, date){
   saveDailyQuestionLog(qid, log);
 }
 
+// Tracks which calendar days the automatic "first log of the day" popup has already been shown on --
+// day-keyed and separate from whether the popup questions were actually answered, so it fires at most
+// once per day no matter how many things get logged (Scale/Nutrition/Workout) or whether the person
+// dismisses it without answering.
+function getDailyQuestionsPopupShownDates(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  return (u && u.dailyQuestionsPopupShownDates) ? u.dailyQuestionsPopupShownDates : {};
+}
+function saveDailyQuestionsPopupShownDates(obj){
+  const users = getUsers();
+  if(!users[currentUserEmail]) return;
+  users[currentUserEmail].dailyQuestionsPopupShownDates = obj;
+  saveUsers(users);
+}
+function wasDailyQuestionsPopupShownToday(){
+  return !!getDailyQuestionsPopupShownDates()[todayStr()];
+}
+function markDailyQuestionsPopupShownToday(){
+  const dates = getDailyQuestionsPopupShownDates();
+  dates[todayStr()] = true;
+  saveDailyQuestionsPopupShownDates(dates);
+}
+
+// Called at the end of the Scale Log / Nutrition Log / Workout Log submit handlers -- i.e. whenever
+// the person logs *something* for the day. If Good Sleep and/or Stomach problems are turned on and
+// still unanswered for today, and the popup hasn't already fired today, ask about them once. Dismissing
+// without answering still marks it shown for today -- the heatmap's click-to-edit (see
+// openDailyQuestionEditModal) covers answering late or changing an answer afterward.
+function maybeShowDailyQuestionsPopup(){
+  if(typeof document === "undefined" || !document.getElementById("dailyQuestionsPopupOverlay")) return;
+  if(wasDailyQuestionsPopupShownToday()) return;
+  const enabled = getDailyQuestionsEnabled();
+  const today = todayStr();
+  const due = POPUP_QUESTION_IDS
+    .filter(qid => enabled[qid] && !isDailyQuestionAnswered(qid, today))
+    .map(qid => DAILY_CONDITION_QUESTIONS.find(q => q.id === qid));
+  if(!due.length) return;
+  markDailyQuestionsPopupShownToday();
+  openDailyQuestionsPopup(due, today);
+}
+
 // Legacy Creatine-only wrappers -- kept so any earlier data/tests written against the single-question
 // version of this feature keep working unchanged, now backed by the generic per-question log above.
 function getCreatineLog(){
@@ -5051,7 +5111,7 @@ function renderDailyQuestionsCard(date){
   const day = date || todayStr();
   const isToday = day === todayStr();
   const enabled = getDailyQuestionsEnabled();
-  const active = DAILY_CONDITION_QUESTIONS.filter(q => enabled[q.id]);
+  const active = DAILY_CONDITION_QUESTIONS.filter(q => enabled[q.id] && NUTRITION_CARD_QUESTION_IDS.includes(q.id));
   if(!active.length){ wrap.innerHTML = ""; return; }
   const warnIconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
   // One combined warning for the whole card, not one per question -- repeating the same red banner
@@ -5090,6 +5150,61 @@ function renderDailyQuestionsCard(date){
   });
 }
 
+// Renders one or more question rows into the shared check-in modal (#dailyQuestionsPopupOverlay) and
+// wires their Yes/No buttons. Reused for both the automatic "first log of the day" popup (possibly
+// several questions at once) and editing a single day's answer from a heatmap cell click (always
+// exactly one question, any date, any question id).
+function renderDailyQuestionsPopupBody(questions, date){
+  const body = document.getElementById("dailyQuestionsPopupBody");
+  if(!body) return;
+  body.innerHTML = questions.map((q, i)=>{
+    const answer = getDailyAnswer(q.id, date);
+    const iconB64 = DAILY_QUESTION_ICON_B64[q.id];
+    const icon = iconB64 ? `<img class="creatine-icon" width="28" height="28" alt="" src="data:image/png;base64,${iconB64}">` : "";
+    return `
+    <div style="padding:10px 0 0; ${i===0 ? "" : "border-top:1px solid var(--border); margin-top:10px;"}" data-qid="${q.id}">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+        <div style="display:flex; align-items:center; gap:10px;">${icon}<div style="font-weight:700;">${q.question}</div></div>
+        <div style="display:flex; gap:8px;">
+          <button type="button" id="dqPopupYesBtn_${q.id}" class="${answer === true ? "" : "secondary"}">Yes</button>
+          <button type="button" id="dqPopupNoBtn_${q.id}" class="${answer === false ? "" : "secondary"}">No</button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+  questions.forEach(q=>{
+    const yesBtn = document.getElementById(`dqPopupYesBtn_${q.id}`);
+    const noBtn = document.getElementById(`dqPopupNoBtn_${q.id}`);
+    if(yesBtn) yesBtn.addEventListener("click", ()=>{ setDailyAnswer(q.id, date, true); renderDailyQuestionsPopupBody(questions, date); renderDailyQuestionsHeatmap(); });
+    if(noBtn) noBtn.addEventListener("click", ()=>{ setDailyAnswer(q.id, date, false); renderDailyQuestionsPopupBody(questions, date); renderDailyQuestionsHeatmap(); });
+  });
+}
+function closeDailyQuestionsPopup(){
+  const overlay = document.getElementById("dailyQuestionsPopupOverlay");
+  if(overlay) overlay.classList.add("hidden");
+}
+// title is optional -- defaults to a generic "Quick check-in" for today's automatic popup, or names
+// the date when editing a past/future day from the heatmap.
+function openDailyQuestionsPopup(questions, date, title){
+  const overlay = document.getElementById("dailyQuestionsPopupOverlay");
+  if(!overlay || !questions.length) return;
+  const titleEl = document.getElementById("dailyQuestionsPopupTitle");
+  if(titleEl) titleEl.textContent = title || (date === todayStr() ? "Quick check-in" : `Edit check-in — ${date}`);
+  renderDailyQuestionsPopupBody(questions, date);
+  overlay.classList.remove("hidden");
+}
+// Entry point for clicking a heatmap cell -- lets Good Sleep / Stomach problems (which no longer live
+// on the always-visible Nutrition Log card) be answered late or changed for any date, and works just
+// as well for Creatine/Water if someone wants to fix an earlier day from the heatmap too.
+function openDailyQuestionEditModal(qid, date){
+  const q = DAILY_CONDITION_QUESTIONS.find(q => q.id === qid);
+  if(!q) return;
+  openDailyQuestionsPopup([q], date, `Edit — ${date}`);
+}
+window.openDailyQuestionEditModal = openDailyQuestionEditModal;
+if(document.getElementById("dailyQuestionsPopupCloseX")) document.getElementById("dailyQuestionsPopupCloseX").addEventListener("click", closeDailyQuestionsPopup);
+if(document.getElementById("dailyQuestionsPopupDoneBtn")) document.getElementById("dailyQuestionsPopupDoneBtn").addEventListener("click", closeDailyQuestionsPopup);
+
 // Heatmap of the last 14 days' answers for every ENABLED question, one strip per question -- placed
 // under "Protein per day" so the two daily-tracking widgets read as one continuous section. Built
 // as a CSS grid using dailyChartColumnTemplate(14) -- the EXACT same left-pad/bar-width/gap/right-pad
@@ -5124,6 +5239,11 @@ function renderDailyQuestionsHeatmap(){
     `<div style="text-align:center; font-size:.68rem; color:var(--muted); white-space:nowrap; overflow:hidden;">${shortDate(d)}</div>`
   ));
 
+  // Cells are a fixed, compact height (not aspect-ratio:1) -- with only 14 columns the grid's
+  // per-column width is wide, and a square cell scaled to that width read as oversized/blocky.
+  // Height is independent of the grid-template-columns percentages, so this doesn't disturb the
+  // column alignment with the bar chart above. Each cell gets a stable id so it can be wired up as
+  // a click target to edit that day's answer, the same way the Nutrition Log card's Yes/No buttons are.
   const strips = active.map(q=>{
     const row = gridRow(daySequence(d=>{
       let bg = "var(--panel3)", title = "Not answered";
@@ -5132,7 +5252,7 @@ function renderDailyQuestionsHeatmap(){
         bg = val ? "#4ee1a3" : "#f16b83";
         title = val ? "Yes" : "No";
       }
-      return `<div style="padding:2px 1px;"><div style="aspect-ratio:1; border-radius:4px; background:${bg};" title="${escAttr(q.question)} — ${d}: ${title}"></div></div>`;
+      return `<div style="padding:1px;"><div id="dqHeatCell_${q.id}_${d}" style="height:14px; border-radius:3px; background:${bg}; cursor:pointer;" title="${escAttr(q.question)} — ${d}: ${title} (click to change)"></div></div>`;
     }));
     return `<div style="font-size:.78rem; color:var(--muted); font-weight:600; margin-top:12px; margin-bottom:2px;">${q.settingLabel}</div>${row}`;
   }).join("");
@@ -5146,6 +5266,12 @@ function renderDailyQuestionsHeatmap(){
       <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:var(--panel3);"></span>Not answered</span>
     </div>
   `;
+  active.forEach(q=>{
+    dateList.forEach(d=>{
+      const cell = document.getElementById(`dqHeatCell_${q.id}_${d}`);
+      if(cell) cell.addEventListener("click", ()=> openDailyQuestionEditModal(q.id, d));
+    });
+  });
 }
 // Refreshes just the Settings checkboxes (call whenever My Plan opens, regardless of which sub-tab).
 function syncDailyQuestionsSettingsUI(){
@@ -5920,6 +6046,7 @@ document.getElementById("foodForm").addEventListener("submit", (e)=>{
   exitFoodEditMode();
   renderFoodView();
   showToast(wasEditing ? "Food entry updated" : "Food entry added");
+  maybeShowDailyQuestionsPopup();
 });
 
 // Duplicates every entry from the last logged day into whichever date the Nutrition Log is
@@ -8908,6 +9035,7 @@ document.getElementById("workoutForm").addEventListener("submit", (e)=>{
   exitWorkoutEditMode();
   renderWorkoutsView();
   showToast(wasEditing ? "Set updated" : "Set added");
+  maybeShowDailyQuestionsPopup();
 });
 
 // Sums a cardio-only day's ACTUAL entered numbers (duration/distance/kcal) rather than anything
