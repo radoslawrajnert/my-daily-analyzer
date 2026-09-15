@@ -1718,8 +1718,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.12";
+const APP_VERSION = "1.13";
 const CHANGELOG = [
+  { version: "1.13", date: "2026-09-15", desc: "Fixed the Calorie/Protein per day charts rendering narrower than the card and drifting out of alignment with the daily check-in heatmap below them -- the SVG wasn't stretching to the full card width (browser default letterboxing), so it now fills it exactly like the heatmap does." },
   { version: "1.12", date: "2026-09-15", desc: "Good Sleep and Stomach problems moved off the Nutrition Log card (Creatine and Water intake stay there) and are now asked once via a popup the first time you log anything for the day; click any heatmap cell to answer late or change a past answer. Also shrank the check-in heatmap cells, which were rendering oversized." },
   { version: "1.11", date: "2026-09-15", desc: "Fixed the daily check-in heatmap's date columns not lining up under Protein/Calorie per day's bars -- it now shares the exact same column geometry as those charts, so every day's column sits precisely under that day's bar." },
   { version: "1.10", date: "2026-09-15", desc: "Daily check-in card: Good Sleep, Stomach problems and Water intake now each get their own icon (not just Creatine), and the red warning is now a single combined message naming everything still unanswered today instead of one repeated banner per question." },
@@ -6386,7 +6387,7 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   wrap.innerHTML = `
     <div class="trend-label">Average ${Math.round(avgVal)}${opts.unit}/day over ${loggedSeries.length} logged day${loggedSeries.length===1?"":"s"}${targetValue?` · ${opts.hitLabel||"Hit target"} ${daysHitTarget}/${loggedSeries.length} days`:""}</div>
     ${targetValue ? `<div class="trend-legend"><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--accent);"></span>${opts.hitSwatchLabel||"Hit target"}</span><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--warn);"></span>${opts.missSwatchLabel||"Under target"}</span></div>` : ""}
-    <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
+    <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%; height:${h}px;">
       ${bars}
       ${targetLine}
     </svg>
