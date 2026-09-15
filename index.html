@@ -1720,8 +1720,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.21";
+const APP_VERSION = "1.22";
 const CHANGELOG = [
+  { version: "1.22", date: "2026-09-15", desc: "Calorie/Protein charts are 20% taller (160 -> 192) -- same bar width and position, just more vertical room for each column." },
   { version: "1.21", date: "2026-09-15", desc: "Shifted the Calorie/Protein bars further right again (90% of the leftover row space on the left, 10% on the right, up from v1.20's 70/30) -- the check-in results grid below stays aligned to the same day-columns since both share the same geometry. Also swapped the check-in heatmap's Yes/No PNG icons for plain colored checkmark/cross symbols." },
   { version: "1.20", date: "2026-09-15", desc: "Redesigned the Calorie/Protein bars: fixed-width bars (not stretched to fill the whole row) shifted right of center, matching the neater look of the Workout Stats charts. The daily check-in results grid below is aligned to the exact same day-columns as those bars again, with the category label back on the same line as its row, and a day with no answer yet now shows a small hollow-circle placeholder instead of nothing." },
   { version: "1.19", date: "2026-09-15", desc: "Reverted the Calorie/Protein bars back to full width, same as before this narrowing back-and-forth started -- back to the plain look, no visual narrowing/centering trick." },
