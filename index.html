@@ -1744,8 +1744,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.30";
+const APP_VERSION = "1.31";
 const CHANGELOG = [
+  { version: "1.31", date: "2026-09-16", desc: "Photo comparison popup: the starting photo's date now also shows the full day.month.year (matching the latest photo's date), instead of the shorter day.month form." },
   { version: "1.30", date: "2026-09-16", desc: "Fixed the Photo comparison popup (starting vs. latest photo): the two photos now actually sit side by side as intended, instead of the second one getting pushed onto its own row below (a sizing rule was stretching each photo much bigger than intended, so two of them no longer fit side by side). Also fixed the latest photo's date showing as garbled text like \"16 (latest).09\" -- it now reads \"16.09.2026 (latest)\"." },
   { version: "1.29", date: "2026-09-16", desc: "Two follow-up fixes: (1) the Scale Log history table's own photo thumbnail now self-heals a broken/stale photo link too -- it was only wired up for the Photo Timeline below it, so a photo could show fixed there but still broken in the table above. (2) On a phone, the Calorie/Protein bar charts are now 15% shorter (their width/readability from the last update is unchanged) -- desktop is untouched either way." },
   { version: "1.28", date: "2026-09-16", desc: "Two changes: (1) every date shown app-wide is now day.month (e.g. 01.09), including a handful of spots that still showed the old 2026-09-01 style -- Photo Timeline captions, the Scale Log history table, edit-window titles, tooltips, and a few others. (2) The Calorie/Protein charts and daily check-in grid no longer squeeze into an unreadable mess on a phone screen -- on a narrow screen they now stay at their normal, comfortable size and you swipe sideways to see the rest of the days, instead of everything shrinking and overlapping. Nothing changed on a full-size screen." },
@@ -4465,8 +4466,8 @@ function zoomPairRow(label, srcFirst, srcLast, dateFirst, dateLast){
   // v1.30: takes an already-formatted display label, not a raw date -- the previous version built
   // it by string-concatenating " (latest)" onto the raw ISO date BEFORE formatting, which broke
   // formatShortDate's day/month split (it read "2026-09-16 (latest)" as a 3rd date-part and printed
-  // "16 (latest).09"). The starting photo keeps the short day.month form; the latest one gets the
-  // full day.month.year form (per follow-up feedback) since it's the one carrying a "(latest)" tag.
+  // "16 (latest).09"). v1.31: both sides now use the full day.month.year form (formatFullDate) for
+  // consistency -- only the starting side had the short form, per follow-up feedback.
   const item = (src, dateDisplay)=> src
     ? `<div class="zoom-pair-item"><img src="${src}" class="zoom-photo" alt="${label} photo, ${dateDisplay}"><div class="zoom-pair-date">${dateDisplay}</div></div>`
     : `<div class="zoom-pair-item"><div class="zoom-photo-empty">No ${label.toLowerCase()} photo</div><div class="zoom-pair-date">${dateDisplay}</div></div>`;
@@ -4474,7 +4475,7 @@ function zoomPairRow(label, srcFirst, srcLast, dateFirst, dateLast){
     <div class="zoom-pair">
       <div class="zoom-pair-label">${label}</div>
       <div class="zoom-pair-row">
-        ${item(srcFirst, formatShortDate(dateFirst))}
+        ${item(srcFirst, formatFullDate(dateFirst))}
         ${item(srcLast, formatFullDate(dateLast) + " (latest)")}
       </div>
     </div>`;
