@@ -340,6 +340,7 @@
   table.log-table tbody tr{transition:background .15s;}
   table.log-table tr:hover td{background:var(--panel2);}
   table.log-table .badge{margin-left:4px;}
+  table.log-table .workout-order-num{color:var(--muted); font-weight:700; text-align:center; width:1%;}
   table.log-table .del-btn, table.log-table .edit-btn, table.log-table .repeat-btn{background:transparent; border:none; box-shadow:none; padding:4px 6px; font-size:.78rem; text-decoration:underline; cursor:pointer;}
   table.log-table .del-btn{color:var(--danger);}
   table.log-table .del-btn:hover, table.log-table .edit-btn:hover, table.log-table .repeat-btn:hover{transform:none; filter:none; opacity:.8;}
@@ -1744,8 +1745,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.31";
+const APP_VERSION = "1.32";
 const CHANGELOG = [
+  { version: "1.32", date: "2026-09-16", desc: "Day workout log table now shows a # column with each exercise's position in its split's configured order (from My splits settings), and rows are grouped by split then sorted by that order -- instead of listing exercises in the order you happened to log them. An exercise not in the split's configured pattern shows a dash and sorts to the end of its group." },
   { version: "1.31", date: "2026-09-16", desc: "Photo comparison popup: the starting photo's date now also shows the full day.month.year (matching the latest photo's date), instead of the shorter day.month form." },
   { version: "1.30", date: "2026-09-16", desc: "Fixed the Photo comparison popup (starting vs. latest photo): the two photos now actually sit side by side as intended, instead of the second one getting pushed onto its own row below (a sizing rule was stretching each photo much bigger than intended, so two of them no longer fit side by side). Also fixed the latest photo's date showing as garbled text like \"16 (latest).09\" -- it now reads \"16.09.2026 (latest)\"." },
   { version: "1.29", date: "2026-09-16", desc: "Two follow-up fixes: (1) the Scale Log history table's own photo thumbnail now self-heals a broken/stale photo link too -- it was only wired up for the Photo Timeline below it, so a photo could show fixed there but still broken in the table above. (2) On a phone, the Calorie/Protein bar charts are now 15% shorter (their width/readability from the last update is unchanged) -- desktop is untouched either way." },
@@ -9516,14 +9518,49 @@ function workoutEntryImprovementLabel(entry, date){
   return null;
 }
 
+// An exercise's position within its OWN split's configured pattern (My splits settings), 1-based --
+// e.g. Upper A's pattern is Lat Pulldown, Seated Cable Row, Machine Row, ... so Machine Row is #3.
+// Matched by the same normalized (trim+lowercase) key exerciseRefKey uses elsewhere, so naming
+// differences in case/whitespace don't break the match. Returns null when the split has no such
+// exercise in its pattern (a custom/one-off exercise typed in that day) or there's no split at all --
+// callers render that as a dash rather than a number, since there's no defined position for it.
+function exerciseOrderIndexInSplit(split, exerciseName){
+  if(!split || !Array.isArray(split.exercises) || !exerciseName) return null;
+  const key = exerciseRefKey(exerciseName);
+  const idx = split.exercises.findIndex(x => exerciseRefKey(x.name) === key);
+  return idx >= 0 ? idx + 1 : null;
+}
+
+// v1.32: the Day workout log table used to list entries in whatever order they were logged that
+// day, which interleaves splits (e.g. a few Upper A sets, then Cardio, then one more Upper A set)
+// and doesn't reflect the exercise order you actually planned in "My splits". Now rows are grouped
+// by split (in the same order splits are listed in My splits) and, within each split, sorted by
+// that split's configured exercise position -- with a new leading "#" column showing the number, so
+// the table reads top-to-bottom like your plan rather than your logging order.
 function renderWorkoutTable(entries, date){
   const wrap = document.getElementById("workoutTableWrap");
   if(entries.length === 0){
     wrap.innerHTML = "";
     return;
   }
-  const splitsById = new Map(getWorkoutSplits().map(s=>[s.id, s]));
-  const rows = entries.map(e=>{
+  const splits = getWorkoutSplits();
+  const splitsById = new Map(splits.map(s=>[s.id, s]));
+  const splitRank = new Map(splits.map((s,i)=>[s.id, i]));
+
+  const decorated = entries.map((e,originalIndex)=>({
+    e, originalIndex,
+    rank: (e.splitId && splitRank.has(e.splitId)) ? splitRank.get(e.splitId) : Infinity,
+    orderNum: exerciseOrderIndexInSplit(splitsById.get(e.splitId), e.exercise)
+  }));
+  decorated.sort((a,b)=>{
+    if(a.rank !== b.rank) return a.rank - b.rank;
+    const an = a.orderNum == null ? Infinity : a.orderNum;
+    const bn = b.orderNum == null ? Infinity : b.orderNum;
+    if(an !== bn) return an - bn;
+    return a.originalIndex - b.originalIndex; // stable fallback: keep log order among ties/unmatched
+  });
+
+  const rows = decorated.map(({e, orderNum})=>{
     const cardio = workoutEntryIsCardio(e);
     const detailsCell = cardio ? workoutCardioDurationLabel(e) : `${workoutEntryRepsLabel(e)} ${workoutEntryWeightLabel(e)}`;
     const metricCell = cardio
@@ -9534,6 +9571,7 @@ function renderWorkoutTable(entries, date){
       ? ` <span class="badge pr" title="Better than your last logged ${escAttr(e.exercise)}">${improvement}</span>`
       : "";
     return `<tr>
+      <td class="workout-order-num">${orderNum != null ? orderNum : "–"}</td>
       <td>${splitBadgeHtml(e.splitName, e.splitId, splitsById)}</td>
       <td><span class="badge info">${e.category||"Other"}</span></td>
       <td>${e.exercise}${cardio ? "" : exerciseVideoLinkHtml(e.exercise)}</td>
@@ -9545,7 +9583,7 @@ function renderWorkoutTable(entries, date){
   wrap.innerHTML = `
     <div class="table-scroll">
       <table class="log-table">
-        <thead><tr><th>Split</th><th>Category</th><th>Exercise</th><th>Sets × reps / Duration</th><th>Volume / Calories</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Split</th><th>Category</th><th>Exercise</th><th>Sets × reps / Duration</th><th>Volume / Calories</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
