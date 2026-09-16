@@ -1292,9 +1292,13 @@
         <div class="step-desc">Your average daily intake on days you actually logged — a truer picture than a single day.</div>
         <div id="nutritionTrendsWrap"></div>
         <div id="proteinTodayNudgeWrap" style="margin-top:14px;"></div>
-        <div class="trend-view-toggle" id="nutritionTrendViewToggle">
-          <button type="button" id="nutritionTrendViewDailyBtn" onclick="setNutritionTrendView('daily')">Daily</button>
-          <button type="button" id="nutritionTrendViewWeeklyBtn" onclick="setNutritionTrendView('weekly')">Weekly</button>
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <div class="trend-view-toggle" id="nutritionTrendViewToggle">
+            <button type="button" id="nutritionTrendViewDailyBtn" onclick="setNutritionTrendView('daily')">Daily</button>
+            <button type="button" id="nutritionTrendViewWeeklyBtn" onclick="setNutritionTrendView('weekly')">Weekly</button>
+            <button type="button" id="nutritionTrendViewPhaseBtn" onclick="setNutritionTrendView('phase')">Phase</button>
+          </div>
+          <span class="phase-badge" id="nutritionTrendPhaseBadge"></span>
         </div>
         <div class="chart-scroll-sync">
           <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Calories per day <span id="calorieTrendPeriodLabel" style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks vs. target</span></div>
@@ -1871,8 +1875,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.45";
+const APP_VERSION = "1.46";
 const CHANGELOG = [
+  { version: "1.46", date: "2026-09-16", desc: "Nutrition Trends: added a phase-name badge next to the Daily/Weekly toggle (always shown, same idea as the Weight trend chart's own phase badge) and a third \"Phase\" view -- weekly bars spanning your active phase's own start date through today, instead of a fixed recent window. The Calories/Protein target lines already reflect your per-phase overrides from Target ranges (Settings) in every view." },
   { version: "1.45", date: "2026-09-16", desc: "New Settings tab: Target ranges. Moved your aesthetic target ranges here (out of Scale Log Settings) and added Calories/day, Protein/day and a free-text Notes box, all per phase -- leave Calories/Protein blank to keep using the auto-calculated target, or set your own for that phase. Completed phases stay on record below as a read-only, collapsible list so you can look back at what a past phase's targets actually were. The Complete Phase form now collects these too, prefilled with your current numbers. Phase notes are now included in the Coach/AI export." },
   { version: "1.44", date: "2026-09-16", desc: "Body change card (\"first logged reading vs. latest\") now shows one photo per phase boundary instead of always just two -- your original photo, then a permanent snapshot of how each phase ended, then your current photo. Each arrow between them is labeled with the phase it covers. With one phase it still looks the same as before (2 photos); complete a phase and it grows a photo (3, then 4, and so on)." },
   { version: "1.43", date: "2026-09-16", desc: "Photo Timeline now shows one row per phase instead of a single row spanning your whole history -- all of Phase 1's photos on their own line, Phase 2's photos on the next line once you complete a phase, each labeled with that phase's name. Makes it easy to see your progress photos grouped by whatever focus was active when they were taken." },
@@ -6849,33 +6854,95 @@ function computeWeeklyMetricSeries(weeks, field){
 function computeWeeklyProteinSeries(weeks){ return computeWeeklyMetricSeries(weeks, "proteinG"); }
 function computeWeeklyCalorieSeries(weeks){ return computeWeeklyMetricSeries(weeks, "kcal"); }
 
+// v1.46: same daily-metric lookup as computeDailyMetricSeries, but over an explicit [startDate,
+// endDate] range instead of "the last N days ending today" -- needed to scope a chart to a phase's
+// own (potentially very long) date range.
+function computeDailyMetricSeriesForRange(startDate, endDate, field){
+  const log = getFoodLog();
+  const series = [];
+  let d = startDate;
+  let guard = 0;
+  while(d <= endDate && guard < 3650){ // ~10 years -- sane ceiling against a corrupt/backwards range
+    const entries = log[d] || [];
+    const value = entries.reduce((s,e)=>s+(e[field]||0), 0);
+    series.push({date: d, value, logged: entries.length > 0});
+    d = shiftDateStr(d, 1);
+    guard++;
+  }
+  return series;
+}
+// Weekly bars spanning an entire phase (its own start date's Monday through today's Monday, or its
+// end date's Monday if the phase is already closed) -- same "average per logged day" bucketing as
+// computeWeeklyMetricSeries, just scoped to phase dates rather than a fixed recent window.
+function computeWeeklyMetricSeriesForPhase(phase, field){
+  if(!phase) return [];
+  const startMonday = mondayOfWeek(phase.startDate);
+  const endDate = phase.endDate || todayStr();
+  const endMonday = mondayOfWeek(endDate);
+  const daily = computeDailyMetricSeriesForRange(startMonday, endDate, field);
+  const buckets = new Map();
+  daily.forEach(d=>{
+    const monday = mondayOfWeek(d.date);
+    if(!buckets.has(monday)) buckets.set(monday, {sum:0, loggedDays:0});
+    if(d.logged){ const b = buckets.get(monday); b.sum += d.value; b.loggedDays += 1; }
+  });
+  const series = [];
+  let m = startMonday;
+  let guard = 0;
+  while(m <= endMonday && guard < 520){ // 10 years of weeks -- sane ceiling
+    const b = buckets.get(m) || {sum:0, loggedDays:0};
+    series.push({date: m, value: b.loggedDays ? b.sum / b.loggedDays : 0, logged: b.loggedDays > 0});
+    m = shiftDateStr(m, 7);
+    guard++;
+  }
+  return series;
+}
+function computeWeeklyProteinSeriesForPhase(phase){ return computeWeeklyMetricSeriesForPhase(phase, "proteinG"); }
+function computeWeeklyCalorieSeriesForPhase(phase){ return computeWeeklyMetricSeriesForPhase(phase, "kcal"); }
+
 const NUTRITION_TREND_WEEKLY_WEEKS = 8;
 const NUTRITION_TREND_VIEW_KEY = "bodyAnalyzer.nutritionTrendView.v1";
+// v1.46: added a third view, "phase" -- weekly bars spanning the ACTIVE phase's own start date
+// through today (or its end date, for a completed phase, though this view only makes sense for the
+// still-open active one in practice), instead of a fixed recent window. Same weekly-bucket
+// aggregation as "weekly", just scoped to phase dates rather than the last N weeks.
 function getNutritionTrendView(){
-  return localStorage.getItem(NUTRITION_TREND_VIEW_KEY) === "weekly" ? "weekly" : "daily";
+  const v = localStorage.getItem(NUTRITION_TREND_VIEW_KEY);
+  return (v === "weekly" || v === "phase") ? v : "daily";
 }
 function setNutritionTrendView(view){
-  localStorage.setItem(NUTRITION_TREND_VIEW_KEY, view === "weekly" ? "weekly" : "daily");
+  const v = (view === "weekly" || view === "phase") ? view : "daily";
+  localStorage.setItem(NUTRITION_TREND_VIEW_KEY, v);
   renderNutritionTrendViewToggle();
   renderCalorieTrendChart();
   renderProteinTrendChart();
 }
-// Reflects the current Daily/Weekly choice in the toggle buttons, the two chart headings, and
-// whether the Daily check-in results heatmap is shown at all -- that grid is inherently a per-day
-// yes/no answer, so it has no sensible weekly form and is simply hidden while Weekly is selected.
+// Reflects the current Daily/Weekly/Phase choice in the toggle buttons, the two chart headings,
+// the phase-name badge (always shown, regardless of which view is active -- mirrors the Weight
+// trend chart's own .phase-badge so "which phase am I looking at" reads the same way everywhere),
+// and whether the Daily check-in results heatmap is shown at all -- that grid is inherently a
+// per-day yes/no answer, so it has no sensible weekly/phase form and is hidden for both.
 function renderNutritionTrendViewToggle(){
   const view = getNutritionTrendView();
   const dailyBtn = document.getElementById("nutritionTrendViewDailyBtn");
   const weeklyBtn = document.getElementById("nutritionTrendViewWeeklyBtn");
+  const phaseBtn = document.getElementById("nutritionTrendViewPhaseBtn");
   if(dailyBtn) dailyBtn.classList.toggle("active", view === "daily");
   if(weeklyBtn) weeklyBtn.classList.toggle("active", view === "weekly");
+  if(phaseBtn) phaseBtn.classList.toggle("active", view === "phase");
+  const activePhase = (typeof getActivePhase === "function") ? getActivePhase() : null;
+  const badge = document.getElementById("nutritionTrendPhaseBadge");
+  if(badge) badge.textContent = activePhase ? activePhase.name : "";
   const calLabel = document.getElementById("calorieTrendPeriodLabel");
   const proteinLabel = document.getElementById("proteinTrendPeriodLabel");
-  const periodText = view === "weekly" ? `— last ${NUTRITION_TREND_WEEKLY_WEEKS} weeks vs. target` : "— last two weeks vs. target";
+  let periodText;
+  if(view === "phase") periodText = activePhase ? `— all of ${activePhase.name} vs. target` : "— this phase vs. target";
+  else if(view === "weekly") periodText = `— last ${NUTRITION_TREND_WEEKLY_WEEKS} weeks vs. target`;
+  else periodText = "— last two weeks vs. target";
   if(calLabel) calLabel.textContent = periodText;
   if(proteinLabel) proteinLabel.textContent = periodText;
   const heatmapSection = document.getElementById("dailyQuestionsHeatmapSection");
-  if(heatmapSection) heatmapSection.classList.toggle("hidden", view === "weekly");
+  if(heatmapSection) heatmapSection.classList.toggle("hidden", view !== "daily");
 }
 
 // Shared horizontal geometry for every "one column per day" widget on Nutrition Log -- the
@@ -7021,36 +7088,48 @@ function jumpToDate(dateStr){
 }
 
 function renderProteinTrendChart(){
-  const weekly = getNutritionTrendView() === "weekly";
-  const series = weekly ? computeWeeklyProteinSeries(NUTRITION_TREND_WEEKLY_WEEKS) : computeDailyProteinSeries(14).map(s=>({date:s.date, value:s.value, logged:s.logged}));
+  const view = getNutritionTrendView();
+  const weekly = view === "weekly";
+  const phase = view === "phase";
+  const series = phase
+    ? computeWeeklyProteinSeriesForPhase(getActivePhase())
+    : weekly
+      ? computeWeeklyProteinSeries(NUTRITION_TREND_WEEKLY_WEEKS)
+      : computeDailyProteinSeries(14).map(s=>({date:s.date, value:s.value, logged:s.logged}));
   const targets = getPlanTargets();
   const targetG = targets ? targets.proteinG : null;
   renderDailyBarChart("proteinTrendWrap", series, targetG, {
     unit: "g",
-    emptyText: weekly ? "Log food on a few weeks to see your protein trend here." : "Log food on a few days to see your protein trend here.",
+    emptyText: (weekly || phase) ? "Log food on a few weeks to see your protein trend here." : "Log food on a few days to see your protein trend here.",
     noTargetText: "Finish Body Profile + Initial Statistics to see your protein target line here.",
     hitTest: (v,t)=> v >= t,
     hitLabel: "Hit target", hitSwatchLabel: "Hit target", missSwatchLabel: "Under target",
-    periodNoun: weekly ? "week" : "day",
-    tooltipDatePrefix: weekly ? "Week of " : "",
+    periodNoun: (weekly || phase) ? "week" : "day",
+    tooltipDatePrefix: (weekly || phase) ? "Week of " : "",
   });
 }
 
 function renderCalorieTrendChart(){
-  const weekly = getNutritionTrendView() === "weekly";
-  const series = weekly ? computeWeeklyCalorieSeries(NUTRITION_TREND_WEEKLY_WEEKS) : computeDailyCalorieSeries(14).map(s=>({date:s.date, value:s.value, logged:s.logged}));
+  const view = getNutritionTrendView();
+  const weekly = view === "weekly";
+  const phase = view === "phase";
+  const series = phase
+    ? computeWeeklyCalorieSeriesForPhase(getActivePhase())
+    : weekly
+      ? computeWeeklyCalorieSeries(NUTRITION_TREND_WEEKLY_WEEKS)
+      : computeDailyCalorieSeries(14).map(s=>({date:s.date, value:s.value, logged:s.logged}));
   const targets = getPlanTargets();
   const targetKcal = targets ? targets.calories : null;
   // "On track" for calories means close to target either way (within 10%), not just "at least" —
   // going well over is just as off-plan as going well under.
   renderDailyBarChart("calorieTrendWrap", series, targetKcal, {
     unit: "kcal",
-    emptyText: weekly ? "Log food on a few weeks to see your calorie trend here." : "Log food on a few days to see your calorie trend here.",
+    emptyText: (weekly || phase) ? "Log food on a few weeks to see your calorie trend here." : "Log food on a few days to see your calorie trend here.",
     noTargetText: "Finish Body Profile + Initial Statistics to see your calorie target line here.",
     hitTest: (v,t)=> Math.abs(v - t) <= t * 0.1,
     hitLabel: "On track", hitSwatchLabel: "Close to target (±10%)", missSwatchLabel: "Off target",
-    periodNoun: weekly ? "week" : "day",
-    tooltipDatePrefix: weekly ? "Week of " : "",
+    periodNoun: (weekly || phase) ? "week" : "day",
+    tooltipDatePrefix: (weekly || phase) ? "Week of " : "",
   });
 }
 
