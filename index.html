@@ -1759,8 +1759,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.35";
+const APP_VERSION = "1.36";
 const CHANGELOG = [
+  { version: "1.36", date: "2026-09-16", desc: "Scale Log history table: BMI, Body fat, Visceral fat and Waist no longer show a separate \"Healthy range\"/\"High\"/\"Very high\" text badge next to the number -- the whole cell is now tinted green/amber/red instead, so the color itself carries the meaning at a glance. (Previewed 4 options first -- colored number, colored chip, colored dot, tinted cell -- tinted cell was picked.)" },
   { version: "1.35", date: "2026-09-16", desc: "Scale Log history table: Body fat % and Muscle % now always show one decimal place (e.g. 17.0% instead of a mix of 17% and 16.8%). Also moved the Delete button out of the table row and into the edit form -- click Edit on a reading and Delete appears there, freeing up a column's worth of width in the table." },
   { version: "1.34", date: "2026-09-16", desc: "Removed the \"Front + back\" badge from Photo Timeline thumbnails. Nutrition Log's Export CSV (and the same file the Coach/AI export attaches) now includes columns for whichever daily check-in questions are enabled -- Creatine, Good Sleep, Stomach problems, Water intake -- so that data reaches the AI along with your food log." },
   { version: "1.33", date: "2026-09-16", desc: "Added a Daily/Weekly toggle above the Calorie and Protein trend charts on Nutrition Log. Weekly shows the last 8 weeks, each bar averaging per logged day that week; the Daily check-in results grid (which has no weekly equivalent) hides itself while Weekly is selected." },
@@ -3690,6 +3691,18 @@ function wireStandaloneDatePicker(inputId){
   attachDatePickerPopup(input, () => input.value, (iso) => setDateFieldValue(inputId, iso));
 }
 
+// v1.36: replaces the old "value + separate text badge" pattern (e.g. "78%  Healthy range") with a
+// soft color wash across the whole cell -- green/amber/red for healthy/borderline/bad, no text
+// label needed. Chosen (over a colored number, a colored chip around just the value, or a colored
+// dot) after showing the user a preview of all four side by side. Returns an empty string when
+// there's no category to judge against (e.g. body fat % before gender is set in Body Profile), so
+// the cell renders with no tint at all rather than a stray empty style attribute.
+const RANGE_CELL_TINT = { ok: "rgba(78,225,163,.10)", warn: "rgba(240,184,84,.10)", danger: "rgba(241,107,131,.10)" };
+function rangeCellStyle(cat){
+  const tint = cat && RANGE_CELL_TINT[cat.cls];
+  return tint ? ` style="background:${tint};"` : "";
+}
+
 function visceralFatCategory(v){
   if(v == null) return null;
   if(v <= 9) return {label:"Healthy range", cls:"ok"};
@@ -4904,12 +4917,12 @@ function renderLogView(){
       <td>${thumb ? `<img class="pkg-thumb${repeated?" pkg-thumb-repeated":""}" src="${thumb}" alt="${repeated?"Repeated from an earlier reading":"Progress photo"}, ${formatShortDate(l.date)}" title="${repeated?"No photo logged this reading — showing the most recent one":"Progress photo"}" onerror="healBrokenScalePhoto(this,'${thumbDate}','${thumbField}')">` : `<span class="pkg-thumb-placeholder"></span>`}</td>
       <td>${formatShortDate(l.date)}</td>
       <td>${l.weightKg.toFixed(1)} kg</td>
-      <td>${bmi!=null ? bmi.toFixed(1) + (bmiCat?` <span class="badge ${bmiCat.cls}">${bmiCat.label}</span>`:"") : "—"}</td>
-      <td>${l.bodyFatPct!=null ? l.bodyFatPct.toFixed(1)+"%" + (bfCat?` <span class="badge ${bfCat.cls}">${bfCat.label}</span>`:"") : "—"}</td>
+      <td${rangeCellStyle(bmiCat)}>${bmi!=null ? bmi.toFixed(1) : "—"}</td>
+      <td${rangeCellStyle(bfCat)}>${l.bodyFatPct!=null ? l.bodyFatPct.toFixed(1)+"%" : "—"}</td>
       <td>${l.muscleMassKg!=null ? l.muscleMassKg.toFixed(1)+" kg" : (l.musclePct!=null ? l.musclePct.toFixed(1)+"%" : "—")}</td>
-      <td>${l.visceralFat!=null ? l.visceralFat + (vf?` <span class="badge ${vf.cls}">${vf.label}</span>`:"") : "—"}</td>
+      <td${rangeCellStyle(vf)}>${l.visceralFat!=null ? l.visceralFat : "—"}</td>
       <td>${l.chestCm!=null ? l.chestCm+" cm" : "—"}</td>
-      <td>${l.waistCm!=null ? l.waistCm+" cm" + (waistCat?` <span class="badge ${waistCat.cls}">${waistCat.label}</span>`:"") : "—"}</td>
+      <td${rangeCellStyle(waistCat)}>${l.waistCm!=null ? l.waistCm+" cm" : "—"}</td>
       <td>${l.hipCm!=null ? l.hipCm+" cm" : "—"}</td>
       <td>${l.thighCm!=null ? l.thighCm+" cm" : "—"}</td>
       <td>${l.calfCm!=null ? l.calfCm+" cm" : "—"}</td>
