@@ -216,6 +216,16 @@
      directly above them. Centering just these 10 headers (not the shared th rule, which every
      other table in the app still uses left-aligned) lines title up with value. */
   table.log-table th.chip-th{text-align:center;}
+  /* v1.42: the active phase's name is editable right in place -- looks like plain text until you
+     hover/focus it (a hairline border + slightly lighter background hints it's a field), so it
+     doesn't read as a form control cluttering the phase summary bar. */
+  #activePhaseNameInput:hover{border-color:var(--border);}
+  #activePhaseNameInput:focus{border-color:var(--accent2); background:var(--panel3); outline:none;}
+  /* v1.42 (real bug, not v1.40's headers): centering the HEADERS (chip-th, above) wasn't enough --
+     the chip itself was still left-aligned inside its wider <td> (the shared table.log-table rule
+     is text-align:left), so it sat left of the now-centered header above it. Centering the <td>
+     too is what actually lines a chip up under its title. */
+  table.log-table td.chip-td{text-align:center;}
   .badge.muted{background:rgba(148,163,184,.14); color:var(--muted);}
 
   .quick-days-row{display:flex; gap:6px; flex-wrap:wrap;}
@@ -389,12 +399,11 @@
   .trend-swatch-raw{background:var(--accent2); opacity:.45;}
   .trend-swatch-avg{background:var(--accent);}
   .trend-chart-inner{position:relative;}
-  /* v1.41: thin colored strip under the Weight trend chart marking which phase(s) the visible
-     dates fall into (the user's pick, style "C", after previewing badge/tint/strip/divider
-     options) -- purely informational, doesn't affect the chart's own scale/domain. */
-  .trend-phase-strip{margin-top:6px;}
-  .trend-phase-strip-legend{display:flex; flex-wrap:wrap; gap:10px; margin-top:4px;}
-  .trend-phase-strip-legend .trend-legend-item .trend-swatch{width:9px; height:9px; border-radius:50%;}
+  /* v1.42: replaced the v1.41 colored timeline strip (style "C") with a badge + divider lines
+     (style "D") per a follow-up preference change -- .phase-badge names the phase the most recent
+     reading belongs to, right next to the chart's own title; the divider lines themselves are
+     drawn straight into the chart's own <svg> (see renderTrendChart), no separate CSS needed. */
+  .phase-badge{display:inline-block; background:rgba(124,156,255,.16); color:var(--accent2); font-size:.68rem; font-weight:700; padding:2px 8px; border-radius:8px; margin-left:4px; vertical-align:middle;}
   .trend-goal-reached-badge{position:absolute; top:6px; left:10px; width:84px; height:84px; filter:drop-shadow(0 3px 10px rgba(0,0,0,.45)); pointer-events:none;}
   .trend-goal-reached-badge img{display:block; width:100%; height:100%;}
   .trend-goal-reached-note{display:flex; align-items:center; gap:6px; font-size:.82rem; font-weight:700; color:var(--accent); margin-top:8px;}
@@ -862,8 +871,8 @@
           <h2>Your aesthetic target ranges</h2>
           <div class="step-desc" style="margin-top:0;">Your personal target range for each measurement — saved to your profile so you can compare future readings against them.</div>
           <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:14px 0; padding:10px 14px; background:var(--panel2); border-radius:var(--radius-sm);">
-            <div>
-              <div style="font-weight:700;" id="activePhaseName">Phase 1</div>
+            <div style="flex:1; min-width:0;">
+              <input type="text" id="activePhaseNameInput" title="Click to rename this phase" style="font-weight:700; font-size:1rem; color:var(--text); background:transparent; border:1px solid transparent; padding:2px 6px; margin:-2px 0 0 -7px; border-radius:6px; width:100%; max-width:320px;">
               <div class="step-desc" style="margin:2px 0 0;" id="activePhaseMeta">Started —</div>
             </div>
             <button type="button" class="secondary" id="completePhaseBtn">Complete phase →</button>
@@ -1834,8 +1843,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.41";
+const APP_VERSION = "1.42";
 const CHANGELOG = [
+  { version: "1.42", date: "2026-09-16", desc: "Three follow-ups to Phases (v1.41): (1) the active phase's name is now editable right in the My Plan card -- e.g. rename \"Phase 1\" to \"Phase 1 - Reduction till 75kg\" -- and shows up everywhere the name is read (this card, the Complete-phase modal, the Weight trend chart). (2) Switched the Weight trend chart's phase indicator from a colored timeline strip to a small badge next to the title plus a dashed divider line marking exactly where a new phase's targets begin. (3) Fixed the History table: centering just the column headers (v1.40) wasn't enough on its own -- the chips underneath were still left-aligned in their (already equal-width) column, so each one sat visibly left of its own centered title. Centered the value cells too." },
   { version: "1.41", date: "2026-09-16", desc: "New: Phases. Your target ranges (and target weight) can now change over time as your focus shifts -- e.g. a fat-loss phase now, a lean-bulk phase later. My Plan shows your current phase with a \"Complete phase\" button; completing one lets you name the next phase and set fresh targets, prefilled with your current ones as a starting point. Past readings keep being judged by whatever was active when they were logged, so completing a phase never recolors old History table rows or mini-card badges. All existing history became \"Phase 1\" automatically. The Weight trend chart now shows a thin colored strip marking which phase(s) the visible dates belong to." },
   { version: "1.40", date: "2026-09-16", desc: "Scale Log history table: the column headers (WEIGHT, BMI, BODY FAT...) were left-aligned while the chips underneath are centered, so each title sat off to the side of its own column of values instead of directly above it. Headers are now centered to match." },
   { version: "1.39", date: "2026-09-16", desc: "Scale Log history table: the Date column was noticeably wider than everything else (an unconstrained column soaks up whatever space the fixed-width chip columns don't use). Previewed 10 ways to fix it -- picked giving that leftover space to the photo thumbnail column instead, so Date now sits at a small, fixed width matching its content." },
@@ -4065,10 +4075,6 @@ function bmiWeightThresholds(){
   };
 }
 
-// v1.41: colors cycled through for the Weight trend chart's phase strip -- distinct from the
-// BMI-zone/target-weight band colors used elsewhere on the same chart (ok/warn/danger, and the
-// target's own yellow), since a phase isn't a "good/bad" judgment, just an identity/timeline marker.
-const PHASE_STRIP_COLORS = ["#7c9cff", "#c9a6f7", "#f0b854", "#4ee1a3", "#f16b83"];
 function renderTrendChart(logs){
   const wrap = document.getElementById("trendChartWrap");
   if(logs.length < 2){
@@ -4193,39 +4199,36 @@ function renderTrendChart(logs){
     false
   );
 
-  // v1.41: phase timeline strip -- which phase(s) the visible date range spans, reusing the same
-  // xFor mapping as the chart above so segments line up under the matching dates.
-  const phaseStripH = 8;
+  // v1.42: switched from a colored timeline strip (style "C") to a badge + divider lines (style
+  // "D") per the user's follow-up preference -- a small badge next to the chart's own title names
+  // the phase the most recent reading belongs to, and each phase BOUNDARY that falls within the
+  // visible date range gets a dashed vertical line + label drawn directly on the chart, right
+  // where the new phase's targets actually kicked in.
   const phases = getPhases();
-  const phaseSegs = [];
+  const currentPhaseForChart = getPhaseForDate(last.date);
+  let phaseDividers = "";
   phases.forEach((p, i)=>{
-    const segStartMs = new Date(p.startDate+"T00:00:00").getTime();
-    const segEndMs = p.endDate ? new Date(p.endDate+"T00:00:00").getTime() : maxDateMs;
-    if(segEndMs < minDateMs || segStartMs > maxDateMs) return; // doesn't overlap the visible range
-    const x1 = xFor(Math.max(segStartMs, minDateMs));
-    const x2 = Math.max(xFor(Math.min(segEndMs, maxDateMs)), x1 + 2);
-    phaseSegs.push({p, x1, x2, color: PHASE_STRIP_COLORS[i % PHASE_STRIP_COLORS.length]});
+    if(i === 0) return; // the very first phase's start is the beginning of all history, not a "transition"
+    const startMs = new Date(p.startDate+"T00:00:00").getTime();
+    if(startMs < minDateMs || startMs > maxDateMs) return; // this boundary isn't in the visible range
+    const x = xFor(startMs).toFixed(1);
+    phaseDividers += `<line x1="${x}" y1="0" x2="${x}" y2="${h}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="2 3" opacity="0.7"><title>${p.name} starts ${formatShortDate(p.startDate)}</title></line>`;
+    phaseDividers += `<text x="${(parseFloat(x)+3).toFixed(1)}" y="10" font-size="8" fill="var(--muted)">${p.name} starts</text>`;
   });
-  const phaseStripSvg = phaseSegs.map(s=>
-    `<rect x="${s.x1.toFixed(1)}" y="0" width="${(s.x2-s.x1).toFixed(1)}" height="${phaseStripH}" rx="${phaseStripH/2}" fill="${s.color}" opacity="0.55"><title>${s.p.name} (${formatShortDate(s.p.startDate)}${s.p.endDate?" – "+formatShortDate(s.p.endDate):" – now"})</title></rect>`
-  ).join("");
-  const phaseStripLegend = phaseSegs.map(s=>
-    `<span class="trend-legend-item"><span class="trend-swatch" style="background:${s.color};"></span>${s.p.name}</span>`
-  ).join("");
 
   wrap.innerHTML = `
-    <div class="trend-label">Weight trend: ${formatShortDate(first.date)} → ${formatShortDate(last.date)} · ${delta>0?"+":""}${delta.toFixed(1)} kg</div>
+    <div class="trend-label">Weight trend: ${formatShortDate(first.date)} → ${formatShortDate(last.date)} · ${delta>0?"+":""}${delta.toFixed(1)} kg ${currentPhaseForChart ? `<span class="phase-badge">${currentPhaseForChart.name}</span>` : ""}</div>
     ${showAvg ? `<div class="trend-legend"><span class="trend-legend-item"><span class="trend-swatch trend-swatch-raw"></span>Logged weight</span><span class="trend-legend-item"><span class="trend-swatch trend-swatch-avg"></span>7-day average</span></div>` : ""}
     <div class="trend-chart-inner">
       <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
         ${bands}
+        ${phaseDividers}
         <path d="${path}" fill="none" stroke="var(--accent2)" stroke-width="1.5" opacity="${showAvg ? 0.45 : 1}"></path>
         ${dots}
         ${showAvg ? `<path d="${avgPath}" fill="none" stroke="var(--accent)" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"></path>` : ""}
       </svg>
       ${goalReached ? `<div class="trend-goal-reached-badge" title="You've reached your target weight!">${smileyPhotoImg(84, "Target weight reached!")}</div>` : ""}
     </div>
-    ${phaseStripSvg ? `<div class="trend-phase-strip"><svg viewBox="0 0 ${w} ${phaseStripH}" style="width:100%; height:${phaseStripH}px; display:block;">${phaseStripSvg}</svg><div class="trend-phase-strip-legend">${phaseStripLegend}</div></div>` : ""}
     ${goalReached ? `<div class="trend-goal-reached-note">${ICON_SMILEY}You've reached your target weight of ${targetKg.toFixed(1)}kg!</div>` : ""}
     ${!th ? `<div class="goal-progress-note">Add your height in Body Profile to see BMI zone bands here.</div>` : ""}
   `;
@@ -5073,16 +5076,16 @@ function renderLogView(){
     return `<tr>
       <td>${thumb ? `<img class="pkg-thumb${repeated?" pkg-thumb-repeated":""}" src="${thumb}" alt="${repeated?"Repeated from an earlier reading":"Progress photo"}, ${formatShortDate(l.date)}" title="${repeated?"No photo logged this reading — showing the most recent one":"Progress photo"}" onerror="healBrokenScalePhoto(this,'${thumbDate}','${thumbField}')">` : `<span class="pkg-thumb-placeholder"></span>`}</td>
       <td class="log-date-cell" onclick="editLogEntry('${l.date}')" title="Click to edit this reading">${formatShortDate(l.date)}</td>
-      <td>${rangeChip(l.weightKg.toFixed(1)+" kg", weightCat)}</td>
-      <td>${bmi!=null ? rangeChip(bmi.toFixed(1), bmiCat) : "—"}</td>
-      <td>${l.bodyFatPct!=null ? rangeChip(l.bodyFatPct.toFixed(1)+"%", bfCat) : "—"}</td>
-      <td>${l.muscleMassKg!=null ? l.muscleMassKg.toFixed(1)+" kg" : (l.musclePct!=null ? rangeChip(l.musclePct.toFixed(1)+"%", muscleCat) : "—")}</td>
-      <td>${l.visceralFat!=null ? rangeChip(l.visceralFat, vf) : "—"}</td>
-      <td>${l.chestCm!=null ? rangeChip(l.chestCm+" cm", chestCat) : "—"}</td>
-      <td>${l.waistCm!=null ? rangeChip(l.waistCm+" cm", waistCat) : "—"}</td>
-      <td>${l.hipCm!=null ? rangeChip(l.hipCm+" cm", hipCat) : "—"}</td>
-      <td>${l.thighCm!=null ? rangeChip(l.thighCm+" cm", thighCat) : "—"}</td>
-      <td>${l.calfCm!=null ? rangeChip(l.calfCm+" cm", calfCat) : "—"}</td>
+      <td class="chip-td">${rangeChip(l.weightKg.toFixed(1)+" kg", weightCat)}</td>
+      <td class="chip-td">${bmi!=null ? rangeChip(bmi.toFixed(1), bmiCat) : "—"}</td>
+      <td class="chip-td">${l.bodyFatPct!=null ? rangeChip(l.bodyFatPct.toFixed(1)+"%", bfCat) : "—"}</td>
+      <td class="chip-td">${l.muscleMassKg!=null ? l.muscleMassKg.toFixed(1)+" kg" : (l.musclePct!=null ? rangeChip(l.musclePct.toFixed(1)+"%", muscleCat) : "—")}</td>
+      <td class="chip-td">${l.visceralFat!=null ? rangeChip(l.visceralFat, vf) : "—"}</td>
+      <td class="chip-td">${l.chestCm!=null ? rangeChip(l.chestCm+" cm", chestCat) : "—"}</td>
+      <td class="chip-td">${l.waistCm!=null ? rangeChip(l.waistCm+" cm", waistCat) : "—"}</td>
+      <td class="chip-td">${l.hipCm!=null ? rangeChip(l.hipCm+" cm", hipCat) : "—"}</td>
+      <td class="chip-td">${l.thighCm!=null ? rangeChip(l.thighCm+" cm", thighCat) : "—"}</td>
+      <td class="chip-td">${l.calfCm!=null ? rangeChip(l.calfCm+" cm", calfCat) : "—"}</td>
     </tr>`;
   }).join("");
   wrap.innerHTML = `
@@ -13276,11 +13279,15 @@ function completePhase(input){
   const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
   if(!active) return null;
   const today = todayStr();
-  active.endDate = today;
+  // Guard against completing two phases on the SAME calendar day (e.g. a quick correction, or
+  // completing again right after creating one) -- the phase being closed can never end before it
+  // started, so its end is whichever is later, keeping every phase's date range non-empty and
+  // every later phase strictly after it (no overlapping/ambiguous dates for getPhaseForDate).
+  active.endDate = active.startDate > today ? active.startDate : today;
   const newPhase = {
     id: "phase-"+Date.now(),
     name: (input.name && input.name.trim()) || ("Phase "+(phases.length+1)),
-    startDate: shiftDateStr(today, 1),
+    startDate: shiftDateStr(active.endDate, 1),
     endDate: null,
     targetWeightKg: input.targetWeightKg != null ? input.targetWeightKg : active.targetWeightKg,
     aestheticTargets: input.aestheticTargets,
@@ -13339,15 +13346,38 @@ document.getElementById("saveAestheticTargetsBtn").addEventListener("click", sav
 
 // --- Complete phase ----------------------------------------------------------------------------
 function renderActivePhaseUI(){
-  const nameEl = document.getElementById("activePhaseName");
+  const nameEl = document.getElementById("activePhaseNameInput");
   const metaEl = document.getElementById("activePhaseMeta");
   if(!nameEl || !metaEl) return;
   const active = getActivePhase();
-  if(!active){ nameEl.textContent = "Phase 1"; metaEl.textContent = ""; return; }
-  nameEl.textContent = active.name;
+  if(!active){ nameEl.value = "Phase 1"; metaEl.textContent = ""; return; }
+  // Don't stomp on text the user is actively typing (e.g. a re-render triggered by something else
+  // firing mid-edit) -- only refresh the field when it isn't focused.
+  if(document.activeElement !== nameEl) nameEl.value = active.name;
   const logs = getScaleLogs().filter(l=>l.date >= active.startDate);
   metaEl.textContent = `Started ${formatShortDate(active.startDate)} · ${logs.length} reading${logs.length===1?"":"s"} logged`;
 }
+// v1.42: renaming the active phase right in place (e.g. "Phase 1" -> "Phase 1 - Reduction till
+// 75kg") -- saves on blur or Enter, same low-friction pattern as other inline fields in the app.
+// Shows up everywhere the phase name is read from getActivePhase()/getPhases() live: this card,
+// the Complete-phase modal's title (next time it's opened), and the Weight trend chart's phase
+// strip (once re-rendered).
+function renamePhase(newName){
+  const trimmed = (newName || "").trim();
+  if(!trimmed) return; // empty name -- ignore, keep the existing one rather than saving blank
+  const phases = getPhases();
+  const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
+  if(!active || active.name === trimmed) return;
+  active.name = trimmed;
+  savePhases(phases);
+  renderActivePhaseUI();
+  if(typeof renderLogView === "function") renderLogView(); // refreshes the trend chart's phase strip too
+}
+window.renamePhase = renamePhase;
+document.getElementById("activePhaseNameInput").addEventListener("blur", (e)=> renamePhase(e.target.value));
+document.getElementById("activePhaseNameInput").addEventListener("keydown", (e)=>{
+  if(e.key === "Enter"){ e.preventDefault(); e.target.blur(); }
+});
 function openCompletePhaseModal(){
   const active = getActivePhase();
   if(!active) return;
