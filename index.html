@@ -443,6 +443,12 @@
      floor keeps each chart at its full native size, and chart-scroll-sync (their shared ancestor)
      scrolls horizontally so all three stay perfectly column-aligned while you swipe. */
   .chart-scroll-sync{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  /* Daily/Weekly toggle above the Calorie/Protein trend charts (v1.33) -- a small self-contained
+     pill switch (not .view-tabs, which is sized for the full-width main nav with icons). */
+  .trend-view-toggle{display:inline-flex; gap:4px; background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:3px; margin:10px 0 2px;}
+  .trend-view-toggle button{background:transparent; color:var(--muted); border:none; box-shadow:none; padding:5px 14px; border-radius:7px; font-size:.78rem; font-weight:600;}
+  .trend-view-toggle button:hover:not(.active){color:var(--text); transform:none;}
+  .trend-view-toggle button.active{background:var(--accent-grad); color:#0a0c11; box-shadow:none;}
 
   .photo-timeline{display:flex; gap:14px; overflow-x:auto; padding:4px 2px 10px;}
   .photo-timeline-item{flex:0 0 auto; text-align:center; cursor:pointer; background:none; border:none; padding:0; font:inherit; color:inherit;}
@@ -1207,13 +1213,19 @@
         <div class="step-desc">Your average daily intake on days you actually logged — a truer picture than a single day.</div>
         <div id="nutritionTrendsWrap"></div>
         <div id="proteinTodayNudgeWrap" style="margin-top:14px;"></div>
+        <div class="trend-view-toggle" id="nutritionTrendViewToggle">
+          <button type="button" id="nutritionTrendViewDailyBtn" onclick="setNutritionTrendView('daily')">Daily</button>
+          <button type="button" id="nutritionTrendViewWeeklyBtn" onclick="setNutritionTrendView('weekly')">Weekly</button>
+        </div>
         <div class="chart-scroll-sync">
-          <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Calories per day <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks vs. target</span></div>
+          <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Calories per day <span id="calorieTrendPeriodLabel" style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks vs. target</span></div>
           <div id="calorieTrendWrap"></div>
-          <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Protein per day <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks vs. target</span></div>
+          <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Protein per day <span id="proteinTrendPeriodLabel" style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks vs. target</span></div>
           <div id="proteinTrendWrap"></div>
-          <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Daily check-in results <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks</span></div>
-          <div id="dailyQuestionsHeatmapWrap"></div>
+          <div id="dailyQuestionsHeatmapSection">
+            <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Daily check-in results <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks</span></div>
+            <div id="dailyQuestionsHeatmapWrap"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1745,8 +1757,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.32";
+const APP_VERSION = "1.33";
 const CHANGELOG = [
+  { version: "1.33", date: "2026-09-16", desc: "Added a Daily/Weekly toggle above the Calorie and Protein trend charts on Nutrition Log. Weekly shows the last 8 weeks, each bar averaging per logged day that week; the Daily check-in results grid (which has no weekly equivalent) hides itself while Weekly is selected." },
   { version: "1.32", date: "2026-09-16", desc: "Day workout log table now shows a # column with each exercise's position in its split's configured order (from My splits settings), and rows are grouped by split then sorted by that order -- instead of listing exercises in the order you happened to log them. An exercise not in the split's configured pattern shows a dash and sorts to the end of its group." },
   { version: "1.31", date: "2026-09-16", desc: "Photo comparison popup: the starting photo's date now also shows the full day.month.year (matching the latest photo's date), instead of the shorter day.month form." },
   { version: "1.30", date: "2026-09-16", desc: "Fixed the Photo comparison popup (starting vs. latest photo): the two photos now actually sit side by side as intended, instead of the second one getting pushed onto its own row below (a sizing rule was stretching each photo much bigger than intended, so two of them no longer fit side by side). Also fixed the latest photo's date showing as garbled text like \"16 (latest).09\" -- it now reads \"16.09.2026 (latest)\"." },
@@ -1891,7 +1904,10 @@ const I18N_STRINGS = {
   "Your average daily intake on days you actually logged — a truer picture than a single day.": "A sua ingestão média diária nos dias em que efetivamente registou — uma imagem mais fiel do que um único dia.",
   "Calories per day": "Calorias por dia",
   "— last two weeks vs. target": "— últimas duas semanas vs. objetivo",
+  "— last 8 weeks vs. target": "— últimas 8 semanas vs. objetivo",
   "Protein per day": "Proteína por dia",
+  "Daily": "Diário",
+  "Weekly": "Semanal",
   "My products / My meals": "Os meus produtos / As minhas refeições",
   "All categories": "Todas as categorias",
   "Filter:": "Filtrar:",
@@ -6519,6 +6535,66 @@ function computeDailyMetricSeries(days, field){
 function computeDailyProteinSeries(days){ return computeDailyMetricSeries(days, "proteinG"); }
 function computeDailyCalorieSeries(days){ return computeDailyMetricSeries(days, "kcal"); }
 
+// v1.33: Weekly view for the Calorie/Protein trend charts -- buckets the same underlying daily
+// data into Mon-Sun weeks, `weeks` of them ending with the current (possibly still in-progress)
+// week. Each week's value is the average per LOGGED day that week (not a sum), matching the
+// "average X/day" framing used everywhere else on this card -- so a week with only 3 logged days
+// still shows a realistic daily average instead of being dragged down by the 4 unlogged days.
+// A week with zero logged days comes back as an unlogged (grey) bar, same convention as a single
+// unlogged day in the daily view.
+function computeWeeklyMetricSeries(weeks, field){
+  const daily = computeDailyMetricSeries(weeks * 7, field);
+  const buckets = new Map(); // monday date string -> {sum, loggedDays}
+  daily.forEach(d=>{
+    const monday = mondayOfWeek(d.date);
+    if(!buckets.has(monday)) buckets.set(monday, {sum:0, loggedDays:0});
+    if(d.logged){
+      const b = buckets.get(monday);
+      b.sum += d.value;
+      b.loggedDays += 1;
+    }
+  });
+  const todayMonday = mondayOfWeek(todayStr());
+  const series = [];
+  for(let i = weeks - 1; i >= 0; i--){
+    const monday = shiftDateStr(todayMonday, -7 * i);
+    const b = buckets.get(monday) || {sum:0, loggedDays:0};
+    series.push({date: monday, value: b.loggedDays ? b.sum / b.loggedDays : 0, logged: b.loggedDays > 0});
+  }
+  return series;
+}
+function computeWeeklyProteinSeries(weeks){ return computeWeeklyMetricSeries(weeks, "proteinG"); }
+function computeWeeklyCalorieSeries(weeks){ return computeWeeklyMetricSeries(weeks, "kcal"); }
+
+const NUTRITION_TREND_WEEKLY_WEEKS = 8;
+const NUTRITION_TREND_VIEW_KEY = "bodyAnalyzer.nutritionTrendView.v1";
+function getNutritionTrendView(){
+  return localStorage.getItem(NUTRITION_TREND_VIEW_KEY) === "weekly" ? "weekly" : "daily";
+}
+function setNutritionTrendView(view){
+  localStorage.setItem(NUTRITION_TREND_VIEW_KEY, view === "weekly" ? "weekly" : "daily");
+  renderNutritionTrendViewToggle();
+  renderCalorieTrendChart();
+  renderProteinTrendChart();
+}
+// Reflects the current Daily/Weekly choice in the toggle buttons, the two chart headings, and
+// whether the Daily check-in results heatmap is shown at all -- that grid is inherently a per-day
+// yes/no answer, so it has no sensible weekly form and is simply hidden while Weekly is selected.
+function renderNutritionTrendViewToggle(){
+  const view = getNutritionTrendView();
+  const dailyBtn = document.getElementById("nutritionTrendViewDailyBtn");
+  const weeklyBtn = document.getElementById("nutritionTrendViewWeeklyBtn");
+  if(dailyBtn) dailyBtn.classList.toggle("active", view === "daily");
+  if(weeklyBtn) weeklyBtn.classList.toggle("active", view === "weekly");
+  const calLabel = document.getElementById("calorieTrendPeriodLabel");
+  const proteinLabel = document.getElementById("proteinTrendPeriodLabel");
+  const periodText = view === "weekly" ? `— last ${NUTRITION_TREND_WEEKLY_WEEKS} weeks vs. target` : "— last two weeks vs. target";
+  if(calLabel) calLabel.textContent = periodText;
+  if(proteinLabel) proteinLabel.textContent = periodText;
+  const heatmapSection = document.getElementById("dailyQuestionsHeatmapSection");
+  if(heatmapSection) heatmapSection.classList.toggle("hidden", view === "weekly");
+}
+
 // Shared horizontal geometry for every "one column per day" widget on Nutrition Log -- the
 // Calorie/Protein trend bar charts (SVG, viewBox width DAILY_CHART_GRID.w) and the daily check-in
 // heatmap below them (plain CSS, absolutely positioned) both derive their day-column x-positions
@@ -6605,7 +6681,7 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
     const barH = Math.max(h - pad - y, 0);
     const hit = targetValue ? hitTest(s.value, targetValue) : true;
     const color = !s.logged ? "var(--border)" : (hit ? "var(--accent)" : "var(--warn)");
-    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(barW,1).toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${formatShortDate(s.date)}: ${Math.round(s.value)}${opts.unit}</title></rect>`;
+    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(barW,1).toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${opts.tooltipDatePrefix||""}${formatShortDate(s.date)}: ${Math.round(s.value)}${opts.unit}</title></rect>`;
     const pct = dailyChartBarCenterPct(n, i).toFixed(3);
     // Value label above each logged bar; skip unlogged (empty) days to avoid clutter. The SVG's
     // height style matches its viewBox height exactly (no vertical stretch), so a plain px offset
@@ -6614,8 +6690,10 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
       const labelY = Math.max(y - 4, 9);
       valueLabels += `<div class="bar-value-label" style="left:${pct}%; top:${labelY.toFixed(1)}px;">${Math.round(s.value)}</div>`;
     }
-    // Date label below each bar (day.month) — clickable to jump the whole app to that date.
-    dateLabels += `<div class="chart-date-label" style="left:${pct}%; top:${(h-pad+8).toFixed(1)}px;" onclick="jumpToDate('${s.date}')" title="Switch the whole app to ${formatShortDate(s.date)}">${formatShortDate(s.date)}</div>`;
+    // Date label below each bar (day.month) — clickable to jump the whole app to that date. In
+    // weekly view, s.date is that bar's Monday -- jumping there still lands you on a real,
+    // meaningful day (the start of that week) rather than doing nothing.
+    dateLabels += `<div class="chart-date-label" style="left:${pct}%; top:${(h-pad+8).toFixed(1)}px;" onclick="jumpToDate('${s.date}')" title="${opts.tooltipDatePrefix||""}Switch the whole app to ${formatShortDate(s.date)}">${formatShortDate(s.date)}</div>`;
   });
 
   let targetLine = "", targetLabel = "";
@@ -6628,9 +6706,13 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
 
   const avgVal = loggedSeries.reduce((s,x)=>s+x.value, 0) / loggedSeries.length;
   const daysHitTarget = targetValue ? loggedSeries.filter(s=>hitTest(s.value, targetValue)).length : null;
+  // periodNoun lets a weekly caller say "logged weeks"/"weeks" instead of "logged days"/"days" --
+  // defaults to "day" so every existing (daily) call site's wording is completely unchanged.
+  const periodNoun = opts.periodNoun || "day";
+  const periodLabel = n => `${periodNoun}${n===1?"":"s"}`;
 
   wrap.innerHTML = `
-    <div class="trend-label">Average ${Math.round(avgVal)}${opts.unit}/day over ${loggedSeries.length} logged day${loggedSeries.length===1?"":"s"}${targetValue?` · ${opts.hitLabel||"Hit target"} ${daysHitTarget}/${loggedSeries.length} days`:""}</div>
+    <div class="trend-label">Average ${Math.round(avgVal)}${opts.unit}/day over ${loggedSeries.length} logged ${periodLabel(loggedSeries.length)}${targetValue?` · ${opts.hitLabel||"Hit target"} ${daysHitTarget}/${loggedSeries.length} ${periodLabel(loggedSeries.length)}`:""}</div>
     ${targetValue ? `<div class="trend-legend"><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--accent);"></span>${opts.hitSwatchLabel||"Hit target"}</span><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--warn);"></span>${opts.missSwatchLabel||"Under target"}</span></div>` : ""}
     <div style="position:relative; height:${h}px;">
       <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%; height:${h}px; display:block;">
@@ -6656,32 +6738,36 @@ function jumpToDate(dateStr){
 }
 
 function renderProteinTrendChart(){
-  const rawSeries = computeDailyProteinSeries(14);
-  const series = rawSeries.map(s=>({date:s.date, value:s.value, logged:s.logged}));
+  const weekly = getNutritionTrendView() === "weekly";
+  const series = weekly ? computeWeeklyProteinSeries(NUTRITION_TREND_WEEKLY_WEEKS) : computeDailyProteinSeries(14).map(s=>({date:s.date, value:s.value, logged:s.logged}));
   const targets = getPlanTargets();
   const targetG = targets ? targets.proteinG : null;
   renderDailyBarChart("proteinTrendWrap", series, targetG, {
     unit: "g",
-    emptyText: "Log food on a few days to see your protein trend here.",
+    emptyText: weekly ? "Log food on a few weeks to see your protein trend here." : "Log food on a few days to see your protein trend here.",
     noTargetText: "Finish Body Profile + Initial Statistics to see your protein target line here.",
     hitTest: (v,t)=> v >= t,
     hitLabel: "Hit target", hitSwatchLabel: "Hit target", missSwatchLabel: "Under target",
+    periodNoun: weekly ? "week" : "day",
+    tooltipDatePrefix: weekly ? "Week of " : "",
   });
 }
 
 function renderCalorieTrendChart(){
-  const rawSeries = computeDailyCalorieSeries(14);
-  const series = rawSeries.map(s=>({date:s.date, value:s.value, logged:s.logged}));
+  const weekly = getNutritionTrendView() === "weekly";
+  const series = weekly ? computeWeeklyCalorieSeries(NUTRITION_TREND_WEEKLY_WEEKS) : computeDailyCalorieSeries(14).map(s=>({date:s.date, value:s.value, logged:s.logged}));
   const targets = getPlanTargets();
   const targetKcal = targets ? targets.calories : null;
   // "On track" for calories means close to target either way (within 10%), not just "at least" —
   // going well over is just as off-plan as going well under.
   renderDailyBarChart("calorieTrendWrap", series, targetKcal, {
     unit: "kcal",
-    emptyText: "Log food on a few days to see your calorie trend here.",
+    emptyText: weekly ? "Log food on a few weeks to see your calorie trend here." : "Log food on a few days to see your calorie trend here.",
     noTargetText: "Finish Body Profile + Initial Statistics to see your calorie target line here.",
     hitTest: (v,t)=> Math.abs(v - t) <= t * 0.1,
     hitLabel: "On track", hitSwatchLabel: "Close to target (±10%)", missSwatchLabel: "Off target",
+    periodNoun: weekly ? "week" : "day",
+    tooltipDatePrefix: weekly ? "Week of " : "",
   });
 }
 
@@ -6918,6 +7004,7 @@ function renderFoodView(){
     notesEl.value = getFoodDayNote(date);
   }
   renderNutritionTrends();
+  renderNutritionTrendViewToggle();
   renderCalorieTrendChart();
   renderProteinTrendChart();
   renderDailyQuestionsHeatmap();
