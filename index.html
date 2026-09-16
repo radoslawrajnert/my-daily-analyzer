@@ -942,12 +942,14 @@
       <div id="planGroupNutrition" class="hidden">
         <div class="card">
           <h2>Daily physical condition questions</h2>
-          <div class="step-desc" style="margin-top:0;">Turn on the yes/no check-ins you want to answer each day in Nutrition Log. Whichever ones are on show up there together as one small card, with a red warning if today's answer is still missing — and their results build up into a heatmap under Protein per day.</div>
+          <div class="step-desc" style="margin-top:0;">Turn on the yes/no check-ins you want to answer each day in Nutrition Log. Whichever ones are on show up there together as one small card, with a red warning if any of the last 7 days is still missing an answer — and their results build up into a heatmap under Protein per day.</div>
           <div class="field" style="display:flex; flex-direction:column; gap:10px;">
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_creatine" style="width:auto;"> Creatine <span style="color:var(--muted); font-weight:400;">— "Did you take Creatine 3g?"</span></label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_sleep" style="width:auto;"> Good Sleep <span style="color:var(--muted); font-weight:400;">— "Did you sleep well?"</span></label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_stomach" style="width:auto;"> Stomach problems <span style="color:var(--muted); font-weight:400;">— "Did you have stomach problems?"</span></label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_water" style="width:auto;"> Water intake <span style="color:var(--muted); font-weight:400;">— "Did you drink enough water?"</span></label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_caffeine" style="width:auto;"> High Caffeine Intake <span style="color:var(--muted); font-weight:400;">— "Did you have high caffeine intake?"</span></label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_alcohol" style="width:auto;"> Alcohol Intake <span style="color:var(--muted); font-weight:400;">— "Did you drink alcohol?"</span></label>
           </div>
         </div>
         <div class="card">
@@ -1875,9 +1877,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.49";
+const APP_VERSION = "1.50";
 const CHANGELOG = [
-  { version: "1.49", date: "2026-09-16", desc: "Fixed a cross-device photo sync bug: a Body change card photo (or its zoom-in comparison) could show fine on the device where it was taken but appear completely blank on another device signed into the same account. Cause: that card's photos never checked for a stale Firebase Storage link the way every other photo in the app already does (History table, Photo Timeline) -- if a photo's cloud link had gone stale, it just silently vanished instead of asking Storage for a fresh one. Now it self-heals the same way everywhere else does." },
+  { version: "1.50", date: "2026-09-16", desc: "Two Nutrition Log check-in additions: (1) Two new daily questions -- High Caffeine Intake and Alcohol Intake -- join Creatine and Water intake on the card (off by default, turn them on in Settings -> Nutrition Log Settings); like Stomach problems, a Yes is the bad outcome for both, so it renders the warn-colored cross rather than green. (2) The card's red warning is now one general line (\"At least one of your daily check-in questions from the past 7 days hasn't been answered yet\") instead of naming each missing question for today only -- it now looks back over the last 7 days, so forgetting to answer 2 or 3 days ago no longer goes unnoticed until you scroll down to the heatmap." },
   { version: "1.48", date: "2026-09-16", desc: "Scale Log history table: the Date column now shows the full DD.MM.YYYY (e.g. 16.09.2026) instead of just DD.MM -- a year-less date was ambiguous once your history spans more than one year. Widened the column slightly to fit." },
   { version: "1.47", date: "2026-09-16", desc: "Fixed a bug where the new Nutrition Trends \"Phase\" view showed completely empty for most accounts. Phase 1 (the automatic catch-all covering everything logged before the Phases feature existed) carries an artificial start date of 2000-01-01 -- building weekly bars from literally the year 2000 got silently cut off before ever reaching your real, recently-logged data. \"Phase\" now starts from whichever is later: the phase's own start date, or the earliest day you've actually logged food, so it correctly shows your whole real history for that phase." },
   { version: "1.46", date: "2026-09-16", desc: "Nutrition Trends: added a phase-name badge next to the Daily/Weekly toggle (always shown, same idea as the Weight trend chart's own phase badge) and a third \"Phase\" view -- weekly bars spanning your active phase's own start date through today, instead of a fixed recent window. The Calories/Protein target lines already reflect your per-phase overrides from Target ranges (Settings) in every view." },
@@ -5426,13 +5428,19 @@ const DAILY_CONDITION_QUESTIONS = [
   { id: "creatine", settingLabel: "Creatine",        question: "Did you take Creatine 3g?" },
   { id: "sleep",    settingLabel: "Good Sleep",       question: "Did you sleep well?" },
   { id: "stomach",  settingLabel: "Stomach problems", question: "Did you have stomach problems?", goodValue: false },
-  { id: "water",    settingLabel: "Water intake",     question: "Did you drink enough water?" }
+  { id: "water",    settingLabel: "Water intake",     question: "Did you drink enough water?" },
+  // v1.50: like Stomach problems, Yes is the BAD outcome for both of these -- high caffeine intake
+  // and drinking alcohol both count against you, so they need goodValue:false too (a No renders the
+  // green checkmark in the heatmap/history, a Yes the warn-colored cross).
+  { id: "caffeine", settingLabel: "High Caffeine Intake", question: "Did you have high caffeine intake?", goodValue: false },
+  { id: "alcohol",  settingLabel: "Alcohol Intake",       question: "Did you drink alcohol?",              goodValue: false },
 ];
-// Creatine and Water intake are tied to what's being logged in Nutrition Log, so they stay on that
-// card at all times. Good Sleep and Stomach problems aren't naturally a "food" question, so instead
-// of cluttering the card they're asked once via an automatic popup the first time anything is logged
-// that day (see maybeShowDailyQuestionsPopup) -- and can always be changed afterward from the heatmap.
-const NUTRITION_CARD_QUESTION_IDS = ["creatine", "water"];
+// Creatine, Water, Caffeine and Alcohol are tied to what's being logged in Nutrition Log, so they
+// stay on that card at all times. Good Sleep and Stomach problems aren't naturally a "food" question,
+// so instead of cluttering the card they're asked once via an automatic popup the first time anything
+// is logged that day (see maybeShowDailyQuestionsPopup) -- and can always be changed afterward from
+// the heatmap.
+const NUTRITION_CARD_QUESTION_IDS = ["creatine", "water", "caffeine", "alcohol"];
 const POPUP_QUESTION_IDS = ["sleep", "stomach"];
 function getDailyQuestionsEnabled(){
   const users = getUsers();
@@ -5581,30 +5589,60 @@ const DAILY_QUESTION_ICON_B64 = {
   stomach: STOMACH_ICON_B64,
   water: WATER_ICON_B64
 };
+// v1.50: Caffeine/Alcohol don't have a fetched Flaticon asset like the others -- rather than block
+// on sourcing + crediting a new image, they get a small inline line-icon (same visual language as
+// the warning triangle already used elsewhere in this file) instead of a base64 PNG. dailyQuestionIconHtml
+// below tries the PNG map first, then this SVG map, so either source can fill a question's icon slot.
+const DAILY_QUESTION_ICON_SVG = {
+  caffeine: `<svg class="creatine-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);"><path d="M17 8h1a4 4 0 1 1 0 8h-1"></path><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="2" x2="6" y2="4"></line><line x1="10" y1="2" x2="10" y2="4"></line><line x1="14" y1="2" x2="14" y2="4"></line></svg>`,
+  alcohol: `<svg class="creatine-icon" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted);"><path d="M8 3h8l-1 7a3 3 0 0 1-3 3a3 3 0 0 1-3-3L8 3z"></path><line x1="12" y1="13" x2="12" y2="21"></line><line x1="8" y1="21" x2="16" y2="21"></line></svg>`,
+};
+// Shared by the Nutrition Log card and the popup modal -- an <img> for a PNG icon, an inline <svg>
+// (carrying the same "creatine-icon" class/28x28 size) for an SVG-only one, or nothing if a
+// question has neither.
+function dailyQuestionIconHtml(qid){
+  const b64 = DAILY_QUESTION_ICON_B64[qid];
+  if(b64) return `<img class="creatine-icon" width="28" height="28" alt="" src="data:image/png;base64,${b64}">`;
+  return DAILY_QUESTION_ICON_SVG[qid] || "";
+}
 
 function renderDailyQuestionsCard(date){
   const wrap = document.getElementById("dailyQuestionsCardWrap");
   if(!wrap) return;
   const day = date || todayStr();
-  const isToday = day === todayStr();
   const enabled = getDailyQuestionsEnabled();
   const active = DAILY_CONDITION_QUESTIONS.filter(q => enabled[q.id] && NUTRITION_CARD_QUESTION_IDS.includes(q.id));
   if(!active.length){ wrap.innerHTML = ""; return; }
   const warnIconSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
-  // One combined warning for the whole card, not one per question -- repeating the same red banner
-  // once per unanswered question read as excessive/alarming with 3-4 questions turned on, so this
-  // names everything still missing today in a single line instead.
-  const missingToday = isToday ? active.filter(q => !isDailyQuestionAnswered(q.id, day)) : [];
-  const combinedWarning = missingToday.length ? `
+  // v1.50: was one combined banner naming every question still missing TODAY only ("You haven't
+  // answered 2 of today's check-in questions yet: ..."). Two problems with that, per follow-up
+  // feedback: naming each question got noisy as more were added (now up to 4 on this card), and it
+  // said nothing at all if a day was skipped entirely -- you'd only notice from the heatmap further
+  // down the page. Now it's one general line (no longer names which question or how many), and it
+  // looks back over the last 7 days, not just today. A day only counts as a "gap" for a given
+  // question once that question has actually been answered at least once before (or is today) --
+  // otherwise every brand-new toggle would immediately claim 6 days of pre-existing gaps for days
+  // before you ever turned it on.
+  const today = todayStr();
+  const hasRecentGap = active.some(q => {
+    const answeredDates = Object.keys(getDailyQuestionLogRaw(q.id));
+    const earliestForQ = answeredDates.length ? answeredDates.sort()[0] : today;
+    for(let i = 0; i < 7; i++){
+      const d = shiftDateStr(today, -i);
+      if(d < earliestForQ) break; // further back is only earlier still -- nothing left to check
+      if(!isDailyQuestionAnswered(q.id, d)) return true;
+    }
+    return false;
+  });
+  const combinedWarning = hasRecentGap ? `
     <div class="missing-data-banner" style="margin-bottom:14px;">
       ${warnIconSvg}
-      <div class="missing-data-banner-text">You haven't answered ${missingToday.length} of today's check-in question${missingToday.length === 1 ? "" : "s"} yet: ${missingToday.map(q => `"${q.question}"`).join(", ")}.</div>
+      <div class="missing-data-banner-text">At least one of your daily check-in questions from the past 7 days hasn't been answered yet — please take a look.</div>
     </div>` : "";
   const rows = active.map((q, i)=>{
     const answer = getDailyAnswer(q.id, day);
     const answered = isDailyQuestionAnswered(q.id, day);
-    const iconB64 = DAILY_QUESTION_ICON_B64[q.id];
-    const icon = iconB64 ? `<img class="creatine-icon" width="28" height="28" alt="" src="data:image/png;base64,${iconB64}">` : "";
+    const icon = dailyQuestionIconHtml(q.id);
     // Once answered, the Yes/No buttons disappear -- there's nothing left to choose, so a live
     // button pair just reads as unanswered even when it isn't. A small clickable badge takes their
     // place instead: it states the answer and still opens the edit popup (same one the heatmap cells
@@ -5647,8 +5685,7 @@ function renderDailyQuestionsPopupBody(questions, date){
   if(!body) return;
   body.innerHTML = questions.map((q, i)=>{
     const answer = getDailyAnswer(q.id, date);
-    const iconB64 = DAILY_QUESTION_ICON_B64[q.id];
-    const icon = iconB64 ? `<img class="creatine-icon" width="28" height="28" alt="" src="data:image/png;base64,${iconB64}">` : "";
+    const icon = dailyQuestionIconHtml(q.id);
     return `
     <div style="padding:10px 0 0; ${i===0 ? "" : "border-top:1px solid var(--border); margin-top:10px;"}" data-qid="${q.id}">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
