@@ -208,7 +208,7 @@
      width so IT absorbs that leftover space instead, and Date gets a small width of its own
      (plus nowrap so "16.09" never wraps) so it settles down to roughly its content size. */
   table.log-table col.thumb-col{width:90px;}
-  table.log-table col.date-col{width:58px;}
+  table.log-table col.date-col{width:80px;}
   table.log-table .log-date-cell{white-space:nowrap;}
   /* v1.39 follow-up: the header labels (WEIGHT, BMI, ...) were left-aligned like every other
      table.log-table header in the app, but the values below them are centered chips (.range-chip
@@ -1875,8 +1875,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.47";
+const APP_VERSION = "1.48";
 const CHANGELOG = [
+  { version: "1.48", date: "2026-09-16", desc: "Scale Log history table: the Date column now shows the full DD.MM.YYYY (e.g. 16.09.2026) instead of just DD.MM -- a year-less date was ambiguous once your history spans more than one year. Widened the column slightly to fit." },
   { version: "1.47", date: "2026-09-16", desc: "Fixed a bug where the new Nutrition Trends \"Phase\" view showed completely empty for most accounts. Phase 1 (the automatic catch-all covering everything logged before the Phases feature existed) carries an artificial start date of 2000-01-01 -- building weekly bars from literally the year 2000 got silently cut off before ever reaching your real, recently-logged data. \"Phase\" now starts from whichever is later: the phase's own start date, or the earliest day you've actually logged food, so it correctly shows your whole real history for that phase." },
   { version: "1.46", date: "2026-09-16", desc: "Nutrition Trends: added a phase-name badge next to the Daily/Weekly toggle (always shown, same idea as the Weight trend chart's own phase badge) and a third \"Phase\" view -- weekly bars spanning your active phase's own start date through today, instead of a fixed recent window. The Calories/Protein target lines already reflect your per-phase overrides from Target ranges (Settings) in every view." },
   { version: "1.45", date: "2026-09-16", desc: "New Settings tab: Target ranges. Moved your aesthetic target ranges here (out of Scale Log Settings) and added Calories/day, Protein/day and a free-text Notes box, all per phase -- leave Calories/Protein blank to keep using the auto-calculated target, or set your own for that phase. Completed phases stay on record below as a read-only, collapsible list so you can look back at what a past phase's targets actually were. The Complete Phase form now collects these too, prefilled with your current numbers. Phase notes are now included in the Coach/AI export." },
@@ -5165,7 +5166,7 @@ function renderLogView(){
     const thumbField = ownThumb ? scalePhotoFieldName(l) : carried.frontField;
     return `<tr>
       <td>${thumb ? `<img class="pkg-thumb${repeated?" pkg-thumb-repeated":""}" src="${thumb}" alt="${repeated?"Repeated from an earlier reading":"Progress photo"}, ${formatShortDate(l.date)}" title="${repeated?"No photo logged this reading — showing the most recent one":"Progress photo"}" onerror="healBrokenScalePhoto(this,'${thumbDate}','${thumbField}')">` : `<span class="pkg-thumb-placeholder"></span>`}</td>
-      <td class="log-date-cell" onclick="editLogEntry('${l.date}')" title="Click to edit this reading">${formatShortDate(l.date)}</td>
+      <td class="log-date-cell" onclick="editLogEntry('${l.date}')" title="Click to edit this reading">${formatFullDate(l.date)}</td>
       <td class="chip-td">${rangeChip(l.weightKg.toFixed(1)+" kg", weightCat)}</td>
       <td class="chip-td">${bmi!=null ? rangeChip(bmi.toFixed(1), bmiCat) : "—"}</td>
       <td class="chip-td">${l.bodyFatPct!=null ? rangeChip(l.bodyFatPct.toFixed(1)+"%", bfCat) : "—"}</td>
