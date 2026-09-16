@@ -942,7 +942,7 @@
       <div id="planGroupNutrition" class="hidden">
         <div class="card">
           <h2>Daily physical condition questions</h2>
-          <div class="step-desc" style="margin-top:0;">Turn on the yes/no check-ins you want to answer each day in Nutrition Log. Whichever ones are on show up there together as one small card, with a red warning if any of the last 7 days is still missing an answer — and their results build up into a heatmap under Protein per day.</div>
+          <div class="step-desc" style="margin-top:0;">Turn on the yes/no check-ins you want to answer each day in Nutrition Log. Whichever ones are on (except Good Sleep, asked once via a popup instead) show up there together as one small card — each question disappears from the card as soon as you answer it, with a red warning if any of the last 7 days is still missing an answer — and their results build up into a heatmap under Protein per day.</div>
           <div class="field" style="display:flex; flex-direction:column; gap:10px;">
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_creatine" style="width:auto;"> Creatine <span style="color:var(--muted); font-weight:400;">— "Did you take Creatine 3g?"</span></label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_sleep" style="width:auto;"> Good Sleep <span style="color:var(--muted); font-weight:400;">— "Did you sleep well?"</span></label>
@@ -1877,8 +1877,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.50";
+const APP_VERSION = "1.51";
 const CHANGELOG = [
+  { version: "1.51", date: "2026-09-16", desc: "Two follow-up fixes to the Nutrition Log check-in card: (1) once you answer Yes or No, that question's row now disappears from the card entirely instead of collapsing into a small checkmark/cross badge -- the card only ever shows what's still left to answer, and once everything's done it says so plainly. You can still change a past answer from the heatmap below (click any cell). (2) Stomach problems moved onto this same card, alongside Creatine, Water, Caffeine and Alcohol -- it's no longer asked via the separate once-a-day popup. Good Sleep is now the only question still asked that way." },
   { version: "1.50", date: "2026-09-16", desc: "Two Nutrition Log check-in additions: (1) Two new daily questions -- High Caffeine Intake and Alcohol Intake -- join Creatine and Water intake on the card (off by default, turn them on in Settings -> Nutrition Log Settings); like Stomach problems, a Yes is the bad outcome for both, so it renders the warn-colored cross rather than green. (2) The card's red warning is now one general line (\"At least one of your daily check-in questions from the past 7 days hasn't been answered yet\") instead of naming each missing question for today only -- it now looks back over the last 7 days, so forgetting to answer 2 or 3 days ago no longer goes unnoticed until you scroll down to the heatmap." },
   { version: "1.48", date: "2026-09-16", desc: "Scale Log history table: the Date column now shows the full DD.MM.YYYY (e.g. 16.09.2026) instead of just DD.MM -- a year-less date was ambiguous once your history spans more than one year. Widened the column slightly to fit." },
   { version: "1.47", date: "2026-09-16", desc: "Fixed a bug where the new Nutrition Trends \"Phase\" view showed completely empty for most accounts. Phase 1 (the automatic catch-all covering everything logged before the Phases feature existed) carries an artificial start date of 2000-01-01 -- building weekly bars from literally the year 2000 got silently cut off before ever reaching your real, recently-logged data. \"Phase\" now starts from whichever is later: the phase's own start date, or the earliest day you've actually logged food, so it correctly shows your whole real history for that phase." },
@@ -5435,13 +5436,13 @@ const DAILY_CONDITION_QUESTIONS = [
   { id: "caffeine", settingLabel: "High Caffeine Intake", question: "Did you have high caffeine intake?", goodValue: false },
   { id: "alcohol",  settingLabel: "Alcohol Intake",       question: "Did you drink alcohol?",              goodValue: false },
 ];
-// Creatine, Water, Caffeine and Alcohol are tied to what's being logged in Nutrition Log, so they
-// stay on that card at all times. Good Sleep and Stomach problems aren't naturally a "food" question,
-// so instead of cluttering the card they're asked once via an automatic popup the first time anything
-// is logged that day (see maybeShowDailyQuestionsPopup) -- and can always be changed afterward from
-// the heatmap.
-const NUTRITION_CARD_QUESTION_IDS = ["creatine", "water", "caffeine", "alcohol"];
-const POPUP_QUESTION_IDS = ["sleep", "stomach"];
+// Creatine, Stomach problems, Water, Caffeine and Alcohol all live on the Nutrition Log card. v1.51:
+// Stomach problems moved here from the popup-only set (per follow-up feedback grouping it with Water)
+// -- Good Sleep is the only one left that isn't naturally a "food" question, so it alone is still
+// asked once via an automatic popup the first time anything is logged that day (see
+// maybeShowDailyQuestionsPopup) -- and can always be changed afterward from the heatmap.
+const NUTRITION_CARD_QUESTION_IDS = ["creatine", "stomach", "water", "caffeine", "alcohol"];
+const POPUP_QUESTION_IDS = ["sleep"];
 function getDailyQuestionsEnabled(){
   const users = getUsers();
   const u = users[currentUserEmail];
@@ -5639,21 +5640,14 @@ function renderDailyQuestionsCard(date){
       ${warnIconSvg}
       <div class="missing-data-banner-text">At least one of your daily check-in questions from the past 7 days hasn't been answered yet — please take a look.</div>
     </div>` : "";
-  const rows = active.map((q, i)=>{
-    const answer = getDailyAnswer(q.id, day);
-    const answered = isDailyQuestionAnswered(q.id, day);
+  // v1.51: once a question is answered (Yes or No) for the day being viewed, its row disappears
+  // from the card entirely instead of collapsing into a small "answered" badge (the v1.25 behavior)
+  // -- per direct follow-up feedback. Changing a past answer is still possible from the heatmap
+  // below (click any cell to reopen the edit popup for that exact question/date); this card now only
+  // ever shows what's still left to answer for the day it's looking at.
+  const unanswered = active.filter(q => !isDailyQuestionAnswered(q.id, day));
+  const rows = unanswered.map((q, i)=>{
     const icon = dailyQuestionIconHtml(q.id);
-    // Once answered, the Yes/No buttons disappear -- there's nothing left to choose, so a live
-    // button pair just reads as unanswered even when it isn't. A small clickable badge takes their
-    // place instead: it states the answer and still opens the edit popup (same one the heatmap cells
-    // use) if the person wants to change it, so nothing is actually less editable, just less noisy.
-    const isGood = q.goodValue === false ? !answer : answer;
-    const answerControl = answered
-      ? `<button type="button" id="dqAnsweredBadge_${q.id}" class="secondary" style="display:inline-flex; align-items:center; gap:6px; color:${isGood ? "var(--accent)" : "var(--warn)"};" title="Click to change your answer"><span style="font-weight:700; line-height:1;">${isGood ? "&#10003;" : "&#10005;"}</span>${answer ? "Yes" : "No"}</button>`
-      : `<div style="display:flex; gap:8px;">
-          <button type="button" id="dqYesBtn_${q.id}" class="secondary">Yes</button>
-          <button type="button" id="dqNoBtn_${q.id}" class="secondary">No</button>
-        </div>`;
     return `
     <div style="padding:${i===0 ? "0" : "14px"} 0 0; ${i===0 ? "" : "border-top:1px solid var(--border); margin-top:14px;"}">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
@@ -5661,18 +5655,23 @@ function renderDailyQuestionsCard(date){
           ${icon}
           <div style="font-weight:700;">${q.question}</div>
         </div>
-        ${answerControl}
+        <div style="display:flex; gap:8px;">
+          <button type="button" id="dqYesBtn_${q.id}" class="secondary">Yes</button>
+          <button type="button" id="dqNoBtn_${q.id}" class="secondary">No</button>
+        </div>
       </div>
     </div>`;
   }).join("");
-  wrap.innerHTML = combinedWarning + rows;
-  active.forEach(q=>{
+  // Every enabled card question for this day has been answered -- rather than leave the card
+  // silently empty (which could read as broken), say so plainly.
+  const allCaughtUpNote = (!hasRecentGap && !unanswered.length)
+    ? `<div class="empty-note">All caught up here — nothing left to answer.</div>` : "";
+  wrap.innerHTML = combinedWarning + rows + allCaughtUpNote;
+  unanswered.forEach(q=>{
     const yesBtn = document.getElementById(`dqYesBtn_${q.id}`);
     const noBtn = document.getElementById(`dqNoBtn_${q.id}`);
-    const badge = document.getElementById(`dqAnsweredBadge_${q.id}`);
     if(yesBtn) yesBtn.addEventListener("click", ()=>{ setDailyAnswer(q.id, day, true); renderDailyQuestionsCard(day); renderDailyQuestionsHeatmap(); });
     if(noBtn) noBtn.addEventListener("click", ()=>{ setDailyAnswer(q.id, day, false); renderDailyQuestionsCard(day); renderDailyQuestionsHeatmap(); });
-    if(badge) badge.addEventListener("click", ()=> openDailyQuestionEditModal(q.id, day));
   });
 }
 
