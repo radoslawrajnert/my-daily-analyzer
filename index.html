@@ -779,6 +779,7 @@
       <div class="view-tabs" id="planSubtabs">
         <button type="button" id="planSubtabGeneral" class="active" onclick="switchPlanTab('general')">General Settings</button>
         <button type="button" id="planSubtabScaleLog" onclick="switchPlanTab('scalelog')">Scale Log Settings</button>
+        <button type="button" id="planSubtabTargets" onclick="switchPlanTab('targets')">Target ranges</button>
         <button type="button" id="planSubtabNutrition" onclick="switchPlanTab('nutrition')">Nutrition Log Settings</button>
         <button type="button" id="planSubtabWorkout" onclick="switchPlanTab('workout')">Workout Log Settings</button>
         <button type="button" id="planSubtabCoach" onclick="switchPlanTab('coach')">Coach Settings</button>
@@ -878,16 +879,43 @@
       </div>
 
       <div id="planGroupScaleLog" class="hidden">
-        <div class="card" id="aestheticTargetsCard">
-          <h2>Your aesthetic target ranges</h2>
-          <div class="step-desc" style="margin-top:0;">Your personal target range for each measurement — saved to your profile so you can compare future readings against them.</div>
+        <div class="progress" id="progress"></div>
+
+        <div class="form-shell" id="formShell">
+          <form id="intakeForm" autocomplete="off"></form>
+        </div>
+
+        <div class="card report" id="reportCard">
+          <div id="reportBody"></div>
+          <div class="actions-row">
+            <button class="secondary" id="editBtn">← Edit answers</button>
+            <button id="downloadMdBtn">Download report (.md)</button>
+            <button class="secondary" id="downloadJsonBtn">Download JSON profile</button>
+            <button class="ghost" id="copyJsonBtn">Copy JSON</button>
+          </div>
+          <h2 class="section" style="margin-top:24px;">JSON Profile</h2>
+          <pre class="json" id="jsonPreview"></pre>
+        </div>
+      </div>
+
+      <div id="planGroupTargets" class="hidden">
+        <div class="card" id="activePhaseTargetsCard" style="border:1px solid var(--accent);">
+          <h2>Your target ranges by phase</h2>
+          <div class="step-desc" style="margin-top:0;">Calories, protein and aesthetic ranges for whichever phase is active — saved to your profile so you can compare future readings and logs against them. Past phases stay on record below.</div>
           <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:14px 0; padding:10px 14px; background:var(--panel2); border-radius:var(--radius-sm);">
             <div style="flex:1; min-width:0;">
-              <input type="text" id="activePhaseNameInput" title="Click to rename this phase" style="font-weight:700; font-size:1rem; color:var(--text); background:transparent; border:1px solid transparent; padding:2px 6px; margin:-2px 0 0 -7px; border-radius:6px; width:100%; max-width:320px;">
+              <span class="badge ok" style="margin-right:8px;">Active</span>
+              <input type="text" id="activePhaseNameInput" title="Click to rename this phase" style="font-weight:700; font-size:1rem; color:var(--text); background:transparent; border:1px solid transparent; padding:2px 6px; margin:-2px 0 0 0; border-radius:6px; width:calc(100% - 70px); max-width:320px; display:inline-block;">
               <div class="step-desc" style="margin:2px 0 0;" id="activePhaseMeta">Started —</div>
             </div>
             <button type="button" class="secondary" id="completePhaseBtn">Complete phase →</button>
           </div>
+          <div class="row-inline">
+            <div class="field"><label>Calories / day</label><input type="number" id="targetCaloriesInput" step="any" min="0" max="8000" placeholder="Leave blank to auto-calculate"></div>
+            <div class="field"><label>Protein / day (g)</label><input type="number" id="targetProteinInput" step="any" min="0" max="600" placeholder="Leave blank to auto-calculate"></div>
+          </div>
+          <div class="field"><label>Notes <span style="font-weight:400; color:var(--muted);">(included when you send this phase to the AI Coach)</span></label><textarea id="targetPhaseNotesInput" rows="3" placeholder="e.g. cutting harder this phase, watch energy levels"></textarea></div>
+          <h3 style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);"><span>Aesthetic measures</span></h3>
           <div class="table-scroll">
             <table class="log-table">
               <thead><tr><th>Measure</th><th>Min</th><th>Max</th></tr></thead>
@@ -908,23 +936,7 @@
           </div>
         </div>
 
-        <div class="progress" id="progress"></div>
-
-        <div class="form-shell" id="formShell">
-          <form id="intakeForm" autocomplete="off"></form>
-        </div>
-
-        <div class="card report" id="reportCard">
-          <div id="reportBody"></div>
-          <div class="actions-row">
-            <button class="secondary" id="editBtn">← Edit answers</button>
-            <button id="downloadMdBtn">Download report (.md)</button>
-            <button class="secondary" id="downloadJsonBtn">Download JSON profile</button>
-            <button class="ghost" id="copyJsonBtn">Copy JSON</button>
-          </div>
-          <h2 class="section" style="margin-top:24px;">JSON Profile</h2>
-          <pre class="json" id="jsonPreview"></pre>
-        </div>
+        <div id="pastPhasesWrap"></div>
       </div>
 
       <div id="planGroupNutrition" class="hidden">
@@ -1731,6 +1743,11 @@
     <form id="completePhaseForm" autocomplete="off">
       <div class="field"><label>New phase name</label><input type="text" id="newPhaseName" placeholder="e.g. Phase 2 - Lean bulk" required></div>
       <div class="field"><label>Target weight (kg)</label><input type="number" id="newPhaseTargetWeight" step="any" min="30" max="300"></div>
+      <div class="row-inline">
+        <div class="field"><label>Calories / day</label><input type="number" id="newPhaseCalories" step="any" min="0" max="8000" placeholder="Leave blank to auto-calculate"></div>
+        <div class="field"><label>Protein / day (g)</label><input type="number" id="newPhaseProtein" step="any" min="0" max="600" placeholder="Leave blank to auto-calculate"></div>
+      </div>
+      <div class="field"><label>Notes <span style="font-weight:400; color:var(--muted);">(optional, for this new phase)</span></label><textarea id="newPhaseNotes" rows="2" placeholder="e.g. cutting harder this phase, watch energy levels"></textarea></div>
       <div class="table-scroll">
         <table class="log-table">
           <thead><tr><th>Measure</th><th>Min</th><th>Max</th></tr></thead>
@@ -1854,8 +1871,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.44";
+const APP_VERSION = "1.45";
 const CHANGELOG = [
+  { version: "1.45", date: "2026-09-16", desc: "New Settings tab: Target ranges. Moved your aesthetic target ranges here (out of Scale Log Settings) and added Calories/day, Protein/day and a free-text Notes box, all per phase -- leave Calories/Protein blank to keep using the auto-calculated target, or set your own for that phase. Completed phases stay on record below as a read-only, collapsible list so you can look back at what a past phase's targets actually were. The Complete Phase form now collects these too, prefilled with your current numbers. Phase notes are now included in the Coach/AI export." },
   { version: "1.44", date: "2026-09-16", desc: "Body change card (\"first logged reading vs. latest\") now shows one photo per phase boundary instead of always just two -- your original photo, then a permanent snapshot of how each phase ended, then your current photo. Each arrow between them is labeled with the phase it covers. With one phase it still looks the same as before (2 photos); complete a phase and it grows a photo (3, then 4, and so on)." },
   { version: "1.43", date: "2026-09-16", desc: "Photo Timeline now shows one row per phase instead of a single row spanning your whole history -- all of Phase 1's photos on their own line, Phase 2's photos on the next line once you complete a phase, each labeled with that phase's name. Makes it easy to see your progress photos grouped by whatever focus was active when they were taken." },
   { version: "1.42", date: "2026-09-16", desc: "Three follow-ups to Phases (v1.41): (1) the active phase's name is now editable right in the My Plan card -- e.g. rename \"Phase 1\" to \"Phase 1 - Reduction till 75kg\" -- and shows up everywhere the name is read (this card, the Complete-phase modal, the Weight trend chart). (2) Switched the Weight trend chart's phase indicator from a colored timeline strip to a small badge next to the title plus a dashed divider line marking exactly where a new phase's targets begin. (3) Fixed the History table: centering just the column headers (v1.40) wasn't enough on its own -- the chips underneath were still left-aligned in their (already equal-width) column, so each one sat visibly left of its own centered title. Centered the value cells too." },
@@ -3484,7 +3502,7 @@ function switchView(view){
     document.getElementById("aiApiKeyInput").value = getAiApiKey();
     renderVersionInfo();
     refreshCloudSyncSettingsUI();
-    syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI(); syncAestheticTargetsUI(); syncDailyQuestionsSettingsUI(); renderActivePhaseUI();
+    syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI(); syncDailyQuestionsSettingsUI(); renderTargetRangesTab();
     // "My splits" and "My exercises" (moved here from the Workout Log tab, reachable now only by
     // clicking your name) need their own refresh on open -- renderWorkoutsView() also keeps them
     // current whenever the Workout Log tab itself is visited, but My Plan can be opened without
@@ -3514,6 +3532,7 @@ function switchView(view){
 const PLAN_SUBTABS = {
   general: {group:"planGroupGeneral", btn:"planSubtabGeneral"},
   scalelog: {group:"planGroupScaleLog", btn:"planSubtabScaleLog"},
+  targets: {group:"planGroupTargets", btn:"planSubtabTargets"},
   nutrition: {group:"planGroupNutrition", btn:"planSubtabNutrition"},
   workout: {group:"planGroupWorkout", btn:"planSubtabWorkout"},
   coach: {group:"planGroupCoach", btn:"planSubtabCoach"},
@@ -5762,13 +5781,21 @@ function genFoodId(){
   return "f" + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
 }
 
+// v1.45: Calories/day and Protein/day can now be manually set per phase (Settings -> Target
+// ranges), overriding the auto-calculated targets below while that phase is active. Leaving either
+// blank for a phase falls back to the auto-calculated number, same as every phase before this
+// feature existed -- carbG/fatG are always the auto-calculated split (only calories/protein are
+// overridable, per the user's own scope for this feature).
 function getPlanTargets(){
   const a = answers;
   if(!a.birthDate || !a.heightCm || !a.weightKg || !a.targetWeightKg) return null;
   const latest = latestLog();
   const effWeightKg = latest ? latest.weightKg : a.weightKg;
   const c = calc(Object.assign({}, a, {weightKg: effWeightKg}));
-  return {calories: c.dailyCalories, proteinG: c.proteinG, carbG: c.carbG, fatG: c.fatG};
+  const phase = (typeof getActivePhase === "function") ? getActivePhase() : null;
+  const calories = (phase && phase.calorieTarget != null) ? phase.calorieTarget : c.dailyCalories;
+  const proteinG = (phase && phase.proteinTarget != null) ? phase.proteinTarget : c.proteinG;
+  return {calories, proteinG, carbG: c.carbG, fatG: c.fatG};
 }
 
 function escapeAttr(s){
@@ -13305,6 +13332,12 @@ function getPhases(){
       endDate: null,
       targetWeightKg: (u.answers && u.answers.targetWeightKg != null) ? u.answers.targetWeightKg : null,
       aestheticTargets: mergeAestheticTargetDefaults(u.aestheticTargets),
+      // v1.45: per-phase Calories/day + Protein/day (null = fall back to the auto-calculated
+      // target, same as before this feature existed) and a free-text notes box (included in the
+      // Coach/AI export so context like "cutting harder this phase, watch energy" reaches the AI).
+      calorieTarget: null,
+      proteinTarget: null,
+      notes: "",
     }];
     u.phases = migrated;
     saveUsers(users);
@@ -13356,6 +13389,12 @@ function completePhase(input){
     endDate: null,
     targetWeightKg: input.targetWeightKg != null ? input.targetWeightKg : active.targetWeightKg,
     aestheticTargets: input.aestheticTargets,
+    // v1.45: both optional -- null/omitted means "fall back to the auto-calculated target" (see
+    // getPlanTargets), exactly like a phase never had this feature. Notes always start blank for a
+    // new phase rather than carrying the old phase's notes forward.
+    calorieTarget: input.calorieTarget != null ? input.calorieTarget : null,
+    proteinTarget: input.proteinTarget != null ? input.proteinTarget : null,
+    notes: (input.notes && input.notes.trim()) || "",
   };
   savePhases(phases.concat([newPhase]));
   if(input.targetWeightKg != null){
@@ -13391,6 +13430,18 @@ function syncAestheticTargetsUI(){
     if(maxEl) maxEl.value = t[m.key].max;
   });
 }
+// v1.45: populates the new Calories/day, Protein/day and Notes fields from the active phase's own
+// raw stored values (NOT the auto-calculated fallback -- an empty field here genuinely means "no
+// override, using auto-calc", so it should show blank, not a computed number that looks saved).
+function syncTargetKcalProteinNotesUI(){
+  const active = getActivePhase();
+  const calEl = document.getElementById("targetCaloriesInput");
+  const proEl = document.getElementById("targetProteinInput");
+  const notesEl = document.getElementById("targetPhaseNotesInput");
+  if(calEl && document.activeElement !== calEl) calEl.value = (active && active.calorieTarget != null) ? active.calorieTarget : "";
+  if(proEl && document.activeElement !== proEl) proEl.value = (active && active.proteinTarget != null) ? active.proteinTarget : "";
+  if(notesEl && document.activeElement !== notesEl) notesEl.value = (active && active.notes) ? active.notes : "";
+}
 function saveAestheticTargetsFromUI(){
   const current = getAestheticTargets();
   const next = {};
@@ -13405,6 +13456,19 @@ function saveAestheticTargetsFromUI(){
     };
   });
   saveAestheticTargets(next);
+  // v1.45: same Save button now also persists Calories/day, Protein/day (blank -> null -> falls
+  // back to auto-calculated, per the user's choice) and the phase Notes box, directly on the
+  // active phase alongside its aesthetic ranges.
+  const phases = getPhases();
+  const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
+  if(active){
+    const calRaw = parseFloat(document.getElementById("targetCaloriesInput").value);
+    const proRaw = parseFloat(document.getElementById("targetProteinInput").value);
+    active.calorieTarget = Number.isFinite(calRaw) ? calRaw : null;
+    active.proteinTarget = Number.isFinite(proRaw) ? proRaw : null;
+    active.notes = document.getElementById("targetPhaseNotesInput").value.trim();
+    savePhases(phases);
+  }
   showToast("Target ranges saved");
 }
 document.getElementById("saveAestheticTargetsBtn").addEventListener("click", saveAestheticTargetsFromUI);
@@ -13421,6 +13485,60 @@ function renderActivePhaseUI(){
   if(document.activeElement !== nameEl) nameEl.value = active.name;
   const logs = getScaleLogs().filter(l=>l.date >= active.startDate);
   metaEl.textContent = `Started ${formatShortDate(active.startDate)} · ${logs.length} reading${logs.length===1?"":"s"} logged`;
+}
+// v1.45: completed phases stay on record as a read-only, collapsed-by-default accordion below the
+// (always-expanded, editable) active phase -- so you can look back at what a past phase's targets
+// actually were without cluttering the tab with every phase expanded at once.
+const pastPhaseExpanded = new Set();
+function togglePastPhase(phaseId){
+  if(pastPhaseExpanded.has(phaseId)) pastPhaseExpanded.delete(phaseId);
+  else pastPhaseExpanded.add(phaseId);
+  renderPastPhasesAccordion();
+}
+window.togglePastPhase = togglePastPhase;
+function renderPastPhasesAccordion(){
+  const wrap = document.getElementById("pastPhasesWrap");
+  if(!wrap) return;
+  const past = getPhases().filter(p=>p.endDate != null).reverse(); // newest-completed first
+  if(!past.length){ wrap.innerHTML = ""; return; }
+  wrap.innerHTML = past.map(p=>{
+    const expanded = pastPhaseExpanded.has(p.id);
+    const logs = getScaleLogs().filter(l=>l.date >= p.startDate && l.date <= p.endDate);
+    const kcalStr = p.calorieTarget != null ? `${p.calorieTarget} kcal` : "auto-calculated";
+    const proStr = p.proteinTarget != null ? `${p.proteinTarget}g` : "auto-calculated";
+    const rows = AESTHETIC_TARGET_METRICS.map(m=>{
+      const t = p.aestheticTargets && p.aestheticTargets[m.key];
+      return `<tr><td>${m.base.replace("target","").replace(/([A-Z])/g," $1").trim()}</td><td style="text-align:right;">${t ? `${t.min} – ${t.max}` : "—"}</td></tr>`;
+    }).join("");
+    return `<div class="card" style="margin-bottom:10px; padding:0; overflow:hidden;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 18px; cursor:pointer;" onclick="togglePastPhase('${p.id}')">
+        <div>
+          <span class="badge" style="background:var(--panel3); color:var(--muted); margin-right:8px;">Completed</span>
+          <span style="font-weight:700;">${p.name}</span>
+        </div>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="color:var(--muted); transform:rotate(${expanded?180:0}deg); transition:transform .15s;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </div>
+      ${expanded ? `<div style="padding:0 18px 18px;">
+        <div class="step-desc" style="margin:0 0 10px;">${formatShortDate(p.startDate)} – ${formatShortDate(p.endDate)} · ${logs.length} reading${logs.length===1?"":"s"} logged</div>
+        <div class="row-inline" style="margin-bottom:10px;">
+          <div class="field"><label>Calories / day</label><div style="padding:8px 10px; background:var(--panel2); border-radius:var(--radius-sm); color:var(--muted);">${kcalStr}</div></div>
+          <div class="field"><label>Protein / day</label><div style="padding:8px 10px; background:var(--panel2); border-radius:var(--radius-sm); color:var(--muted);">${proStr}</div></div>
+        </div>
+        ${p.notes ? `<div class="field"><label>Notes</label><div style="padding:8px 10px; background:var(--panel2); border-radius:var(--radius-sm); color:var(--muted); white-space:pre-wrap;">${escapeAttr(p.notes)}</div></div>` : ""}
+        <div class="table-scroll">
+          <table class="log-table"><thead><tr><th>Measure</th><th>Range</th></tr></thead><tbody>${rows}</tbody></table>
+        </div>
+      </div>` : ""}
+    </div>`;
+  }).join("");
+}
+// Single entry point that keeps every part of the Target ranges tab (active phase fields, aesthetic
+// ranges, and the past-phases accordion) in sync -- called whenever My Plan is opened.
+function renderTargetRangesTab(){
+  renderActivePhaseUI();
+  syncAestheticTargetsUI();
+  syncTargetKcalProteinNotesUI();
+  renderPastPhasesAccordion();
 }
 // v1.42: renaming the active phase right in place (e.g. "Phase 1" -> "Phase 1 - Reduction till
 // 75kg") -- saves on blur or Enter, same low-friction pattern as other inline fields in the app.
@@ -13452,6 +13570,13 @@ function openCompletePhaseModal(){
   const nextNum = getPhases().length + 1;
   document.getElementById("newPhaseName").value = `Phase ${nextNum}`;
   document.getElementById("newPhaseTargetWeight").value = active.targetWeightKg != null ? active.targetWeightKg : "";
+  // v1.45: prefilled with the current EFFECTIVE numbers (auto-calculated fallback included), not
+  // just the active phase's raw override -- "prefilled with your current ones as a starting point"
+  // should always show a concrete number to tweak, same idea as the aesthetic ranges below.
+  const currentTargets = getPlanTargets();
+  document.getElementById("newPhaseCalories").value = currentTargets ? currentTargets.calories : "";
+  document.getElementById("newPhaseProtein").value = currentTargets ? currentTargets.proteinG : "";
+  document.getElementById("newPhaseNotes").value = ""; // notes always start blank for a new phase
   const current = getAestheticTargets();
   AESTHETIC_TARGET_METRICS.forEach(m=>{
     const newBase = "newPhase"+m.base.slice(6); // "targetBodyFat" -> "newPhaseBodyFat"
@@ -13487,14 +13612,19 @@ document.getElementById("completePhaseForm").addEventListener("submit", (e)=>{
       max: Number.isFinite(maxVal) ? maxVal : current[m.key].max,
     };
   });
+  const calVal = parseFloat(document.getElementById("newPhaseCalories").value);
+  const proVal = parseFloat(document.getElementById("newPhaseProtein").value);
+  const notesVal = document.getElementById("newPhaseNotes").value;
   completePhase({
     name,
     targetWeightKg: Number.isFinite(weightVal) ? weightVal : null,
     aestheticTargets,
+    calorieTarget: Number.isFinite(calVal) ? calVal : null,
+    proteinTarget: Number.isFinite(proVal) ? proVal : null,
+    notes: notesVal,
   });
   closeCompletePhaseModal();
-  renderActivePhaseUI();
-  syncAestheticTargetsUI();
+  renderTargetRangesTab();
   if(typeof renderLogView === "function") renderLogView();
   showToast("New phase started");
 });
@@ -13619,6 +13749,14 @@ function buildCoachExport(userNotes, attachments, skipped){
 
   if(focus.weightNutrition){
     if(targets) lines.push(`Daily targets: ${targets.calories} kcal, ${targets.proteinG}g protein, ${targets.carbG}g carbs, ${targets.fatG}g fat`);
+    // v1.45: the active phase's own notes (Settings -> Target ranges) ride along with the export so
+    // context the user typed there -- e.g. "cutting harder this phase, watch energy" -- reaches the
+    // AI review too, not just the raw numbers.
+    const activePhaseForExport = (typeof getActivePhase === "function") ? getActivePhase() : null;
+    if(activePhaseForExport){
+      lines.push(`Current phase: ${activePhaseForExport.name} (started ${activePhaseForExport.startDate})`);
+      if(activePhaseForExport.notes) lines.push(`Phase notes: ${activePhaseForExport.notes}`);
+    }
     lines.push("");
 
     lines.push("## Weight & measurements");
