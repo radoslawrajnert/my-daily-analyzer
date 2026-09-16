@@ -189,6 +189,13 @@
   .badge.danger{background:rgba(241,107,131,.14); color:var(--danger);}
   .badge.info{background:rgba(124,156,255,.14); color:var(--accent2);}
   .badge.pr{background:rgba(78,225,163,.14); color:var(--accent);}
+  /* v1.37: History table range chips -- always the SAME width regardless of the number of digits
+     (e.g. "6" and "175.4 kg" both sit in an identically-sized pill), so values still line up down
+     a column instead of the chip edge jumping around row to row. */
+  .range-chip{display:inline-block; min-width:64px; text-align:center; padding:3px 8px; border-radius:8px; font-weight:700; box-sizing:border-box;}
+  .range-chip.ok{background:rgba(78,225,163,.14); color:var(--accent);}
+  .range-chip.warn{background:rgba(240,184,84,.14); color:var(--warn);}
+  .range-chip.danger{background:rgba(241,107,131,.14); color:var(--danger);}
   .badge.muted{background:rgba(148,163,184,.14); color:var(--muted);}
 
   .quick-days-row{display:flex; gap:6px; flex-wrap:wrap;}
@@ -1759,8 +1766,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.36";
+const APP_VERSION = "1.37";
 const CHANGELOG = [
+  { version: "1.37", date: "2026-09-16", desc: "Follow-up to v1.36: switched from a tinted whole cell to a colored chip around just the value (green/amber/red), always the same fixed width no matter how many digits, so chips line up down each column. Also extended color-coding to every numeric column, not just BMI/Body fat/Visceral fat/Waist -- Weight (judged against your target weight in Body Profile), Muscle %, Chest, Hip, Thigh and Calf (judged against your target ranges in My Plan) now get one too." },
   { version: "1.36", date: "2026-09-16", desc: "Scale Log history table: BMI, Body fat, Visceral fat and Waist no longer show a separate \"Healthy range\"/\"High\"/\"Very high\" text badge next to the number -- the whole cell is now tinted green/amber/red instead, so the color itself carries the meaning at a glance. (Previewed 4 options first -- colored number, colored chip, colored dot, tinted cell -- tinted cell was picked.)" },
   { version: "1.35", date: "2026-09-16", desc: "Scale Log history table: Body fat % and Muscle % now always show one decimal place (e.g. 17.0% instead of a mix of 17% and 16.8%). Also moved the Delete button out of the table row and into the edit form -- click Edit on a reading and Delete appears there, freeing up a column's worth of width in the table." },
   { version: "1.34", date: "2026-09-16", desc: "Removed the \"Front + back\" badge from Photo Timeline thumbnails. Nutrition Log's Export CSV (and the same file the Coach/AI export attaches) now includes columns for whichever daily check-in questions are enabled -- Creatine, Good Sleep, Stomach problems, Water intake -- so that data reaches the AI along with your food log." },
@@ -3691,16 +3699,37 @@ function wireStandaloneDatePicker(inputId){
   attachDatePickerPopup(input, () => input.value, (iso) => setDateFieldValue(inputId, iso));
 }
 
-// v1.36: replaces the old "value + separate text badge" pattern (e.g. "78%  Healthy range") with a
-// soft color wash across the whole cell -- green/amber/red for healthy/borderline/bad, no text
-// label needed. Chosen (over a colored number, a colored chip around just the value, or a colored
-// dot) after showing the user a preview of all four side by side. Returns an empty string when
-// there's no category to judge against (e.g. body fat % before gender is set in Body Profile), so
-// the cell renders with no tint at all rather than a stray empty style attribute.
-const RANGE_CELL_TINT = { ok: "rgba(78,225,163,.10)", warn: "rgba(240,184,84,.10)", danger: "rgba(241,107,131,.10)" };
-function rangeCellStyle(cat){
-  const tint = cat && RANGE_CELL_TINT[cat.cls];
-  return tint ? ` style="background:${tint};"` : "";
+// v1.37: switched from the v1.36 tinted-whole-cell treatment to a colored chip wrapping just the
+// value (per follow-up feedback), and extended color-coding to every numeric column in the History
+// table -- not just BMI/Body fat/Visceral fat/Waist, which already had a population-based health
+// category. Weight, Muscle %, Chest, Hip, Thigh and Calf get one too now:
+//  - Weight is judged against the single target weight set in Body Profile, with a symmetric
+//    tolerance band (within 1kg = ok, within 3kg = borderline, further = bad) since there's no
+//    existing min/max range for weight the way there is for the others.
+//  - Muscle %, Chest, Hip, Thigh, Calf reuse the user's own "aesthetic target" min/max range (My
+//    Plan -> Target ranges) via the generic targetRangeCategory() below: inside the range is ok;
+//    outside by up to 75% of the range's own width is borderline; further than that is bad. Muscle
+//    MASS in kg (as opposed to muscle %) has no matching target field, so it stays uncolored.
+// rangeChip() renders a value in a small colored pill of ALWAYS THE SAME WIDTH (.range-chip's fixed
+// min-width in the stylesheet) regardless of the digit count, so chips line up across rows instead
+// of jumping around -- falls back to the plain value with no chip when there's no category at all.
+function rangeChip(displayValue, cat){
+  return cat ? `<span class="range-chip ${cat.cls}">${displayValue}</span>` : displayValue;
+}
+function weightCategory(weightKg){
+  if(weightKg == null || answers.targetWeightKg == null) return null;
+  const dist = Math.abs(weightKg - answers.targetWeightKg);
+  if(dist <= 1) return {cls:"ok"};
+  if(dist <= 3) return {cls:"warn"};
+  return {cls:"danger"};
+}
+function targetRangeCategory(value, tgt){
+  if(value == null || !tgt) return null;
+  if(value >= tgt.min && value <= tgt.max) return {cls:"ok"};
+  const dist = value < tgt.min ? tgt.min - value : value - tgt.max;
+  const span = Math.max(tgt.max - tgt.min, 0.0001);
+  if(dist <= span * 0.75) return {cls:"warn"};
+  return {cls:"danger"};
 }
 
 function visceralFatCategory(v){
@@ -4897,6 +4926,7 @@ function renderLogView(){
   // photo appears. `logs` is ascending by date, so a simple running "last seen photo" works.
   const carriedPhotosByDate = carryForwardScalePhotos(logs);
 
+  const aestheticTargets = getAestheticTargets();
   const rowsDesc = logs.slice().reverse();
   const rows = rowsDesc.map(l=>{
     const bmi = computeLogBMI(l);
@@ -4904,6 +4934,12 @@ function renderLogView(){
     const bfCat = bodyFatCategoryForLog(l.bodyFatPct);
     const vf = visceralFatCategory(l.visceralFat);
     const waistCat = waistCategory(l.waistCm);
+    const weightCat = weightCategory(l.weightKg);
+    const muscleCat = l.musclePct!=null ? targetRangeCategory(l.musclePct, aestheticTargets.musclePct) : null;
+    const chestCat = targetRangeCategory(l.chestCm, aestheticTargets.chestCm);
+    const hipCat = targetRangeCategory(l.hipCm, aestheticTargets.hipCm);
+    const thighCat = targetRangeCategory(l.thighCm, aestheticTargets.thighCm);
+    const calfCat = targetRangeCategory(l.calfCm, aestheticTargets.calfCm);
     const ownThumb = l.photoFront || l.photo;
     const carried = carriedPhotosByDate.get(l.date) || {};
     const thumb = ownThumb || carried.front;
@@ -4916,16 +4952,16 @@ function renderLogView(){
     return `<tr>
       <td>${thumb ? `<img class="pkg-thumb${repeated?" pkg-thumb-repeated":""}" src="${thumb}" alt="${repeated?"Repeated from an earlier reading":"Progress photo"}, ${formatShortDate(l.date)}" title="${repeated?"No photo logged this reading — showing the most recent one":"Progress photo"}" onerror="healBrokenScalePhoto(this,'${thumbDate}','${thumbField}')">` : `<span class="pkg-thumb-placeholder"></span>`}</td>
       <td>${formatShortDate(l.date)}</td>
-      <td>${l.weightKg.toFixed(1)} kg</td>
-      <td${rangeCellStyle(bmiCat)}>${bmi!=null ? bmi.toFixed(1) : "—"}</td>
-      <td${rangeCellStyle(bfCat)}>${l.bodyFatPct!=null ? l.bodyFatPct.toFixed(1)+"%" : "—"}</td>
-      <td>${l.muscleMassKg!=null ? l.muscleMassKg.toFixed(1)+" kg" : (l.musclePct!=null ? l.musclePct.toFixed(1)+"%" : "—")}</td>
-      <td${rangeCellStyle(vf)}>${l.visceralFat!=null ? l.visceralFat : "—"}</td>
-      <td>${l.chestCm!=null ? l.chestCm+" cm" : "—"}</td>
-      <td${rangeCellStyle(waistCat)}>${l.waistCm!=null ? l.waistCm+" cm" : "—"}</td>
-      <td>${l.hipCm!=null ? l.hipCm+" cm" : "—"}</td>
-      <td>${l.thighCm!=null ? l.thighCm+" cm" : "—"}</td>
-      <td>${l.calfCm!=null ? l.calfCm+" cm" : "—"}</td>
+      <td>${rangeChip(l.weightKg.toFixed(1)+" kg", weightCat)}</td>
+      <td>${bmi!=null ? rangeChip(bmi.toFixed(1), bmiCat) : "—"}</td>
+      <td>${l.bodyFatPct!=null ? rangeChip(l.bodyFatPct.toFixed(1)+"%", bfCat) : "—"}</td>
+      <td>${l.muscleMassKg!=null ? l.muscleMassKg.toFixed(1)+" kg" : (l.musclePct!=null ? rangeChip(l.musclePct.toFixed(1)+"%", muscleCat) : "—")}</td>
+      <td>${l.visceralFat!=null ? rangeChip(l.visceralFat, vf) : "—"}</td>
+      <td>${l.chestCm!=null ? rangeChip(l.chestCm+" cm", chestCat) : "—"}</td>
+      <td>${l.waistCm!=null ? rangeChip(l.waistCm+" cm", waistCat) : "—"}</td>
+      <td>${l.hipCm!=null ? rangeChip(l.hipCm+" cm", hipCat) : "—"}</td>
+      <td>${l.thighCm!=null ? rangeChip(l.thighCm+" cm", thighCat) : "—"}</td>
+      <td>${l.calfCm!=null ? rangeChip(l.calfCm+" cm", calfCat) : "—"}</td>
       <td><button type="button" class="edit-btn" onclick="editLogEntry('${l.date}')">Edit</button></td>
     </tr>`;
   }).join("");
