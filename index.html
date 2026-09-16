@@ -597,6 +597,11 @@
   .body-change-delta.ok{color:var(--accent);}
   .body-change-delta.warn{color:var(--warn);}
   .body-change-delta.danger{color:var(--danger);}
+  /* v1.44: Body change grew from a fixed 2-photo (first vs. latest) row into one photo per phase
+     boundary -- .bc-point-label names what that photo marks ("Start", "End of Phase 1", "Now"),
+     and .body-change-phase-badge (sitting above each arrow) names which phase that segment covers. */
+  .body-change-figure .bc-point-label{font-size:.72rem; color:var(--accent2); font-weight:600; margin-top:4px;}
+  .body-change-phase-badge{background:rgba(124,156,255,.16); color:var(--accent2); font-size:.68rem; font-weight:700; padding:2px 8px; border-radius:8px;}
   .body-change-sub{font-size:.76rem; color:var(--muted); text-align:center; margin-top:2px;}
   .body-change-empty{color:var(--muted); font-size:.85rem; text-align:center; padding:10px 0;}
 
@@ -1849,8 +1854,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.43";
+const APP_VERSION = "1.44";
 const CHANGELOG = [
+  { version: "1.44", date: "2026-09-16", desc: "Body change card (\"first logged reading vs. latest\") now shows one photo per phase boundary instead of always just two -- your original photo, then a permanent snapshot of how each phase ended, then your current photo. Each arrow between them is labeled with the phase it covers. With one phase it still looks the same as before (2 photos); complete a phase and it grows a photo (3, then 4, and so on)." },
   { version: "1.43", date: "2026-09-16", desc: "Photo Timeline now shows one row per phase instead of a single row spanning your whole history -- all of Phase 1's photos on their own line, Phase 2's photos on the next line once you complete a phase, each labeled with that phase's name. Makes it easy to see your progress photos grouped by whatever focus was active when they were taken." },
   { version: "1.42", date: "2026-09-16", desc: "Three follow-ups to Phases (v1.41): (1) the active phase's name is now editable right in the My Plan card -- e.g. rename \"Phase 1\" to \"Phase 1 - Reduction till 75kg\" -- and shows up everywhere the name is read (this card, the Complete-phase modal, the Weight trend chart). (2) Switched the Weight trend chart's phase indicator from a colored timeline strip to a small badge next to the title plus a dashed divider line marking exactly where a new phase's targets begin. (3) Fixed the History table: centering just the column headers (v1.40) wasn't enough on its own -- the chips underneath were still left-aligned in their (already equal-width) column, so each one sat visibly left of its own centered title. Centered the value cells too." },
   { version: "1.41", date: "2026-09-16", desc: "New: Phases. Your target ranges (and target weight) can now change over time as your focus shifts -- e.g. a fat-loss phase now, a lean-bulk phase later. My Plan shows your current phase with a \"Complete phase\" button; completing one lets you name the next phase and set fresh targets, prefilled with your current ones as a starting point. Past readings keep being judged by whatever was active when they were logged, so completing a phase never recolors old History table rows or mini-card badges. All existing history became \"Phase 1\" automatically. The Weight trend chart now shows a thin colored strip marking which phase(s) the visible dates belong to." },
@@ -4662,31 +4668,43 @@ function bodyFigureHtml(entry, wf, fillColor){
 
 let bodyChangeZoomData = null;
 
-function zoomPairRow(label, srcFirst, srcLast, dateFirst, dateLast){
+function zoomPairRow(label, srcFirst, srcLast, dateFirst, dateLast, markLastAsLatest){
   // v1.30: takes an already-formatted display label, not a raw date -- the previous version built
   // it by string-concatenating " (latest)" onto the raw ISO date BEFORE formatting, which broke
   // formatShortDate's day/month split (it read "2026-09-16 (latest)" as a 3rd date-part and printed
   // "16 (latest).09"). v1.31: both sides now use the full day.month.year form (formatFullDate) for
-  // consistency -- only the starting side had the short form, per follow-up feedback.
+  // consistency -- only the starting side had the short form, per follow-up feedback. v1.44: with
+  // 2+ phases the zoom now renders one row PER segment, so only the very last segment's right-hand
+  // side is actually "latest" -- markLastAsLatest (defaults true, matching the old single-pair
+  // behavior) controls that suffix instead of it always being applied.
   const item = (src, dateDisplay)=> src
     ? `<div class="zoom-pair-item"><img src="${src}" class="zoom-photo" alt="${label} photo, ${dateDisplay}"><div class="zoom-pair-date">${dateDisplay}</div></div>`
     : `<div class="zoom-pair-item"><div class="zoom-photo-empty">No ${label.toLowerCase()} photo</div><div class="zoom-pair-date">${dateDisplay}</div></div>`;
+  const lastSuffix = markLastAsLatest === false ? "" : " (latest)";
   return `
     <div class="zoom-pair">
       <div class="zoom-pair-label">${label}</div>
       <div class="zoom-pair-row">
         ${item(srcFirst, formatFullDate(dateFirst))}
-        ${item(srcLast, formatFullDate(dateLast) + " (latest)")}
+        ${item(srcLast, formatFullDate(dateLast) + lastSuffix)}
       </div>
     </div>`;
 }
 
+// v1.44: bodyChangeZoomData now holds an ARRAY of checkpoints (one per phase boundary) rather than
+// a fixed first/last pair -- so with 2+ phases this zoom shows one Front row and one Back row per
+// consecutive pair of checkpoints (Start->End of Phase 1, End of Phase 1->Now, etc), each labeled
+// with both dates so it's clear which segment of the journey it's comparing.
 function openBodyPhotoZoom(){
   const d = bodyChangeZoomData;
-  if(!d) return;
+  if(!d || !d.points || d.points.length < 2){ return; }
   const rows = [];
-  if(d.firstFront || d.lastFront) rows.push(zoomPairRow("Front", d.firstFront, d.lastFront, d.firstDate, d.lastDate));
-  if(d.firstBack || d.lastBack) rows.push(zoomPairRow("Back", d.firstBack, d.lastBack, d.firstDate, d.lastDate));
+  for(let i=1;i<d.points.length;i++){
+    const a = d.points[i-1], b = d.points[i];
+    const isLastSeg = i === d.points.length - 1;
+    if(a.front || b.front) rows.push(zoomPairRow("Front", a.front, b.front, a.date, b.date, isLastSeg));
+    if(a.back || b.back) rows.push(zoomPairRow("Back", a.back, b.back, a.date, b.date, isLastSeg));
+  }
   document.getElementById("bodyZoomBody").innerHTML = rows.join("") || `<div class="empty-note">No photos to compare yet.</div>`;
   document.getElementById("bodyZoomOverlay").classList.remove("hidden");
 }
@@ -4873,6 +4891,12 @@ function carryForwardScalePhotos(logs){
   return map;
 }
 
+// v1.44: Body change grew from a fixed 2-photo (first-vs-latest) row into one photo per PHASE
+// boundary -- so once you complete a phase, the card keeps a permanent snapshot of where that
+// phase ended instead of always jumping straight from your very first photo to today's. The row
+// simply gets one photo wider each time you complete a phase (2 phases -> 3 photos, 3 -> 4, etc).
+// Checkpoints: the very first logged reading ("Start"), then each phase's own last reading while
+// it was active/completed ("End of {name}" for a closed phase, "Now" for the still-active one).
 function renderBodyChangeVisual(logs){
   const wrap = document.getElementById("bodyChangeWrap");
   if(!wrap) return;
@@ -4881,78 +4905,99 @@ function renderBodyChangeVisual(logs){
     wrap.innerHTML = `<div class="body-change"><div class="body-change-title">Body change</div><div class="body-change-empty">Log at least two scale readings to see how your body shape has changed over time.</div></div>`;
     return;
   }
-  const first = withWeight[0];
-  const last = withWeight[withWeight.length-1];
-  const bmiFirst = computeLogBMI(first);
-  const bmiLast = computeLogBMI(last);
-  const wfFirst = bodyWidthFactorFromBMI(bmiFirst);
-  const wfLast = bodyWidthFactorFromBMI(bmiLast);
-  const weightDelta = last.weightKg - first.weightKg;
-  const bmiDelta = (bmiFirst!=null && bmiLast!=null) ? (bmiLast - bmiFirst) : null;
   const goal = answers.goalType || "Maintain / recomposition";
-  let deltaCls;
-  if(goal === "Lose fat") deltaCls = weightDelta < -0.1 ? "ok" : (weightDelta > 0.1 ? "danger" : "warn");
-  else if(goal === "Gain muscle / weight") deltaCls = weightDelta > 0.1 ? "ok" : (weightDelta < -0.1 ? "danger" : "warn");
-  else deltaCls = Math.abs(weightDelta) < 1 ? "ok" : "warn";
-  const weightDeltaStr = `${weightDelta>0?"+":""}${weightDelta.toFixed(1)} kg`;
-  const bmiDeltaStr = bmiDelta!=null ? ` · ${bmiDelta>0?"+":""}${bmiDelta.toFixed(1)} BMI` : "";
-  const bmiFirstCat = bmiFirst!=null ? bmiCategory(bmiFirst) : null;
-  const bmiLastCat = bmiLast!=null ? bmiCategory(bmiLast) : null;
-
-  // A reading with no photo of its own (e.g. you just updated your weight) shows the most recent
-  // earlier photo instead of falling back to the generic BMI illustration.
   const carriedPhotos = carryForwardScalePhotos(logs);
-  const firstOwnFront = first.photoFront || first.photo || null;
-  const firstOwnBack = first.photoBack || null;
-  const firstCarried = carriedPhotos.get(first.date) || {front:null, back:null};
-  const firstEffFront = firstOwnFront || firstCarried.front;
-  const firstEffBack = firstOwnBack || firstCarried.back;
-  const firstIsRepeated = !firstOwnFront && !!firstEffFront;
-  const lastOwnFront = last.photoFront || last.photo || null;
-  const lastOwnBack = last.photoBack || null;
-  const lastCarried = carriedPhotos.get(last.date) || {front:null, back:null};
-  const lastEffFront = lastOwnFront || lastCarried.front;
-  const lastEffBack = lastOwnBack || lastCarried.back;
-  const lastIsRepeated = !lastOwnFront && !!lastEffFront;
-  const firstFigureEntry = {...first, photoFront: firstEffFront, photo: null, photoBack: firstEffBack};
-  const lastFigureEntry = {...last, photoFront: lastEffFront, photo: null, photoBack: lastEffBack};
-
-  bodyChangeZoomData = {
-    firstDate: first.date, lastDate: last.date,
-    firstFront: firstEffFront, firstBack: firstEffBack,
-    lastFront: lastEffFront, lastBack: lastEffBack,
+  const effectivePhoto = (entry) => {
+    const ownFront = entry.photoFront || entry.photo || null;
+    const ownBack = entry.photoBack || null;
+    const carried = carriedPhotos.get(entry.date) || {front:null, back:null};
+    const effFront = ownFront || carried.front;
+    const effBack = ownBack || carried.back;
+    return { effFront, effBack, isRepeated: !ownFront && !!effFront };
   };
-  const anyRepeated = firstIsRepeated || lastIsRepeated;
-  const bothHavePhotos = firstEffFront && lastEffFront;
+
+  const phases = getPhases();
+  const lastReadingInPhase = (p) => {
+    let found = null;
+    for(const l of withWeight){
+      if(l.date >= p.startDate && (p.endDate == null || l.date <= p.endDate)) found = l;
+    }
+    return found;
+  };
+
+  const points = [{ entry: withWeight[0], label: "Start", phase: null }];
+  phases.forEach(p=>{
+    const r = lastReadingInPhase(p);
+    if(!r) return; // phase logged no readings of its own -- no checkpoint for it
+    if(points[points.length-1].entry.date === r.date) return; // avoid a duplicate back-to-back photo
+    points.push({ entry: r, label: p.endDate == null ? "Now" : `End of ${p.name}`, phase: p });
+  });
+  const veryLast = withWeight[withWeight.length-1];
+  if(points[points.length-1].entry.date !== veryLast.date){
+    points.push({ entry: veryLast, label: "Now", phase: getPhaseForDate(veryLast.date) });
+  }
+
+  const bmiOf = (entry)=>computeLogBMI(entry);
+  const photoCells = points.map((pt,i)=>{
+    const { effFront, effBack } = effectivePhoto(pt.entry);
+    const figureEntry = {...pt.entry, photoFront: effFront, photo: null, photoBack: effBack};
+    const bmi = bmiOf(pt.entry);
+    const wf = bodyWidthFactorFromBMI(bmi);
+    const cat = bmi!=null ? bmiCategory(bmi) : null;
+    const isLast = i === points.length - 1;
+    const dateLabel = isLast ? `${formatShortDate(pt.entry.date)} (latest)` : formatShortDate(pt.entry.date);
+    return `<div class="body-change-figure">
+      ${bodyFigureHtml(figureEntry, wf, isLast ? "var(--accent2)" : "var(--muted)")}
+      <div class="bc-date">${dateLabel}</div>
+      <div class="bc-weight">${pt.entry.weightKg.toFixed(1)} kg</div>
+      ${cat ? `<span class="badge ${cat.cls}">${cat.label}</span>` : ""}
+      <div class="bc-point-label">${pt.label}</div>
+    </div>`;
+  });
+
+  const rowParts = [photoCells[0]];
+  for(let i=1;i<points.length;i++){
+    const prev = points[i-1].entry, cur = points[i].entry;
+    const weightDelta = cur.weightKg - prev.weightKg;
+    const bmiPrev = bmiOf(prev), bmiCur = bmiOf(cur);
+    const bmiDelta = (bmiPrev!=null && bmiCur!=null) ? (bmiCur - bmiPrev) : null;
+    let deltaCls;
+    if(goal === "Lose fat") deltaCls = weightDelta < -0.1 ? "ok" : (weightDelta > 0.1 ? "danger" : "warn");
+    else if(goal === "Gain muscle / weight") deltaCls = weightDelta > 0.1 ? "ok" : (weightDelta < -0.1 ? "danger" : "warn");
+    else deltaCls = Math.abs(weightDelta) < 1 ? "ok" : "warn";
+    const weightDeltaStr = `${weightDelta>0?"+":""}${weightDelta.toFixed(1)} kg`;
+    const bmiDeltaStr = bmiDelta!=null ? ` · ${bmiDelta>0?"+":""}${bmiDelta.toFixed(1)} BMI` : "";
+    const segCount = withWeight.filter(l=>l.date > prev.date && l.date <= cur.date).length;
+    const phaseName = points[i].phase ? points[i].phase.name : "";
+    rowParts.push(`<div class="body-change-arrow">
+      ${phaseName ? `<div class="body-change-phase-badge">${phaseName}</div>` : ""}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
+      <div class="body-change-delta ${deltaCls}">${weightDeltaStr}${bmiDeltaStr}</div>
+      <div class="body-change-sub">${segCount} reading${segCount===1?"":"s"}</div>
+    </div>`);
+    rowParts.push(photoCells[i]);
+  }
+
+  bodyChangeZoomData = { points: points.map(pt=>{
+    const {effFront, effBack, isRepeated} = effectivePhoto(pt.entry);
+    return { date: pt.entry.date, front: effFront, back: effBack, label: pt.label, isRepeated };
+  }) };
+  const anyRepeated = bodyChangeZoomData.points.some(p=>p.isRepeated);
+  const allHavePhotos = bodyChangeZoomData.points.every(p=>p.front);
   let noteText;
-  if(bothHavePhotos && anyRepeated){
+  if(allHavePhotos && anyRepeated){
     noteText = "Your own progress photos (no new photo logged for the reading shown, so it's carried over from the most recent one).";
-  } else if(bothHavePhotos){
+  } else if(allHavePhotos){
     noteText = "Your own progress photos.";
   } else {
     noteText = "Add a front/back photo to each reading above for a real before/after — figures without one are shown as an illustration scaled from BMI.";
   }
+  const titleSuffix = points.length > 2 ? "one photo per phase" : "first logged reading vs. latest";
   wrap.innerHTML = `
     <div class="body-change">
-      <div class="body-change-title">Body change — first logged reading vs. latest</div>
+      <div class="body-change-title">Body change — ${titleSuffix}</div>
       <div class="body-change-row">
-        <div class="body-change-figure">
-          ${bodyFigureHtml(firstFigureEntry, wfFirst, "var(--muted)")}
-          <div class="bc-date">${formatShortDate(first.date)}</div>
-          <div class="bc-weight">${first.weightKg.toFixed(1)} kg</div>
-          ${bmiFirstCat ? `<span class="badge ${bmiFirstCat.cls}">${bmiFirstCat.label}</span>` : ""}
-        </div>
-        <div class="body-change-arrow">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M13 6l6 6-6 6"></path></svg>
-          <div class="body-change-delta ${deltaCls}">${weightDeltaStr}${bmiDeltaStr}</div>
-          <div class="body-change-sub">${withWeight.length} readings logged</div>
-        </div>
-        <div class="body-change-figure">
-          ${bodyFigureHtml(lastFigureEntry, wfLast, "var(--accent2)")}
-          <div class="bc-date">${formatShortDate(last.date)} (latest)</div>
-          <div class="bc-weight">${last.weightKg.toFixed(1)} kg</div>
-          ${bmiLastCat ? `<span class="badge ${bmiLastCat.cls}">${bmiLastCat.label}</span>` : ""}
-        </div>
+        ${rowParts.join("")}
       </div>
       <div class="goal-progress-note" style="text-align:center; margin-top:12px;">${noteText}</div>
     </div>
