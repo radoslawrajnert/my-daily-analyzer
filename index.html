@@ -389,6 +389,12 @@
   .trend-swatch-raw{background:var(--accent2); opacity:.45;}
   .trend-swatch-avg{background:var(--accent);}
   .trend-chart-inner{position:relative;}
+  /* v1.41: thin colored strip under the Weight trend chart marking which phase(s) the visible
+     dates fall into (the user's pick, style "C", after previewing badge/tint/strip/divider
+     options) -- purely informational, doesn't affect the chart's own scale/domain. */
+  .trend-phase-strip{margin-top:6px;}
+  .trend-phase-strip-legend{display:flex; flex-wrap:wrap; gap:10px; margin-top:4px;}
+  .trend-phase-strip-legend .trend-legend-item .trend-swatch{width:9px; height:9px; border-radius:50%;}
   .trend-goal-reached-badge{position:absolute; top:6px; left:10px; width:84px; height:84px; filter:drop-shadow(0 3px 10px rgba(0,0,0,.45)); pointer-events:none;}
   .trend-goal-reached-badge img{display:block; width:100%; height:100%;}
   .trend-goal-reached-note{display:flex; align-items:center; gap:6px; font-size:.82rem; font-weight:700; color:var(--accent); margin-top:8px;}
@@ -855,6 +861,13 @@
         <div class="card" id="aestheticTargetsCard">
           <h2>Your aesthetic target ranges</h2>
           <div class="step-desc" style="margin-top:0;">Your personal target range for each measurement — saved to your profile so you can compare future readings against them.</div>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:14px 0; padding:10px 14px; background:var(--panel2); border-radius:var(--radius-sm);">
+            <div>
+              <div style="font-weight:700;" id="activePhaseName">Phase 1</div>
+              <div class="step-desc" style="margin:2px 0 0;" id="activePhaseMeta">Started —</div>
+            </div>
+            <button type="button" class="secondary" id="completePhaseBtn">Complete phase →</button>
+          </div>
           <div class="table-scroll">
             <table class="log-table">
               <thead><tr><th>Measure</th><th>Min</th><th>Max</th></tr></thead>
@@ -1691,6 +1704,36 @@
   </div>
 </div>
 
+<div class="modal-overlay hidden" id="completePhaseOverlay">
+  <div class="modal-box" style="max-width:520px;">
+    <h3><span id="completePhaseTitle">Complete phase</span><button type="button" class="close-x" id="completePhaseCloseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></h3>
+    <div class="step-desc" style="margin-top:0;" id="completePhaseDesc"></div>
+    <form id="completePhaseForm" autocomplete="off">
+      <div class="field"><label>New phase name</label><input type="text" id="newPhaseName" placeholder="e.g. Phase 2 - Lean bulk" required></div>
+      <div class="field"><label>Target weight (kg)</label><input type="number" id="newPhaseTargetWeight" step="any" min="30" max="300"></div>
+      <div class="table-scroll">
+        <table class="log-table">
+          <thead><tr><th>Measure</th><th>Min</th><th>Max</th></tr></thead>
+          <tbody>
+            <tr><td>Body fat %</td><td><input type="number" id="newPhaseBodyFatMin" step="any" style="width:80px;"></td><td><input type="number" id="newPhaseBodyFatMax" step="any" style="width:80px;"></td></tr>
+            <tr><td>Muscle %</td><td><input type="number" id="newPhaseMuscleMin" step="any" style="width:80px;"></td><td><input type="number" id="newPhaseMuscleMax" step="any" style="width:80px;"></td></tr>
+            <tr><td>Visceral fat</td><td><input type="number" id="newPhaseVisceralMin" step="any" style="width:80px;"></td><td><input type="number" id="newPhaseVisceralMax" step="any" style="width:80px;"></td></tr>
+            <tr><td>Chest (cm)</td><td><input type="number" id="newPhaseChestMin" step="any" style="width:80px;"></td><td><input type="number" id="newPhaseChestMax" step="any" style="width:80px;"></td></tr>
+            <tr><td>Waist (cm)</td><td><input type="number" id="newPhaseWaistMin" step="any" style="width:80px;"></td><td><input type="number" id="newPhaseWaistMax" step="any" style="width:80px;"></td></tr>
+            <tr><td>Hips (cm)</td><td><input type="number" id="newPhaseHipMin" step="any" style="width:80px;"></td><td><input type="number" id="newPhaseHipMax" step="any" style="width:80px;"></td></tr>
+            <tr><td>Thigh (cm)</td><td><input type="number" id="newPhaseThighMin" step="any" style="width:80px;"></td><td><input type="number" id="newPhaseThighMax" step="any" style="width:80px;"></td></tr>
+            <tr><td>Calf (cm)</td><td><input type="number" id="newPhaseCalfMin" step="any" style="width:80px;"></td><td><input type="number" id="newPhaseCalfMax" step="any" style="width:80px;"></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="nav" style="justify-content:flex-end;">
+        <button type="button" class="secondary" id="completePhaseCancelBtn">Cancel</button>
+        <button type="submit" id="completePhaseSubmitBtn">Start new phase →</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="modal-overlay hidden" id="workoutSessionEditOverlay">
   <div class="modal-box" style="max-width:420px;">
     <h3><span>Edit strength training time</span><button type="button" class="close-x" id="workoutSessionEditCloseBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle;"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button></h3>
@@ -1791,8 +1834,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.40";
+const APP_VERSION = "1.41";
 const CHANGELOG = [
+  { version: "1.41", date: "2026-09-16", desc: "New: Phases. Your target ranges (and target weight) can now change over time as your focus shifts -- e.g. a fat-loss phase now, a lean-bulk phase later. My Plan shows your current phase with a \"Complete phase\" button; completing one lets you name the next phase and set fresh targets, prefilled with your current ones as a starting point. Past readings keep being judged by whatever was active when they were logged, so completing a phase never recolors old History table rows or mini-card badges. All existing history became \"Phase 1\" automatically. The Weight trend chart now shows a thin colored strip marking which phase(s) the visible dates belong to." },
   { version: "1.40", date: "2026-09-16", desc: "Scale Log history table: the column headers (WEIGHT, BMI, BODY FAT...) were left-aligned while the chips underneath are centered, so each title sat off to the side of its own column of values instead of directly above it. Headers are now centered to match." },
   { version: "1.39", date: "2026-09-16", desc: "Scale Log history table: the Date column was noticeably wider than everything else (an unconstrained column soaks up whatever space the fixed-width chip columns don't use). Previewed 10 ways to fix it -- picked giving that leftover space to the photo thumbnail column instead, so Date now sits at a small, fixed width matching its content." },
   { version: "1.38", date: "2026-09-16", desc: "Scale Log history table: fixed a mismatch where Body fat/Waist/Visceral fat/Muscle %/Chest/Hip/Thigh/Calf chips could show a different color than the \"Other measurements\" mini cards above them for the exact same reading (the table was judging against fixed health-risk thresholds while the mini cards judge against your own target ranges from My Plan). Both now use the same rule: green means at your personal target or better, matching the mini cards exactly. Also equalized all 10 value-column widths (Visceral fat's column used to run wider than the rest) and shortened its header to \"Visc. fat\". Lastly, removed the separate Edit button/column -- clicking a row's date now opens it for editing." },
@@ -3417,7 +3461,7 @@ function switchView(view){
     document.getElementById("aiApiKeyInput").value = getAiApiKey();
     renderVersionInfo();
     refreshCloudSyncSettingsUI();
-    syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI(); syncAestheticTargetsUI(); syncDailyQuestionsSettingsUI();
+    syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI(); syncAestheticTargetsUI(); syncDailyQuestionsSettingsUI(); renderActivePhaseUI();
     // "My splits" and "My exercises" (moved here from the Workout Log tab, reachable now only by
     // clicking your name) need their own refresh on open -- renderWorkoutsView() also keeps them
     // current whenever the Workout Log tab itself is visited, but My Plan can be opened without
@@ -3744,9 +3788,15 @@ function wireStandaloneDatePicker(inputId){
 function rangeChip(displayValue, cat){
   return cat ? `<span class="range-chip ${cat.cls}">${displayValue}</span>` : displayValue;
 }
-function weightCategory(weightKg){
-  if(weightKg == null || answers.targetWeightKg == null) return null;
-  const dist = Math.abs(weightKg - answers.targetWeightKg);
+// v1.41: optionally phase-aware -- pass the reading's own date to judge it against whatever target
+// weight was active THEN (a finished phase's readings keep their own colors forever), or omit the
+// date to fall back to today's live target weight (Body Profile), same as before phases existed.
+function weightCategory(weightKg, dateStr){
+  if(weightKg == null) return null;
+  const phase = dateStr ? getPhaseForDate(dateStr) : getActivePhase();
+  const targetKg = (phase && phase.targetWeightKg != null) ? phase.targetWeightKg : answers.targetWeightKg;
+  if(targetKg == null) return null;
+  const dist = Math.abs(weightKg - targetKg);
   if(dist <= 1) return {cls:"ok"};
   if(dist <= 3) return {cls:"warn"};
   return {cls:"danger"};
@@ -4015,6 +4065,10 @@ function bmiWeightThresholds(){
   };
 }
 
+// v1.41: colors cycled through for the Weight trend chart's phase strip -- distinct from the
+// BMI-zone/target-weight band colors used elsewhere on the same chart (ok/warn/danger, and the
+// target's own yellow), since a phase isn't a "good/bad" judgment, just an identity/timeline marker.
+const PHASE_STRIP_COLORS = ["#7c9cff", "#c9a6f7", "#f0b854", "#4ee1a3", "#f16b83"];
 function renderTrendChart(logs){
   const wrap = document.getElementById("trendChartWrap");
   if(logs.length < 2){
@@ -4139,6 +4193,26 @@ function renderTrendChart(logs){
     false
   );
 
+  // v1.41: phase timeline strip -- which phase(s) the visible date range spans, reusing the same
+  // xFor mapping as the chart above so segments line up under the matching dates.
+  const phaseStripH = 8;
+  const phases = getPhases();
+  const phaseSegs = [];
+  phases.forEach((p, i)=>{
+    const segStartMs = new Date(p.startDate+"T00:00:00").getTime();
+    const segEndMs = p.endDate ? new Date(p.endDate+"T00:00:00").getTime() : maxDateMs;
+    if(segEndMs < minDateMs || segStartMs > maxDateMs) return; // doesn't overlap the visible range
+    const x1 = xFor(Math.max(segStartMs, minDateMs));
+    const x2 = Math.max(xFor(Math.min(segEndMs, maxDateMs)), x1 + 2);
+    phaseSegs.push({p, x1, x2, color: PHASE_STRIP_COLORS[i % PHASE_STRIP_COLORS.length]});
+  });
+  const phaseStripSvg = phaseSegs.map(s=>
+    `<rect x="${s.x1.toFixed(1)}" y="0" width="${(s.x2-s.x1).toFixed(1)}" height="${phaseStripH}" rx="${phaseStripH/2}" fill="${s.color}" opacity="0.55"><title>${s.p.name} (${formatShortDate(s.p.startDate)}${s.p.endDate?" – "+formatShortDate(s.p.endDate):" – now"})</title></rect>`
+  ).join("");
+  const phaseStripLegend = phaseSegs.map(s=>
+    `<span class="trend-legend-item"><span class="trend-swatch" style="background:${s.color};"></span>${s.p.name}</span>`
+  ).join("");
+
   wrap.innerHTML = `
     <div class="trend-label">Weight trend: ${formatShortDate(first.date)} → ${formatShortDate(last.date)} · ${delta>0?"+":""}${delta.toFixed(1)} kg</div>
     ${showAvg ? `<div class="trend-legend"><span class="trend-legend-item"><span class="trend-swatch trend-swatch-raw"></span>Logged weight</span><span class="trend-legend-item"><span class="trend-swatch trend-swatch-avg"></span>7-day average</span></div>` : ""}
@@ -4151,6 +4225,7 @@ function renderTrendChart(logs){
       </svg>
       ${goalReached ? `<div class="trend-goal-reached-badge" title="You've reached your target weight!">${smileyPhotoImg(84, "Target weight reached!")}</div>` : ""}
     </div>
+    ${phaseStripSvg ? `<div class="trend-phase-strip"><svg viewBox="0 0 ${w} ${phaseStripH}" style="width:100%; height:${phaseStripH}px; display:block;">${phaseStripSvg}</svg><div class="trend-phase-strip-legend">${phaseStripLegend}</div></div>` : ""}
     ${goalReached ? `<div class="trend-goal-reached-note">${ICON_SMILEY}You've reached your target weight of ${targetKg.toFixed(1)}kg!</div>` : ""}
     ${!th ? `<div class="goal-progress-note">Add your height in Body Profile to see BMI zone bands here.</div>` : ""}
   `;
@@ -4966,12 +5041,16 @@ function renderLogView(){
   // photo appears. `logs` is ascending by date, so a simple running "last seen photo" works.
   const carriedPhotosByDate = carryForwardScalePhotos(logs);
 
-  const aestheticTargets = getAestheticTargets();
   const rowsDesc = logs.slice().reverse();
   const rows = rowsDesc.map(l=>{
     const bmi = computeLogBMI(l);
     const bmiCat = bmi!=null ? bmiCategory(bmi) : null;
-    const weightCat = weightCategory(l.weightKg);
+    // v1.41: judged against whichever PHASE was active on this specific reading's date, not
+    // always today's targets -- so a reading from a finished phase keeps its own colors even
+    // after you complete that phase and start the next one with different targets.
+    const rowPhase = getPhaseForDate(l.date);
+    const aestheticTargets = rowPhase ? rowPhase.aestheticTargets : getAestheticTargets();
+    const weightCat = weightCategory(l.weightKg, l.date);
     // These 8 all use the SAME personal-target judgment as the "Other measurements" mini cards
     // above (My Plan -> Target ranges) -- see aestheticTargetChipCategory's comment for why.
     const bfCat = aestheticTargetChipCategory("bodyFatPct", l.bodyFatPct, aestheticTargets);
@@ -13120,10 +13199,10 @@ const AESTHETIC_TARGET_METRICS = [
   {key:"thighCm",    base:"targetThigh",   defaultMin:53.5, defaultMax:56},
   {key:"calfCm",     base:"targetCalf",    defaultMin:36,   defaultMax:38},
 ];
-function getAestheticTargets(){
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  const saved = (u && u.aestheticTargets) || {};
+// Shared by the migration path below (which must NOT call getAestheticTargets -- that would now
+// recurse back into phases) and the empty-state fallback in getAestheticTargets itself.
+function mergeAestheticTargetDefaults(saved){
+  saved = saved || {};
   const out = {};
   AESTHETIC_TARGET_METRICS.forEach(m=>{
     const s = saved[m.key] || {};
@@ -13134,11 +13213,102 @@ function getAestheticTargets(){
   });
   return out;
 }
-function saveAestheticTargets(targets){
+
+// --- Phases -----------------------------------------------------------------------------------
+// v1.41: target ranges (and, for historical chart/table coloring only, target weight) can now
+// change over time as your focus shifts -- e.g. a fat-loss phase now, maybe a lean-bulk phase
+// later, each with its own targets. users[email].phases is an array of
+// { id, name, startDate, endDate (null = the currently active phase), targetWeightKg,
+//   aestheticTargets: {key:{min,max}, ...} }, sorted oldest-first. Every reading is judged
+// against whichever phase covers ITS OWN date (getPhaseForDate), so completing a phase and
+// starting a new one with different targets never retroactively recolors old readings.
+function getPhases(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u) return [];
+  if(!Array.isArray(u.phases) || u.phases.length === 0){
+    // First time this account sees the Phases feature: wrap whatever flat target values already
+    // existed into a single open-ended "Phase 1" covering ALL existing history (per the user's
+    // choice -- "all existing history = Phase 1"), so nothing needs to be re-entered.
+    const migrated = [{
+      id: "phase-1",
+      name: "Phase 1",
+      startDate: "2000-01-01",
+      endDate: null,
+      targetWeightKg: (u.answers && u.answers.targetWeightKg != null) ? u.answers.targetWeightKg : null,
+      aestheticTargets: mergeAestheticTargetDefaults(u.aestheticTargets),
+    }];
+    u.phases = migrated;
+    saveUsers(users);
+    return migrated;
+  }
+  return u.phases.slice().sort((a,b)=> a.startDate < b.startDate ? -1 : (a.startDate > b.startDate ? 1 : 0));
+}
+function savePhases(phases){
   const users = getUsers();
   if(!users[currentUserEmail]) return;
-  users[currentUserEmail].aestheticTargets = targets;
+  users[currentUserEmail].phases = phases;
   saveUsers(users);
+}
+// The one open-ended phase (endDate == null) -- there should always be exactly one once phases
+// exist at all, but fall back to the most recent if that ever gets out of sync somehow.
+function getActivePhase(){
+  const phases = getPhases();
+  if(!phases.length) return null;
+  return phases.find(p=>p.endDate == null) || phases[phases.length-1];
+}
+// Which phase covers a given "YYYY-MM-DD" reading date -- for judging a specific past reading
+// against what was active back then, not today's targets.
+function getPhaseForDate(dateStr){
+  const phases = getPhases();
+  if(!phases.length) return null;
+  for(const p of phases){
+    if(dateStr >= p.startDate && (p.endDate == null || dateStr <= p.endDate)) return p;
+  }
+  return phases[0]; // date somehow predates every phase -- fall back to the earliest one
+}
+// Closes the active phase as of today and opens a new one starting tomorrow with the given
+// targets. Also updates the single "current" target weight in Body Profile (answers.targetWeightKg
+// -- read by milestones, Coach/AI export, and the risk narrative elsewhere), since the user chose
+// to keep those simple/unphased rather than rewiring every one of them to take a date.
+function completePhase(input){
+  const phases = getPhases();
+  const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
+  if(!active) return null;
+  const today = todayStr();
+  active.endDate = today;
+  const newPhase = {
+    id: "phase-"+Date.now(),
+    name: (input.name && input.name.trim()) || ("Phase "+(phases.length+1)),
+    startDate: shiftDateStr(today, 1),
+    endDate: null,
+    targetWeightKg: input.targetWeightKg != null ? input.targetWeightKg : active.targetWeightKg,
+    aestheticTargets: input.aestheticTargets,
+  };
+  savePhases(phases.concat([newPhase]));
+  if(input.targetWeightKg != null){
+    answers.targetWeightKg = input.targetWeightKg;
+    const users = getUsers();
+    if(users[currentUserEmail]){
+      users[currentUserEmail].answers = answers;
+      saveUsers(users);
+    }
+  }
+  return newPhase;
+}
+// getAestheticTargets/saveAestheticTargets keep their original names and signatures (every
+// existing call site -- renderMiniTrends, the My Plan "Save" button, etc. -- is unaffected) but
+// now transparently read/write the ACTIVE phase's targets instead of one flat, unphased store.
+function getAestheticTargets(){
+  const active = getActivePhase();
+  return active ? active.aestheticTargets : mergeAestheticTargetDefaults(null);
+}
+function saveAestheticTargets(targets){
+  const phases = getPhases();
+  const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
+  if(!active) return;
+  active.aestheticTargets = targets;
+  savePhases(phases);
 }
 function syncAestheticTargetsUI(){
   const t = getAestheticTargets();
@@ -13166,6 +13336,73 @@ function saveAestheticTargetsFromUI(){
   showToast("Target ranges saved");
 }
 document.getElementById("saveAestheticTargetsBtn").addEventListener("click", saveAestheticTargetsFromUI);
+
+// --- Complete phase ----------------------------------------------------------------------------
+function renderActivePhaseUI(){
+  const nameEl = document.getElementById("activePhaseName");
+  const metaEl = document.getElementById("activePhaseMeta");
+  if(!nameEl || !metaEl) return;
+  const active = getActivePhase();
+  if(!active){ nameEl.textContent = "Phase 1"; metaEl.textContent = ""; return; }
+  nameEl.textContent = active.name;
+  const logs = getScaleLogs().filter(l=>l.date >= active.startDate);
+  metaEl.textContent = `Started ${formatShortDate(active.startDate)} · ${logs.length} reading${logs.length===1?"":"s"} logged`;
+}
+function openCompletePhaseModal(){
+  const active = getActivePhase();
+  if(!active) return;
+  document.getElementById("completePhaseTitle").textContent = `Complete ${active.name}`;
+  document.getElementById("completePhaseDesc").textContent =
+    `Closes "${active.name}" as of today and opens a new phase starting tomorrow. Enter the targets you want to aim for next -- prefilled with your current ones as a starting point.`;
+  const nextNum = getPhases().length + 1;
+  document.getElementById("newPhaseName").value = `Phase ${nextNum}`;
+  document.getElementById("newPhaseTargetWeight").value = active.targetWeightKg != null ? active.targetWeightKg : "";
+  const current = getAestheticTargets();
+  AESTHETIC_TARGET_METRICS.forEach(m=>{
+    const newBase = "newPhase"+m.base.slice(6); // "targetBodyFat" -> "newPhaseBodyFat"
+    const minEl = document.getElementById(newBase+"Min");
+    const maxEl = document.getElementById(newBase+"Max");
+    if(minEl) minEl.value = current[m.key].min;
+    if(maxEl) maxEl.value = current[m.key].max;
+  });
+  document.getElementById("completePhaseOverlay").classList.remove("hidden");
+}
+window.openCompletePhaseModal = openCompletePhaseModal;
+function closeCompletePhaseModal(){
+  document.getElementById("completePhaseOverlay").classList.add("hidden");
+}
+document.getElementById("completePhaseBtn").addEventListener("click", openCompletePhaseModal);
+document.getElementById("completePhaseCloseBtn").addEventListener("click", closeCompletePhaseModal);
+document.getElementById("completePhaseCancelBtn").addEventListener("click", closeCompletePhaseModal);
+document.getElementById("completePhaseOverlay").addEventListener("click", (e)=>{
+  if(e.target.id === "completePhaseOverlay") closeCompletePhaseModal();
+});
+document.getElementById("completePhaseForm").addEventListener("submit", (e)=>{
+  e.preventDefault();
+  const name = document.getElementById("newPhaseName").value;
+  const weightVal = parseFloat(document.getElementById("newPhaseTargetWeight").value);
+  const current = getAestheticTargets();
+  const aestheticTargets = {};
+  AESTHETIC_TARGET_METRICS.forEach(m=>{
+    const newBase = "newPhase"+m.base.slice(6);
+    const minVal = parseFloat(document.getElementById(newBase+"Min").value);
+    const maxVal = parseFloat(document.getElementById(newBase+"Max").value);
+    aestheticTargets[m.key] = {
+      min: Number.isFinite(minVal) ? minVal : current[m.key].min,
+      max: Number.isFinite(maxVal) ? maxVal : current[m.key].max,
+    };
+  });
+  completePhase({
+    name,
+    targetWeightKg: Number.isFinite(weightVal) ? weightVal : null,
+    aestheticTargets,
+  });
+  closeCompletePhaseModal();
+  renderActivePhaseUI();
+  syncAestheticTargetsUI();
+  if(typeof renderLogView === "function") renderLogView();
+  showToast("New phase started");
+});
 
 // Which view to land on right after logging in -- or when reopening the app while a session is
 // already saved (see the init() IIFE at the bottom, which also calls enterApp()). Defaults to
