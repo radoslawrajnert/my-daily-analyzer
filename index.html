@@ -439,6 +439,7 @@
   .photo-timeline-item:hover .photo-timeline-thumb{border-color:var(--accent2); transform:translateY(-2px);}
   .photo-timeline-date{font-size:.7rem; color:var(--muted); margin-top:5px; white-space:nowrap;}
   .photo-timeline-badge{font-size:.62rem; color:var(--accent2); font-weight:700; text-transform:uppercase; letter-spacing:.03em;}
+  .photo-unavailable-placeholder{display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.66rem; line-height:1.3; background:var(--panel2); border:1px dashed var(--border); border-radius:var(--radius-sm); padding:6px; box-sizing:border-box;}
 
   .milestone-banner{display:flex; gap:12px; align-items:flex-start; background:rgba(76,201,141,.10); border:1px solid rgba(76,201,141,.32); border-radius:var(--radius); padding:14px 16px; margin-bottom:16px;}
   .milestone-banner svg{width:22px; height:22px; flex:0 0 auto; color:var(--accent); margin-top:1px;}
@@ -1724,8 +1725,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.26";
+const APP_VERSION = "1.27";
 const CHANGELOG = [
+  { version: "1.27", date: "2026-09-16", desc: "Fixed Scale Log photos sometimes showing a broken-image icon in Photo Timeline (and when opened full-size) even though the photo was never actually lost. Cause: the cached cloud link to a photo can go stale (e.g. if that exact photo was re-uploaded at some point, its old link permanently stops working even though the photo itself is still there safely). The app now notices a broken link automatically, asks the cloud for a current one for that same photo, and fixes it in place -- if the photo is genuinely gone, you'll see a plain \"Photo unavailable\" note instead of a broken-image icon." },
   { version: "1.26", date: "2026-09-15", desc: "Fixed a bug where a photo added to an exercise's reference (via the small circle icon next to an exercise name in the Day log) could disappear after leaving and re-entering the site. Cause: the photo was being embedded in the cloud sync data, which risked failing silently and then, on the next visit, letting a stale cloud copy overwrite the photo you'd just saved locally. Reference photos now always stay on this device (only the note syncs to the cloud), so they can no longer get wiped out that way." },
   { version: "1.25", date: "2026-09-15", desc: "Nutrition Log's Creatine/Water intake check-in: once you answer Yes or No, the buttons disappear -- there's nothing left to choose, so leaving them up just made an answered question look unanswered. A small colored checkmark/cross badge takes their place instead, showing what you answered; click it to change your answer." },
   { version: "1.24", date: "2026-09-15", desc: "Date labels are zero-padded everywhere now (02.09, not 2.9) -- matches the daily check-in results' date row. This was a single shared function (formatShortDate), so it fixes the Calorie/Protein charts, the Workout Stats volume chart, and every banner/toast that mentions a date, all at once." },
@@ -4470,14 +4472,64 @@ document.getElementById("bodyZoomOverlay").addEventListener("click", (e)=>{
   if(e.target.id === "bodyZoomOverlay") closeBodyPhotoZoom();
 });
 
+// Which field actually holds an entry's "front" photo -- the current photoFront field, or (for
+// older entries saved before that field existed) the legacy single-photo field. Callers need this
+// to build the right Storage path (users/{uid}/scalePhotos/{date}-{field}.jpg) when self-healing.
+function scalePhotoFieldName(entry){
+  return entry && entry.photoFront ? "photoFront" : "photo";
+}
+
+// Self-heals a Scale Log photo <img> whose cached Firebase Storage download URL has gone stale.
+// This can happen even though the photo itself is still safely in Storage: e.g. the object at that
+// path got re-uploaded/overwritten at some point (from this device or another), which makes
+// Firebase issue a brand-new download token and permanently invalidates the old one -- so an older
+// cached link (saved locally, or carried over from an earlier cloud sync) just silently 403s
+// forever after. Rather than trust that cached link, this asks Firebase fresh for the CURRENT
+// download URL of the same object path: if the object is still there (the common case), the photo
+// reappears immediately and the corrected URL is saved locally (which also re-pushes it to the
+// cloud, so every other device heals on its next pull too). If the object is genuinely gone, a
+// plain "Photo unavailable" placeholder takes the broken image's place instead of the browser's
+// default broken-image icon. Guarded to run at most once per <img> so a still-broken fresh URL
+// can't loop.
+function healBrokenScalePhoto(imgEl, date, field){
+  if(!imgEl || imgEl.dataset.healAttempted) return;
+  imgEl.dataset.healAttempted = "1";
+  if(!fbStorage || !fbUser){ showPhotoUnavailable(imgEl); return; }
+  const path = `users/${fbUser.uid}/scalePhotos/${date}-${field}.jpg`;
+  fbStorage.ref().child(path).getDownloadURL().then(freshUrl=>{
+    imgEl.src = freshUrl;
+    const users = getUsers();
+    const u = users[currentUserEmail];
+    const entry = u && (u.scaleLogs||[]).find(l=>l.date===date);
+    if(entry && entry[field] !== freshUrl){
+      entry[field] = freshUrl;
+      saveUsers(users);
+    }
+  }).catch(()=>{
+    showPhotoUnavailable(imgEl);
+  });
+}
+function showPhotoUnavailable(imgEl){
+  if(!imgEl || !imgEl.parentNode) return;
+  const w = imgEl.offsetWidth, h = imgEl.offsetHeight;
+  const div = document.createElement("div");
+  div.className = "photo-unavailable-placeholder";
+  if(w) div.style.width = w+"px";
+  if(h) div.style.height = h+"px";
+  div.textContent = "Photo unavailable";
+  imgEl.parentNode.replaceChild(div, imgEl);
+}
+window.healBrokenScalePhoto = healBrokenScalePhoto;
+
 function openSinglePhotoZoom(date){
   const entry = getScaleLogs().find(l=>l.date===date);
   if(!entry) return;
   const front = entry.photoFront || entry.photo || null;
   const back = entry.photoBack || null;
+  const frontField = scalePhotoFieldName(entry);
   const items = [];
-  if(front) items.push(`<div class="zoom-pair-item"><img src="${front}" class="zoom-photo" alt="Front photo, ${date}"><div class="zoom-pair-date">Front</div></div>`);
-  if(back) items.push(`<div class="zoom-pair-item"><img src="${back}" class="zoom-photo" alt="Back photo, ${date}"><div class="zoom-pair-date">Back</div></div>`);
+  if(front) items.push(`<div class="zoom-pair-item"><img src="${front}" class="zoom-photo" alt="Front photo, ${date}" onerror="healBrokenScalePhoto(this,'${date}','${frontField}')"><div class="zoom-pair-date">Front</div></div>`);
+  if(back) items.push(`<div class="zoom-pair-item"><img src="${back}" class="zoom-photo" alt="Back photo, ${date}" onerror="healBrokenScalePhoto(this,'${date}','photoBack')"><div class="zoom-pair-date">Back</div></div>`);
   if(!items.length) return;
   document.getElementById("bodyZoomBody").innerHTML = `<div class="zoom-pair"><div class="zoom-pair-label">${date}</div><div class="zoom-pair-row">${items.join("")}</div></div>`;
   document.getElementById("bodyZoomOverlay").classList.remove("hidden");
@@ -4499,9 +4551,10 @@ function renderPhotoTimeline(logs){
     const front = l.photoFront || l.photo;
     const back = l.photoBack;
     const thumb = front || back;
+    const thumbField = front ? scalePhotoFieldName(l) : "photoBack";
     const badge = (front && back) ? `<div class="photo-timeline-badge">Front + back</div>` : "";
     return `<button type="button" class="photo-timeline-item" onclick="openSinglePhotoZoom('${l.date}')">
-      <img src="${thumb}" class="photo-timeline-thumb" alt="Progress photo, ${l.date}">
+      <img src="${thumb}" class="photo-timeline-thumb" alt="Progress photo, ${l.date}" onerror="healBrokenScalePhoto(this,'${l.date}','${thumbField}')">
       <div class="photo-timeline-date">${l.date}</div>
       ${badge}
     </button>`;
