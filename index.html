@@ -1875,8 +1875,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.46";
+const APP_VERSION = "1.47";
 const CHANGELOG = [
+  { version: "1.47", date: "2026-09-16", desc: "Fixed a bug where the new Nutrition Trends \"Phase\" view showed completely empty for most accounts. Phase 1 (the automatic catch-all covering everything logged before the Phases feature existed) carries an artificial start date of 2000-01-01 -- building weekly bars from literally the year 2000 got silently cut off before ever reaching your real, recently-logged data. \"Phase\" now starts from whichever is later: the phase's own start date, or the earliest day you've actually logged food, so it correctly shows your whole real history for that phase." },
   { version: "1.46", date: "2026-09-16", desc: "Nutrition Trends: added a phase-name badge next to the Daily/Weekly toggle (always shown, same idea as the Weight trend chart's own phase badge) and a third \"Phase\" view -- weekly bars spanning your active phase's own start date through today, instead of a fixed recent window. The Calories/Protein target lines already reflect your per-phase overrides from Target ranges (Settings) in every view." },
   { version: "1.45", date: "2026-09-16", desc: "New Settings tab: Target ranges. Moved your aesthetic target ranges here (out of Scale Log Settings) and added Calories/day, Protein/day and a free-text Notes box, all per phase -- leave Calories/Protein blank to keep using the auto-calculated target, or set your own for that phase. Completed phases stay on record below as a read-only, collapsible list so you can look back at what a past phase's targets actually were. The Complete Phase form now collects these too, prefilled with your current numbers. Phase notes are now included in the Coach/AI export." },
   { version: "1.44", date: "2026-09-16", desc: "Body change card (\"first logged reading vs. latest\") now shows one photo per phase boundary instead of always just two -- your original photo, then a permanent snapshot of how each phase ended, then your current photo. Each arrow between them is labeled with the phase it covers. With one phase it still looks the same as before (2 photos); complete a phase and it grows a photo (3, then 4, and so on)." },
@@ -6876,7 +6877,21 @@ function computeDailyMetricSeriesForRange(startDate, endDate, field){
 // computeWeeklyMetricSeries, just scoped to phase dates rather than a fixed recent window.
 function computeWeeklyMetricSeriesForPhase(phase, field){
   if(!phase) return [];
-  const startMonday = mondayOfWeek(phase.startDate);
+  // v1.47 bugfix: Phase 1 (the migration catch-all covering all pre-Phases history) carries an
+  // artificial "2000-01-01" start date. Iterating week-by-week from literally the year 2000 isn't
+  // just pointless (thousands of empty weeks) -- the sane ceilings in computeDailyMetricSeriesForRange
+  // and the loop below (added specifically to guard against a corrupt/backwards range) would silently
+  // truncate the whole series before it ever reached any REAL, recently-logged data, leaving the
+  // chart looking completely empty. Clamp the EFFECTIVE start to whichever is later: the phase's own
+  // start date, or the earliest date you've actually logged food -- so "the whole phase" means the
+  // whole phase's real history, not a multi-decade placeholder range.
+  const log = getFoodLog();
+  const loggedDates = Object.keys(log).filter(d=>(log[d]||[]).length > 0).sort();
+  const earliestLogged = loggedDates.length ? loggedDates[0] : null;
+  const effectiveStartDate = earliestLogged
+    ? (earliestLogged > phase.startDate ? earliestLogged : phase.startDate)
+    : todayStr();
+  const startMonday = mondayOfWeek(effectiveStartDate);
   const endDate = phase.endDate || todayStr();
   const endMonday = mondayOfWeek(endDate);
   const daily = computeDailyMetricSeriesForRange(startMonday, endDate, field);
