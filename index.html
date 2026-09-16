@@ -499,6 +499,12 @@
   .trend-view-toggle button:hover:not(.active){color:var(--text); transform:none;}
   .trend-view-toggle button.active{background:var(--accent-grad); color:#0a0c11; box-shadow:none;}
 
+  /* v1.43: Photo Timeline now renders one row per phase (oldest phase on top, so a new row simply
+     appends below as later phases start) instead of one long undifferentiated strip -- each row
+     gets its own small label naming the phase so it's clear which line is which. */
+  .photo-timeline-row{margin-bottom:16px;}
+  .photo-timeline-row:last-child{margin-bottom:0;}
+  .photo-timeline-row-label{font-size:.72rem; font-weight:700; color:var(--accent2); margin-bottom:6px;}
   .photo-timeline{display:flex; gap:14px; overflow-x:auto; padding:4px 2px 10px;}
   .photo-timeline-item{flex:0 0 auto; text-align:center; cursor:pointer; background:none; border:none; padding:0; font:inherit; color:inherit;}
   .photo-timeline-thumb{width:78px; height:104px; object-fit:cover; border-radius:var(--radius-sm); border:1px solid var(--border); display:block; transition:border-color .15s, transform .15s;}
@@ -1843,8 +1849,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.42";
+const APP_VERSION = "1.43";
 const CHANGELOG = [
+  { version: "1.43", date: "2026-09-16", desc: "Photo Timeline now shows one row per phase instead of a single row spanning your whole history -- all of Phase 1's photos on their own line, Phase 2's photos on the next line once you complete a phase, each labeled with that phase's name. Makes it easy to see your progress photos grouped by whatever focus was active when they were taken." },
   { version: "1.42", date: "2026-09-16", desc: "Three follow-ups to Phases (v1.41): (1) the active phase's name is now editable right in the My Plan card -- e.g. rename \"Phase 1\" to \"Phase 1 - Reduction till 75kg\" -- and shows up everywhere the name is read (this card, the Complete-phase modal, the Weight trend chart). (2) Switched the Weight trend chart's phase indicator from a colored timeline strip to a small badge next to the title plus a dashed divider line marking exactly where a new phase's targets begin. (3) Fixed the History table: centering just the column headers (v1.40) wasn't enough on its own -- the chips underneath were still left-aligned in their (already equal-width) column, so each one sat visibly left of its own centered title. Centered the value cells too." },
   { version: "1.41", date: "2026-09-16", desc: "New: Phases. Your target ranges (and target weight) can now change over time as your focus shifts -- e.g. a fat-loss phase now, a lean-bulk phase later. My Plan shows your current phase with a \"Complete phase\" button; completing one lets you name the next phase and set fresh targets, prefilled with your current ones as a starting point. Past readings keep being judged by whatever was active when they were logged, so completing a phase never recolors old History table rows or mini-card badges. All existing history became \"Phase 1\" automatically. The Weight trend chart now shows a thin colored strip marking which phase(s) the visible dates belong to." },
   { version: "1.40", date: "2026-09-16", desc: "Scale Log history table: the column headers (WEIGHT, BMI, BODY FAT...) were left-aligned while the chips underneath are centered, so each title sat off to the side of its own column of values instead of directly above it. Headers are now centered to match." },
@@ -4757,6 +4764,10 @@ function openSinglePhotoZoom(date){
 }
 window.openSinglePhotoZoom = openSinglePhotoZoom;
 
+// v1.43: one row per phase -- so photos naturally group by whichever focus/targets were active
+// when they were taken (e.g. all of Phase 1's photos on their own line, Phase 2's on the next)
+// instead of one long undifferentiated strip. getPhases() is already chronological (oldest
+// first), and each phase's own photos keep their original chronological order within that row.
 function renderPhotoTimeline(logs){
   const card = document.getElementById("photoTimelineCard");
   const wrap = document.getElementById("photoTimelineWrap");
@@ -4768,7 +4779,7 @@ function renderPhotoTimeline(logs){
     return;
   }
   card.classList.remove("hidden");
-  const items = withPhotos.map(l=>{
+  const photoTimelineItemHtml = (l) => {
     const front = l.photoFront || l.photo;
     const back = l.photoBack;
     const thumb = front || back;
@@ -4777,8 +4788,17 @@ function renderPhotoTimeline(logs){
       <img src="${thumb}" class="photo-timeline-thumb" alt="Progress photo, ${formatShortDate(l.date)}" onerror="healBrokenScalePhoto(this,'${l.date}','${thumbField}')">
       <div class="photo-timeline-date">${formatShortDate(l.date)}</div>
     </button>`;
+  };
+  const phases = getPhases();
+  const rows = phases.map(p=>{
+    const items = withPhotos.filter(l => l.date >= p.startDate && (p.endDate == null || l.date <= p.endDate));
+    if(items.length === 0) return ""; // no photos taken during this phase -- skip its row entirely
+    return `<div class="photo-timeline-row">
+      <div class="photo-timeline-row-label">${p.name}</div>
+      <div class="photo-timeline">${items.map(photoTimelineItemHtml).join("")}</div>
+    </div>`;
   }).join("");
-  wrap.innerHTML = `<div class="photo-timeline">${items}</div>`;
+  wrap.innerHTML = rows;
 }
 
 // Weight change over a trailing calendar-day window, ending at the latest reading. Uses the earliest
