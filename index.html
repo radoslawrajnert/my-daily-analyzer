@@ -196,6 +196,11 @@
   .range-chip.ok{background:rgba(78,225,163,.14); color:var(--accent);}
   .range-chip.warn{background:rgba(240,184,84,.14); color:var(--warn);}
   .range-chip.danger{background:rgba(241,107,131,.14); color:var(--danger);}
+  /* v1.38: forces the History table's 10 value columns (Weight..Calf) to the SAME width no matter
+     how long their header label or content is -- Visceral fat's column used to end up visibly
+     wider than the others purely because "VISCERAL FAT" is a longer header than "WEIGHT"/"BMI"/
+     etc, even though every chip itself was already the same size (see .range-chip above). */
+  table.log-table col.chip-col{width:84px;}
   .badge.muted{background:rgba(148,163,184,.14); color:var(--muted);}
 
   .quick-days-row{display:flex; gap:6px; flex-wrap:wrap;}
@@ -355,6 +360,11 @@
   table.log-table .del-btn:hover, table.log-table .edit-btn:hover, table.log-table .repeat-btn:hover{transform:none; filter:none; opacity:.8;}
   table.log-table .edit-btn{color:var(--accent2);}
   table.log-table .repeat-btn{color:var(--accent);}
+  /* v1.38: the scale-log History table's Date cell doubles as the row's Edit action now (the
+     separate "Edit" button/column was removed to save width) -- underline-on-hover plus a pointer
+     cursor signals it's clickable, matching how the old edit-btn read (var(--accent2), underlined). */
+  table.log-table .log-date-cell{color:var(--accent2); cursor:pointer;}
+  table.log-table .log-date-cell:hover{text-decoration:underline;}
   .empty-note{color:var(--muted); font-size:.85rem; padding:14px 0;}
   .trend-wrap{margin-top:18px;}
   .trend-wrap .trend-label{color:var(--muted); font-size:.8rem; margin-bottom:6px;}
@@ -1766,8 +1776,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.37";
+const APP_VERSION = "1.38";
 const CHANGELOG = [
+  { version: "1.38", date: "2026-09-16", desc: "Scale Log history table: fixed a mismatch where Body fat/Waist/Visceral fat/Muscle %/Chest/Hip/Thigh/Calf chips could show a different color than the \"Other measurements\" mini cards above them for the exact same reading (the table was judging against fixed health-risk thresholds while the mini cards judge against your own target ranges from My Plan). Both now use the same rule: green means at your personal target or better, matching the mini cards exactly. Also equalized all 10 value-column widths (Visceral fat's column used to run wider than the rest) and shortened its header to \"Visc. fat\". Lastly, removed the separate Edit button/column -- clicking a row's date now opens it for editing." },
   { version: "1.37", date: "2026-09-16", desc: "Follow-up to v1.36: switched from a tinted whole cell to a colored chip around just the value (green/amber/red), always the same fixed width no matter how many digits, so chips line up down each column. Also extended color-coding to every numeric column, not just BMI/Body fat/Visceral fat/Waist -- Weight (judged against your target weight in Body Profile), Muscle %, Chest, Hip, Thigh and Calf (judged against your target ranges in My Plan) now get one too." },
   { version: "1.36", date: "2026-09-16", desc: "Scale Log history table: BMI, Body fat, Visceral fat and Waist no longer show a separate \"Healthy range\"/\"High\"/\"Very high\" text badge next to the number -- the whole cell is now tinted green/amber/red instead, so the color itself carries the meaning at a glance. (Previewed 4 options first -- colored number, colored chip, colored dot, tinted cell -- tinted cell was picked.)" },
   { version: "1.35", date: "2026-09-16", desc: "Scale Log history table: Body fat % and Muscle % now always show one decimal place (e.g. 17.0% instead of a mix of 17% and 16.8%). Also moved the Delete button out of the table row and into the edit form -- click Edit on a reading and Delete appears there, freeing up a column's worth of width in the table." },
@@ -3723,13 +3734,25 @@ function weightCategory(weightKg){
   if(dist <= 3) return {cls:"warn"};
   return {cls:"danger"};
 }
-function targetRangeCategory(value, tgt){
-  if(value == null || !tgt) return null;
-  if(value >= tgt.min && value <= tgt.max) return {cls:"ok"};
-  const dist = value < tgt.min ? tgt.min - value : value - tgt.max;
-  const span = Math.max(tgt.max - tgt.min, 0.0001);
-  if(dist <= span * 0.75) return {cls:"warn"};
-  return {cls:"danger"};
+// v1.38: body fat %/waist/visceral fat/muscle %/chest/hip/thigh/calf chips now share EXACTLY the
+// same judgment as the "Other measurements" mini cards above the table (My Plan -> Target ranges),
+// instead of body fat/waist/visceral fat separately using a population health-risk scale -- the two
+// could disagree on the same value (e.g. a body fat % the mini card marks "target achieved" could
+// still show amber/red down in the table), which read as contradictory. Mirrors the mini cards'
+// "achieved" rule precisely: landing inside your personal target range is green; for a metric where
+// lower is favorable regardless of the range (body fat/waist/visceral fat -- the same three flagged
+// judge:true in MINI_TREND_METRICS), sitting BELOW the range counts as green too, not just inside
+// it -- "green means at your target or better." Everything else is amber; there's no separate red
+// tier here since the mini cards never show one either (only a checkmark or an arrow).
+function aestheticTargetChipCategory(key, value, targets){
+  if(value == null) return null;
+  const tgt = targets[key];
+  if(!tgt) return null;
+  const metric = MINI_TREND_METRICS.find(m=>m.key===key);
+  const lowerFavorable = !!(metric && metric.judge);
+  const inRange = value >= tgt.min && value <= tgt.max;
+  const achieved = inRange || (lowerFavorable && value < tgt.min);
+  return {cls: achieved ? "ok" : "warn"};
 }
 
 function visceralFatCategory(v){
@@ -4931,15 +4954,17 @@ function renderLogView(){
   const rows = rowsDesc.map(l=>{
     const bmi = computeLogBMI(l);
     const bmiCat = bmi!=null ? bmiCategory(bmi) : null;
-    const bfCat = bodyFatCategoryForLog(l.bodyFatPct);
-    const vf = visceralFatCategory(l.visceralFat);
-    const waistCat = waistCategory(l.waistCm);
     const weightCat = weightCategory(l.weightKg);
-    const muscleCat = l.musclePct!=null ? targetRangeCategory(l.musclePct, aestheticTargets.musclePct) : null;
-    const chestCat = targetRangeCategory(l.chestCm, aestheticTargets.chestCm);
-    const hipCat = targetRangeCategory(l.hipCm, aestheticTargets.hipCm);
-    const thighCat = targetRangeCategory(l.thighCm, aestheticTargets.thighCm);
-    const calfCat = targetRangeCategory(l.calfCm, aestheticTargets.calfCm);
+    // These 8 all use the SAME personal-target judgment as the "Other measurements" mini cards
+    // above (My Plan -> Target ranges) -- see aestheticTargetChipCategory's comment for why.
+    const bfCat = aestheticTargetChipCategory("bodyFatPct", l.bodyFatPct, aestheticTargets);
+    const vf = aestheticTargetChipCategory("visceralFat", l.visceralFat, aestheticTargets);
+    const waistCat = aestheticTargetChipCategory("waistCm", l.waistCm, aestheticTargets);
+    const muscleCat = aestheticTargetChipCategory("musclePct", l.musclePct, aestheticTargets);
+    const chestCat = aestheticTargetChipCategory("chestCm", l.chestCm, aestheticTargets);
+    const hipCat = aestheticTargetChipCategory("hipCm", l.hipCm, aestheticTargets);
+    const thighCat = aestheticTargetChipCategory("thighCm", l.thighCm, aestheticTargets);
+    const calfCat = aestheticTargetChipCategory("calfCm", l.calfCm, aestheticTargets);
     const ownThumb = l.photoFront || l.photo;
     const carried = carriedPhotosByDate.get(l.date) || {};
     const thumb = ownThumb || carried.front;
@@ -4951,7 +4976,7 @@ function renderLogView(){
     const thumbField = ownThumb ? scalePhotoFieldName(l) : carried.frontField;
     return `<tr>
       <td>${thumb ? `<img class="pkg-thumb${repeated?" pkg-thumb-repeated":""}" src="${thumb}" alt="${repeated?"Repeated from an earlier reading":"Progress photo"}, ${formatShortDate(l.date)}" title="${repeated?"No photo logged this reading — showing the most recent one":"Progress photo"}" onerror="healBrokenScalePhoto(this,'${thumbDate}','${thumbField}')">` : `<span class="pkg-thumb-placeholder"></span>`}</td>
-      <td>${formatShortDate(l.date)}</td>
+      <td class="log-date-cell" onclick="editLogEntry('${l.date}')" title="Click to edit this reading">${formatShortDate(l.date)}</td>
       <td>${rangeChip(l.weightKg.toFixed(1)+" kg", weightCat)}</td>
       <td>${bmi!=null ? rangeChip(bmi.toFixed(1), bmiCat) : "—"}</td>
       <td>${l.bodyFatPct!=null ? rangeChip(l.bodyFatPct.toFixed(1)+"%", bfCat) : "—"}</td>
@@ -4962,13 +4987,18 @@ function renderLogView(){
       <td>${l.hipCm!=null ? rangeChip(l.hipCm+" cm", hipCat) : "—"}</td>
       <td>${l.thighCm!=null ? rangeChip(l.thighCm+" cm", thighCat) : "—"}</td>
       <td>${l.calfCm!=null ? rangeChip(l.calfCm+" cm", calfCat) : "—"}</td>
-      <td><button type="button" class="edit-btn" onclick="editLogEntry('${l.date}')">Edit</button></td>
     </tr>`;
   }).join("");
   wrap.innerHTML = `
     <div class="table-scroll">
       <table class="log-table">
-        <thead><tr><th></th><th>Date</th><th>Weight</th><th>BMI</th><th>Body fat</th><th>Muscle</th><th>Visceral fat</th><th>Chest</th><th>Waist</th><th>Hip</th><th>Thigh</th><th>Calf</th><th></th></tr></thead>
+        <colgroup>
+          <col><col>
+          <col class="chip-col"><col class="chip-col"><col class="chip-col"><col class="chip-col">
+          <col class="chip-col"><col class="chip-col"><col class="chip-col"><col class="chip-col">
+          <col class="chip-col"><col class="chip-col">
+        </colgroup>
+        <thead><tr><th></th><th>Date</th><th>Weight</th><th>BMI</th><th>Body fat</th><th>Muscle</th><th>Visc. fat</th><th>Chest</th><th>Waist</th><th>Hip</th><th>Thigh</th><th>Calf</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
