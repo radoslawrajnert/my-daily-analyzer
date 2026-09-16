@@ -210,6 +210,12 @@
   table.log-table col.thumb-col{width:90px;}
   table.log-table col.date-col{width:58px;}
   table.log-table .log-date-cell{white-space:nowrap;}
+  /* v1.39 follow-up: the header labels (WEIGHT, BMI, ...) were left-aligned like every other
+     table.log-table header in the app, but the values below them are centered chips (.range-chip
+     text-align:center) -- so each title sat to the left of its own column of values instead of
+     directly above them. Centering just these 10 headers (not the shared th rule, which every
+     other table in the app still uses left-aligned) lines title up with value. */
+  table.log-table th.chip-th{text-align:center;}
   .badge.muted{background:rgba(148,163,184,.14); color:var(--muted);}
 
   .quick-days-row{display:flex; gap:6px; flex-wrap:wrap;}
@@ -1785,8 +1791,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.39";
+const APP_VERSION = "1.40";
 const CHANGELOG = [
+  { version: "1.40", date: "2026-09-16", desc: "Scale Log history table: the column headers (WEIGHT, BMI, BODY FAT...) were left-aligned while the chips underneath are centered, so each title sat off to the side of its own column of values instead of directly above it. Headers are now centered to match." },
   { version: "1.39", date: "2026-09-16", desc: "Scale Log history table: the Date column was noticeably wider than everything else (an unconstrained column soaks up whatever space the fixed-width chip columns don't use). Previewed 10 ways to fix it -- picked giving that leftover space to the photo thumbnail column instead, so Date now sits at a small, fixed width matching its content." },
   { version: "1.38", date: "2026-09-16", desc: "Scale Log history table: fixed a mismatch where Body fat/Waist/Visceral fat/Muscle %/Chest/Hip/Thigh/Calf chips could show a different color than the \"Other measurements\" mini cards above them for the exact same reading (the table was judging against fixed health-risk thresholds while the mini cards judge against your own target ranges from My Plan). Both now use the same rule: green means at your personal target or better, matching the mini cards exactly. Also equalized all 10 value-column widths (Visceral fat's column used to run wider than the rest) and shortened its header to \"Visc. fat\". Lastly, removed the separate Edit button/column -- clicking a row's date now opens it for editing." },
   { version: "1.37", date: "2026-09-16", desc: "Follow-up to v1.36: switched from a tinted whole cell to a colored chip around just the value (green/amber/red), always the same fixed width no matter how many digits, so chips line up down each column. Also extended color-coding to every numeric column, not just BMI/Body fat/Visceral fat/Waist -- Weight (judged against your target weight in Body Profile), Muscle %, Chest, Hip, Thigh and Calf (judged against your target ranges in My Plan) now get one too." },
@@ -5008,7 +5015,7 @@ function renderLogView(){
           <col class="chip-col"><col class="chip-col"><col class="chip-col"><col class="chip-col">
           <col class="chip-col"><col class="chip-col">
         </colgroup>
-        <thead><tr><th></th><th>Date</th><th>Weight</th><th>BMI</th><th>Body fat</th><th>Muscle</th><th>Visc. fat</th><th>Chest</th><th>Waist</th><th>Hip</th><th>Thigh</th><th>Calf</th></tr></thead>
+        <thead><tr><th></th><th>Date</th><th class="chip-th">Weight</th><th class="chip-th">BMI</th><th class="chip-th">Body fat</th><th class="chip-th">Muscle</th><th class="chip-th">Visc. fat</th><th class="chip-th">Chest</th><th class="chip-th">Waist</th><th class="chip-th">Hip</th><th class="chip-th">Thigh</th><th class="chip-th">Calf</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
