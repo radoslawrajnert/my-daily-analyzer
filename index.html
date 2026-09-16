@@ -1737,8 +1737,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.28";
+const APP_VERSION = "1.29";
 const CHANGELOG = [
+  { version: "1.29", date: "2026-09-16", desc: "Two follow-up fixes: (1) the Scale Log history table's own photo thumbnail now self-heals a broken/stale photo link too -- it was only wired up for the Photo Timeline below it, so a photo could show fixed there but still broken in the table above. (2) On a phone, the Calorie/Protein bar charts are now 15% shorter (their width/readability from the last update is unchanged) -- desktop is untouched either way." },
   { version: "1.28", date: "2026-09-16", desc: "Two changes: (1) every date shown app-wide is now day.month (e.g. 01.09), including a handful of spots that still showed the old 2026-09-01 style -- Photo Timeline captions, the Scale Log history table, edit-window titles, tooltips, and a few others. (2) The Calorie/Protein charts and daily check-in grid no longer squeeze into an unreadable mess on a phone screen -- on a narrow screen they now stay at their normal, comfortable size and you swipe sideways to see the rest of the days, instead of everything shrinking and overlapping. Nothing changed on a full-size screen." },
   { version: "1.27", date: "2026-09-16", desc: "Fixed Scale Log photos sometimes showing a broken-image icon in Photo Timeline (and when opened full-size) even though the photo was never actually lost. Cause: the cached cloud link to a photo can go stale (e.g. if that exact photo was re-uploaded at some point, its old link permanently stops working even though the photo itself is still there safely). The app now notices a broken link automatically, asks the cloud for a current one for that same photo, and fixes it in place -- if the photo is genuinely gone, you'll see a plain \"Photo unavailable\" note instead of a broken-image icon." },
   { version: "1.26", date: "2026-09-15", desc: "Fixed a bug where a photo added to an exercise's reference (via the small circle icon next to an exercise name in the Day log) could disappear after leaving and re-entering the site. Cause: the photo was being embedded in the cloud sync data, which risked failing silently and then, on the next visit, letting a stale cloud copy overwrite the photo you'd just saved locally. Reference photos now always stay on this device (only the note syncs to the cloud), so they can no longer get wiped out that way." },
@@ -4633,13 +4634,16 @@ function latestDateOf(logs){
 // same way (e.g. you updated your weight but didn't retake a photo).
 function carryForwardScalePhotos(logs){
   const map = new Map();
-  let carriedFront = null, carriedBack = null;
+  // v1.29: also track which date (and field) a carried-forward photo actually came from -- a
+  // repeated thumbnail's real Storage object lives under that EARLIER date, not the row it's
+  // displayed on, so healBrokenScalePhoto needs the origin date to build the right Storage path.
+  let carriedFront = null, carriedBack = null, carriedFrontDate = null, carriedFrontField = null, carriedBackDate = null;
   logs.forEach(l=>{
     const ownFront = l.photoFront || l.photo || null;
     const ownBack = l.photoBack || null;
-    if(ownFront) carriedFront = ownFront;
-    if(ownBack) carriedBack = ownBack;
-    map.set(l.date, {front: carriedFront, back: carriedBack});
+    if(ownFront){ carriedFront = ownFront; carriedFrontDate = l.date; carriedFrontField = scalePhotoFieldName(l); }
+    if(ownBack){ carriedBack = ownBack; carriedBackDate = l.date; }
+    map.set(l.date, {front: carriedFront, back: carriedBack, frontDate: carriedFrontDate, frontField: carriedFrontField, backDate: carriedBackDate});
   });
   return map;
 }
@@ -4843,10 +4847,16 @@ function renderLogView(){
     const vf = visceralFatCategory(l.visceralFat);
     const waistCat = waistCategory(l.waistCm);
     const ownThumb = l.photoFront || l.photo;
-    const thumb = ownThumb || (carriedPhotosByDate.get(l.date) || {}).front;
+    const carried = carriedPhotosByDate.get(l.date) || {};
+    const thumb = ownThumb || carried.front;
     const repeated = !ownThumb && !!thumb;
+    // The photo actually lives under whichever date it was originally uploaded on -- this row's
+    // own date for an own photo, or the earlier carried-forward date otherwise -- so healing (if
+    // this cached link has gone stale) asks Firebase for the right Storage path either way.
+    const thumbDate = ownThumb ? l.date : carried.frontDate;
+    const thumbField = ownThumb ? scalePhotoFieldName(l) : carried.frontField;
     return `<tr>
-      <td>${thumb ? `<img class="pkg-thumb${repeated?" pkg-thumb-repeated":""}" src="${thumb}" alt="${repeated?"Repeated from an earlier reading":"Progress photo"}, ${formatShortDate(l.date)}" title="${repeated?"No photo logged this reading — showing the most recent one":"Progress photo"}">` : `<span class="pkg-thumb-placeholder"></span>`}</td>
+      <td>${thumb ? `<img class="pkg-thumb${repeated?" pkg-thumb-repeated":""}" src="${thumb}" alt="${repeated?"Repeated from an earlier reading":"Progress photo"}, ${formatShortDate(l.date)}" title="${repeated?"No photo logged this reading — showing the most recent one":"Progress photo"}" onerror="healBrokenScalePhoto(this,'${thumbDate}','${thumbField}')">` : `<span class="pkg-thumb-placeholder"></span>`}</td>
       <td>${formatShortDate(l.date)}</td>
       <td>${l.weightKg.toFixed(1)} kg</td>
       <td>${bmi!=null ? bmi.toFixed(1) + (bmiCat?` <span class="badge ${bmiCat.cls}">${bmiCat.label}</span>`:"") : "—"}</td>
@@ -6513,6 +6523,12 @@ function dailyChartBarCenterPct(n, i){
   const { w, barW } = DAILY_CHART_GRID;
   return (dailyChartBarX(n, i) + barW/2) / w * 100;
 }
+// v1.29: true for a narrow (phone) viewport -- used to trim the Calorie/Protein bar charts'
+// height a bit on mobile only. `window.innerWidth` is undefined in the Node test harness, and
+// `undefined <= 768` is false, so this safely defaults to the desktop (unshrunk) behavior there.
+function isMobileViewport(){
+  return typeof window !== "undefined" && window.innerWidth != null && window.innerWidth <= 768;
+}
 
 // Generic day-by-day bar chart vs a target line — value labels above logged bars, date labels
 // below every bar, bars colored by a caller-supplied "hit target" test so calories (close-to,
@@ -6532,7 +6548,13 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   // Floors this wrap at its native (desktop) width so bars/labels never shrink on a narrow phone --
   // see the .chart-scroll-sync comment in the stylesheet for the full mechanism.
   wrap.style.minWidth = w + "px";
-  const h = 192; // v1.22: 20% taller than the original 160, per follow-up feedback -- taller columns, same width/position.
+  // v1.22: 20% taller than the original 160, per follow-up feedback -- taller columns, same
+  // width/position. v1.29: 15% shorter again, but ONLY on a narrow (phone) viewport -- the mobile
+  // scroll fix (see .chart-scroll-sync) already keeps bars/labels at their full native width and
+  // readable there, this just trims how tall they stand on a small screen. Desktop is unaffected:
+  // every other pixel value in this function (bar width, label size, chart width) already stays
+  // identical between mobile and desktop, so this is the one deliberate difference.
+  const h = isMobileViewport() ? 192 * 0.85 : 192;
   const chartRight = w - padRight;
   const n = series.length;
   const maxVal = Math.max(targetValue || 0, ...series.map(s=>s.value), 1) * 1.15;
