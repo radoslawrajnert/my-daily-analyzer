@@ -433,6 +433,16 @@
   .workout-chip:hover{ transform:translateY(-1px); box-shadow:0 3px 8px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06); }
   .workout-rest-chip{ /* alias kept for the title/semantics -- all sizing/visuals now come from .workout-chip */ }
 
+  /* Calorie/Protein bar charts + the check-in heatmap below them share one geometry (day columns
+     line up across all three, see DAILY_CHART_GRID) drawn at a fixed 720-unit-wide "native" size.
+     On desktop the card is always wider than that, so width:auto simply fills the card and nothing
+     changes. On a narrow phone the three charts would otherwise be squeezed down to fit the screen,
+     shrinking bar spacing while every label stays the same physical font size -- that's what made
+     dates/values overlap and become unreadable on mobile. Instead, chart-scroll-item's min-width
+     floor keeps each chart at its full native size, and chart-scroll-sync (their shared ancestor)
+     scrolls horizontally so all three stay perfectly column-aligned while you swipe. */
+  .chart-scroll-sync{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+
   .photo-timeline{display:flex; gap:14px; overflow-x:auto; padding:4px 2px 10px;}
   .photo-timeline-item{flex:0 0 auto; text-align:center; cursor:pointer; background:none; border:none; padding:0; font:inherit; color:inherit;}
   .photo-timeline-thumb{width:78px; height:104px; object-fit:cover; border-radius:var(--radius-sm); border:1px solid var(--border); display:block; transition:border-color .15s, transform .15s;}
@@ -1189,12 +1199,14 @@
         <div class="step-desc">Your average daily intake on days you actually logged — a truer picture than a single day.</div>
         <div id="nutritionTrendsWrap"></div>
         <div id="proteinTodayNudgeWrap" style="margin-top:14px;"></div>
-        <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Calories per day <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks vs. target</span></div>
-        <div id="calorieTrendWrap"></div>
-        <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Protein per day <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks vs. target</span></div>
-        <div id="proteinTrendWrap"></div>
-        <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Daily check-in results <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks</span></div>
-        <div id="dailyQuestionsHeatmapWrap"></div>
+        <div class="chart-scroll-sync">
+          <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Calories per day <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks vs. target</span></div>
+          <div id="calorieTrendWrap"></div>
+          <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Protein per day <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks vs. target</span></div>
+          <div id="proteinTrendWrap"></div>
+          <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Daily check-in results <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks</span></div>
+          <div id="dailyQuestionsHeatmapWrap"></div>
+        </div>
       </div>
     </div>
 
@@ -1725,8 +1737,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.27";
+const APP_VERSION = "1.28";
 const CHANGELOG = [
+  { version: "1.28", date: "2026-09-16", desc: "Two changes: (1) every date shown app-wide is now day.month (e.g. 01.09), including a handful of spots that still showed the old 2026-09-01 style -- Photo Timeline captions, the Scale Log history table, edit-window titles, tooltips, and a few others. (2) The Calorie/Protein charts and daily check-in grid no longer squeeze into an unreadable mess on a phone screen -- on a narrow screen they now stay at their normal, comfortable size and you swipe sideways to see the rest of the days, instead of everything shrinking and overlapping. Nothing changed on a full-size screen." },
   { version: "1.27", date: "2026-09-16", desc: "Fixed Scale Log photos sometimes showing a broken-image icon in Photo Timeline (and when opened full-size) even though the photo was never actually lost. Cause: the cached cloud link to a photo can go stale (e.g. if that exact photo was re-uploaded at some point, its old link permanently stops working even though the photo itself is still there safely). The app now notices a broken link automatically, asks the cloud for a current one for that same photo, and fixes it in place -- if the photo is genuinely gone, you'll see a plain \"Photo unavailable\" note instead of a broken-image icon." },
   { version: "1.26", date: "2026-09-15", desc: "Fixed a bug where a photo added to an exercise's reference (via the small circle icon next to an exercise name in the Day log) could disappear after leaving and re-entering the site. Cause: the photo was being embedded in the cloud sync data, which risked failing silently and then, on the next visit, letting a stale cloud copy overwrite the photo you'd just saved locally. Reference photos now always stay on this device (only the note syncs to the cloud), so they can no longer get wiped out that way." },
   { version: "1.25", date: "2026-09-15", desc: "Nutrition Log's Creatine/Water intake check-in: once you answer Yes or No, the buttons disappear -- there's nothing left to choose, so leaving them up just made an answered question look unanswered. A small colored checkmark/cross badge takes their place instead, showing what you answered; click it to change your answer." },
@@ -1769,7 +1782,7 @@ function renderVersionInfo(){
   if(!listEl) return;
   listEl.innerHTML = CHANGELOG.map(entry =>
     `<div class="changelog-entry">
-      <div class="changelog-entry-head"><strong>v${entry.version}</strong><span class="changelog-entry-date">${entry.date}</span></div>
+      <div class="changelog-entry-head"><strong>v${entry.version}</strong><span class="changelog-entry-date">${formatShortDate(entry.date)}</span></div>
       <div class="changelog-entry-desc">${entry.desc}</div>
     </div>`
   ).join("");
@@ -3799,7 +3812,7 @@ function editLogEntry(date){
   document.getElementById("logCalf").value = entry.calfCm!=null ? entry.calfCm : "";
   logPhotoFront.set(entry.photoFront || entry.photo || null); // fall back to legacy single-photo field
   logPhotoBack.set(entry.photoBack || null);
-  document.getElementById("logFormTitle").textContent = `Edit scale reading — ${entry.date}`;
+  document.getElementById("logFormTitle").textContent = `Edit scale reading — ${formatShortDate(entry.date)}`;
   document.getElementById("logSubmitBtn").textContent = "Update reading →";
   document.getElementById("logCancelBtn").classList.remove("hidden");
   document.getElementById("logForm").scrollIntoView({behavior:"smooth", block:"start"});
@@ -4002,7 +4015,7 @@ function renderTrendChart(logs){
   );
 
   wrap.innerHTML = `
-    <div class="trend-label">Weight trend: ${first.date} → ${last.date} · ${delta>0?"+":""}${delta.toFixed(1)} kg</div>
+    <div class="trend-label">Weight trend: ${formatShortDate(first.date)} → ${formatShortDate(last.date)} · ${delta>0?"+":""}${delta.toFixed(1)} kg</div>
     ${showAvg ? `<div class="trend-legend"><span class="trend-legend-item"><span class="trend-swatch trend-swatch-raw"></span>Logged weight</span><span class="trend-legend-item"><span class="trend-swatch trend-swatch-avg"></span>7-day average</span></div>` : ""}
     <div class="trend-chart-inner">
       <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
@@ -4277,7 +4290,7 @@ function detectMilestones(logs, goal, targetWeightKg){
       const topId = `weight-5kg-${steps}`;
       if(!already.has(topId)){
         const verb = isLossGoal ? "lost" : "gained";
-        candidates.push({id:topId, priority:3, title:`${steps*5} kg ${verb}`, body:`You've ${verb} ${steps*5} kg since your first reading on ${first.date}.`});
+        candidates.push({id:topId, priority:3, title:`${steps*5} kg ${verb}`, body:`You've ${verb} ${steps*5} kg since your first reading on ${formatShortDate(first.date)}.`});
       }
     }
   }
@@ -4431,7 +4444,7 @@ function bodyFigureHtml(entry, wf, fillColor){
   const photos = [front, back].filter(Boolean);
   if(photos.length){
     const labels = photos.length > 1 ? ["Front","Back"] : ["Front"];
-    const imgs = photos.map((src,i)=>`<img src="${src}" alt="${labels[i]} photo, ${entry.date}" class="body-change-photo${photos.length>1?" body-change-photo-half":""}" onclick="openBodyPhotoZoom()" onerror="this.style.display='none';">`).join("");
+    const imgs = photos.map((src,i)=>`<img src="${src}" alt="${labels[i]} photo, ${formatShortDate(entry.date)}" class="body-change-photo${photos.length>1?" body-change-photo-half":""}" onclick="openBodyPhotoZoom()" onerror="this.style.display='none';">`).join("");
     return `<div class="body-change-photos">${imgs}</div>`;
   }
   return bodySilhouetteSvg(wf, fillColor);
@@ -4441,8 +4454,8 @@ let bodyChangeZoomData = null;
 
 function zoomPairRow(label, srcFirst, srcLast, dateFirst, dateLast){
   const item = (src, date, label2)=> src
-    ? `<div class="zoom-pair-item"><img src="${src}" class="zoom-photo" alt="${label2} photo, ${date}"><div class="zoom-pair-date">${date}</div></div>`
-    : `<div class="zoom-pair-item"><div class="zoom-photo-empty">No ${label.toLowerCase()} photo</div><div class="zoom-pair-date">${date}</div></div>`;
+    ? `<div class="zoom-pair-item"><img src="${src}" class="zoom-photo" alt="${label2} photo, ${formatShortDate(date)}"><div class="zoom-pair-date">${formatShortDate(date)}</div></div>`
+    : `<div class="zoom-pair-item"><div class="zoom-photo-empty">No ${label.toLowerCase()} photo</div><div class="zoom-pair-date">${formatShortDate(date)}</div></div>`;
   return `
     <div class="zoom-pair">
       <div class="zoom-pair-label">${label}</div>
@@ -4528,10 +4541,10 @@ function openSinglePhotoZoom(date){
   const back = entry.photoBack || null;
   const frontField = scalePhotoFieldName(entry);
   const items = [];
-  if(front) items.push(`<div class="zoom-pair-item"><img src="${front}" class="zoom-photo" alt="Front photo, ${date}" onerror="healBrokenScalePhoto(this,'${date}','${frontField}')"><div class="zoom-pair-date">Front</div></div>`);
-  if(back) items.push(`<div class="zoom-pair-item"><img src="${back}" class="zoom-photo" alt="Back photo, ${date}" onerror="healBrokenScalePhoto(this,'${date}','photoBack')"><div class="zoom-pair-date">Back</div></div>`);
+  if(front) items.push(`<div class="zoom-pair-item"><img src="${front}" class="zoom-photo" alt="Front photo, ${formatShortDate(date)}" onerror="healBrokenScalePhoto(this,'${date}','${frontField}')"><div class="zoom-pair-date">Front</div></div>`);
+  if(back) items.push(`<div class="zoom-pair-item"><img src="${back}" class="zoom-photo" alt="Back photo, ${formatShortDate(date)}" onerror="healBrokenScalePhoto(this,'${date}','photoBack')"><div class="zoom-pair-date">Back</div></div>`);
   if(!items.length) return;
-  document.getElementById("bodyZoomBody").innerHTML = `<div class="zoom-pair"><div class="zoom-pair-label">${date}</div><div class="zoom-pair-row">${items.join("")}</div></div>`;
+  document.getElementById("bodyZoomBody").innerHTML = `<div class="zoom-pair"><div class="zoom-pair-label">${formatShortDate(date)}</div><div class="zoom-pair-row">${items.join("")}</div></div>`;
   document.getElementById("bodyZoomOverlay").classList.remove("hidden");
 }
 window.openSinglePhotoZoom = openSinglePhotoZoom;
@@ -4554,8 +4567,8 @@ function renderPhotoTimeline(logs){
     const thumbField = front ? scalePhotoFieldName(l) : "photoBack";
     const badge = (front && back) ? `<div class="photo-timeline-badge">Front + back</div>` : "";
     return `<button type="button" class="photo-timeline-item" onclick="openSinglePhotoZoom('${l.date}')">
-      <img src="${thumb}" class="photo-timeline-thumb" alt="Progress photo, ${l.date}" onerror="healBrokenScalePhoto(this,'${l.date}','${thumbField}')">
-      <div class="photo-timeline-date">${l.date}</div>
+      <img src="${thumb}" class="photo-timeline-thumb" alt="Progress photo, ${formatShortDate(l.date)}" onerror="healBrokenScalePhoto(this,'${l.date}','${thumbField}')">
+      <div class="photo-timeline-date">${formatShortDate(l.date)}</div>
       ${badge}
     </button>`;
   }).join("");
@@ -4696,7 +4709,7 @@ function renderBodyChangeVisual(logs){
       <div class="body-change-row">
         <div class="body-change-figure">
           ${bodyFigureHtml(firstFigureEntry, wfFirst, "var(--muted)")}
-          <div class="bc-date">${first.date}</div>
+          <div class="bc-date">${formatShortDate(first.date)}</div>
           <div class="bc-weight">${first.weightKg.toFixed(1)} kg</div>
           ${bmiFirstCat ? `<span class="badge ${bmiFirstCat.cls}">${bmiFirstCat.label}</span>` : ""}
         </div>
@@ -4707,7 +4720,7 @@ function renderBodyChangeVisual(logs){
         </div>
         <div class="body-change-figure">
           ${bodyFigureHtml(lastFigureEntry, wfLast, "var(--accent2)")}
-          <div class="bc-date">${last.date} (latest)</div>
+          <div class="bc-date">${formatShortDate(last.date)} (latest)</div>
           <div class="bc-weight">${last.weightKg.toFixed(1)} kg</div>
           ${bmiLastCat ? `<span class="badge ${bmiLastCat.cls}">${bmiLastCat.label}</span>` : ""}
         </div>
@@ -4833,8 +4846,8 @@ function renderLogView(){
     const thumb = ownThumb || (carriedPhotosByDate.get(l.date) || {}).front;
     const repeated = !ownThumb && !!thumb;
     return `<tr>
-      <td>${thumb ? `<img class="pkg-thumb${repeated?" pkg-thumb-repeated":""}" src="${thumb}" alt="${repeated?"Repeated from an earlier reading":"Progress photo"}, ${l.date}" title="${repeated?"No photo logged this reading — showing the most recent one":"Progress photo"}">` : `<span class="pkg-thumb-placeholder"></span>`}</td>
-      <td>${l.date}</td>
+      <td>${thumb ? `<img class="pkg-thumb${repeated?" pkg-thumb-repeated":""}" src="${thumb}" alt="${repeated?"Repeated from an earlier reading":"Progress photo"}, ${formatShortDate(l.date)}" title="${repeated?"No photo logged this reading — showing the most recent one":"Progress photo"}">` : `<span class="pkg-thumb-placeholder"></span>`}</td>
+      <td>${formatShortDate(l.date)}</td>
       <td>${l.weightKg.toFixed(1)} kg</td>
       <td>${bmi!=null ? bmi.toFixed(1) + (bmiCat?` <span class="badge ${bmiCat.cls}">${bmiCat.label}</span>`:"") : "—"}</td>
       <td>${l.bodyFatPct!=null ? l.bodyFatPct+"%" + (bfCat?` <span class="badge ${bfCat.cls}">${bfCat.label}</span>`:"") : "—"}</td>
@@ -5319,7 +5332,7 @@ function openDailyQuestionsPopup(questions, date, title){
   const overlay = document.getElementById("dailyQuestionsPopupOverlay");
   if(!overlay || !questions.length) return;
   const titleEl = document.getElementById("dailyQuestionsPopupTitle");
-  if(titleEl) titleEl.textContent = title || (date === todayStr() ? "Quick check-in" : `Edit check-in — ${date}`);
+  if(titleEl) titleEl.textContent = title || (date === todayStr() ? "Quick check-in" : `Edit check-in — ${formatShortDate(date)}`);
   renderDailyQuestionsPopupBody(questions, date);
   overlay.classList.remove("hidden");
 }
@@ -5329,7 +5342,7 @@ function openDailyQuestionsPopup(questions, date, title){
 function openDailyQuestionEditModal(qid, date){
   const q = DAILY_CONDITION_QUESTIONS.find(q => q.id === qid);
   if(!q) return;
-  openDailyQuestionsPopup([q], date, `Edit — ${date}`);
+  openDailyQuestionsPopup([q], date, `Edit — ${formatShortDate(date)}`);
 }
 window.openDailyQuestionEditModal = openDailyQuestionEditModal;
 if(document.getElementById("dailyQuestionsPopupCloseX")) document.getElementById("dailyQuestionsPopupCloseX").addEventListener("click", closeDailyQuestionsPopup);
@@ -5353,9 +5366,13 @@ function renderDailyQuestionsHeatmap(){
   const enabled = getDailyQuestionsEnabled();
   const active = DAILY_CONDITION_QUESTIONS.filter(q => enabled[q.id]);
   if(!active.length){
+    wrap.style.minWidth = ""; // no grid drawn -- nothing that needs the mobile scroll floor below
     wrap.innerHTML = `<div class="empty-note">No daily check-in questions turned on — enable some in Settings → Nutrition Log Settings.</div>`;
     return;
   }
+  // Floors this wrap at the same native width as the bar charts above it, so all three keep their
+  // day columns aligned while scrolling together on a narrow phone -- see .chart-scroll-sync.
+  wrap.style.minWidth = DAILY_CHART_GRID.w + "px";
   const days = 14;
   const today = todayStr();
   const dateList = [];
@@ -6505,12 +6522,16 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   if(!wrap) return;
   const loggedSeries = series.filter(s=>s.logged);
   if(loggedSeries.length === 0){
+    wrap.style.minWidth = ""; // no chart drawn -- nothing that needs the mobile scroll floor below
     wrap.innerHTML = `<div class="empty-note">${opts.emptyText}</div>`;
     return;
   }
   const hitTest = opts.hitTest || ((v,t)=> v >= t);
 
   const { w, pad, padRight, barW } = DAILY_CHART_GRID;
+  // Floors this wrap at its native (desktop) width so bars/labels never shrink on a narrow phone --
+  // see the .chart-scroll-sync comment in the stylesheet for the full mechanism.
+  wrap.style.minWidth = w + "px";
   const h = 192; // v1.22: 20% taller than the original 160, per follow-up feedback -- taller columns, same width/position.
   const chartRight = w - padRight;
   const n = series.length;
@@ -6538,7 +6559,7 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
     const barH = Math.max(h - pad - y, 0);
     const hit = targetValue ? hitTest(s.value, targetValue) : true;
     const color = !s.logged ? "var(--border)" : (hit ? "var(--accent)" : "var(--warn)");
-    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(barW,1).toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${s.date}: ${Math.round(s.value)}${opts.unit}</title></rect>`;
+    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(barW,1).toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${formatShortDate(s.date)}: ${Math.round(s.value)}${opts.unit}</title></rect>`;
     const pct = dailyChartBarCenterPct(n, i).toFixed(3);
     // Value label above each logged bar; skip unlogged (empty) days to avoid clutter. The SVG's
     // height style matches its viewBox height exactly (no vertical stretch), so a plain px offset
@@ -6548,7 +6569,7 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
       valueLabels += `<div class="bar-value-label" style="left:${pct}%; top:${labelY.toFixed(1)}px;">${Math.round(s.value)}</div>`;
     }
     // Date label below each bar (day.month) — clickable to jump the whole app to that date.
-    dateLabels += `<div class="chart-date-label" style="left:${pct}%; top:${(h-pad+8).toFixed(1)}px;" onclick="jumpToDate('${s.date}')" title="Switch the whole app to ${s.date}">${formatShortDate(s.date)}</div>`;
+    dateLabels += `<div class="chart-date-label" style="left:${pct}%; top:${(h-pad+8).toFixed(1)}px;" onclick="jumpToDate('${s.date}')" title="Switch the whole app to ${formatShortDate(s.date)}">${formatShortDate(s.date)}</div>`;
   });
 
   let targetLine = "", targetLabel = "";
@@ -6794,7 +6815,7 @@ function foodSortHeaderHtml(mode, label){
 function renderFoodTable(entries, date){
   const wrap = document.getElementById("foodTableWrap");
   if(entries.length === 0){
-    wrap.innerHTML = `<div class="empty-note">No food logged for ${date} yet — add your first item above.</div>`;
+    wrap.innerHTML = `<div class="empty-note">No food logged for ${formatShortDate(date)} yet — add your first item above.</div>`;
     return;
   }
   const activeSort = FOOD_SORT_FIELDS[foodTableSortMode];
@@ -8393,7 +8414,7 @@ function renderWorkoutOverloadHint(exerciseName){
   }
   const info = suggestNextLoad(exerciseName);
   if(!info){ wrap.innerHTML = ""; return; }
-  wrap.innerHTML = `<div class="overload-hint">Last time (${info.date}): ${describeOverloadSet(info.last)}. Try <b>${describeOverloadSet(info.suggestion)}</b> today.</div>`;
+  wrap.innerHTML = `<div class="overload-hint">Last time (${formatShortDate(info.date)}): ${describeOverloadSet(info.last)}. Try <b>${describeOverloadSet(info.suggestion)}</b> today.</div>`;
 }
 
 let selectedWorkoutCardioMet = null;
@@ -8966,7 +8987,7 @@ function renderGuidedWorkoutCard(){
     const noteReps = lastRepsDisplay || "?";
     noteEl.textContent = je
       ? `You just entered: ${last.sets != null ? last.sets : "?"} × ${noteReps}${lastWeightDisplay ? ` @ ${lastWeightDisplay} kg` : ""} — edit and continue`
-      : `Last time (${last.date}): ${last.sets != null ? last.sets : "?"} × ${noteReps}${lastWeightDisplay ? ` @ ${lastWeightDisplay} kg` : ""}`;
+      : `Last time (${formatShortDate(last.date)}): ${last.sets != null ? last.sets : "?"} × ${noteReps}${lastWeightDisplay ? ` @ ${lastWeightDisplay} kg` : ""}`;
   } else {
     setsInput.value = "";
     repsInput.value = "";
@@ -9297,7 +9318,7 @@ function renderWorkoutSummary(entries, date){
     ? `<div class="goal-progress-note">${ICON_BATTERY}Marked as a rest day</div>`
     : "";
   if(entries.length === 0){
-    wrap.innerHTML = `<div class="empty-note">No sets logged for ${date} yet — add your first one above.</div>${restDayNote}${sessionNote}`;
+    wrap.innerHTML = `<div class="empty-note">No sets logged for ${formatShortDate(date)} yet — add your first one above.</div>${restDayNote}${sessionNote}`;
     return;
   }
   const totalSets = entries.reduce((sum,e)=> sum + (workoutEntryIsCardio(e) ? 0 : (e.sets||0)), 0);
@@ -9767,7 +9788,7 @@ function renderWorkoutVolumeTrendChart(){
     const totalLabel = s.total > 0
       ? `<text x="${(x+barW/2).toFixed(1)}" y="${(yCursor-4).toFixed(1)}" font-size="9" fill="var(--text)" text-anchor="middle">${Math.round(s.total).toLocaleString()}</text>`
       : "";
-    const dateLabel = `<text x="${(x+barW/2).toFixed(1)}" y="${(h-pad+12).toFixed(1)}" font-size="8" fill="var(--muted)" text-anchor="middle" onclick="jumpToDate('${s.date}')" style="cursor:pointer;"><title>Switch the whole app to ${s.date}</title>${formatShortDate(s.date)}</text>`;
+    const dateLabel = `<text x="${(x+barW/2).toFixed(1)}" y="${(h-pad+12).toFixed(1)}" font-size="8" fill="var(--muted)" text-anchor="middle" onclick="jumpToDate('${s.date}')" style="cursor:pointer;"><title>Switch the whole app to ${formatShortDate(s.date)}</title>${formatShortDate(s.date)}</text>`;
     return segments + totalLabel + dateLabel;
   }).join("");
 
@@ -10274,7 +10295,7 @@ function renderWorkoutHeatmap(){
       // size/shape) with only its color varying inline, so Lower A/Upper A/Cardio/etc. always render
       // as identically-sized boxes instead of auto-sizing to each label's own text length.
       const chips = specialChips + d.badges.map(b=>`<span class="workout-chip" style="background:${b.color}; color:${darkTextForFill(b.color)};" title="${b.label}">${b.icon||""}${b.label}</span>`).join("");
-      return `<td style="text-align:center; vertical-align:middle;" title="${d.date}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
+      return `<td style="text-align:center; vertical-align:middle;" title="${formatShortDate(d.date)}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
     }).join("");
     // Weekly medal: lights up the moment every currently-defined split has been logged at least
     // once that week -- doesn't wait for the week to finish, so a Tuesday sweep still earns it.
@@ -10401,7 +10422,7 @@ function renderWorkoutRestBanner(date){
   if(date < todayStr() || isStrengthTrainedDate(date) || !shouldRestFromStrength(date)){ wrap.innerHTML = ""; return; }
   wrap.innerHTML = `
     <div class="workout-rest-banner">
-      <div class="workout-rest-banner-title">${ICON_BAN}Don't train (strength) — ${date}</div>
+      <div class="workout-rest-banner-title">${ICON_BAN}Don't train (strength) — ${formatShortDate(date)}</div>
       <div class="workout-rest-banner-body">${restGuardrailReasonText(date)} This is a recommended rest day for lifting so your muscles can recover — cardio is completely fine. Logging a strength set today will ask you to confirm first.</div>
     </div>
   `;
@@ -10661,7 +10682,7 @@ document.getElementById("habitForm").addEventListener("submit", (e)=>{
 function renderHabitSummary(entries, date){
   const wrap = document.getElementById("habitSummaryWrap");
   if(entries.length === 0){
-    wrap.innerHTML = `<div class="empty-note">No habits logged for ${date} yet${habitCategoryFilter?` in "${habitCategoryFilter}"`:""}.</div>`;
+    wrap.innerHTML = `<div class="empty-note">No habits logged for ${formatShortDate(date)} yet${habitCategoryFilter?` in "${habitCategoryFilter}"`:""}.</div>`;
     return;
   }
   const done = entries.filter(e=>(e.type||"build")!=="avoid");
@@ -11415,7 +11436,7 @@ function buildReport(){
     const first = logs[0], lastEntry = logs[logs.length-1];
     const loggedDelta = lastEntry.weightKg - first.weightKg;
     if(c.goal === "Lose fat" && loggedDelta >= -0.1){
-      risks.push(`Your scale log shows ${loggedDelta>=0?"no loss or a gain":"minimal loss"} (${loggedDelta>=0?"+":""}${loggedDelta.toFixed(1)}kg) between ${first.date} and ${lastEntry.date} despite a fat-loss goal — worth double-checking adherence to the calorie target.`);
+      risks.push(`Your scale log shows ${loggedDelta>=0?"no loss or a gain":"minimal loss"} (${loggedDelta>=0?"+":""}${loggedDelta.toFixed(1)}kg) between ${formatShortDate(first.date)} and ${formatShortDate(lastEntry.date)} despite a fat-loss goal — worth double-checking adherence to the calorie target.`);
     }
   }
   if((a.sleepHours||7) < 6.5) risks.push("Low sleep duration (<6.5h) can raise hunger hormones and reduce training recovery.");
@@ -11449,7 +11470,7 @@ function buildReport(){
     <p>${summary}</p>
 
     <h2 class="section">Current Status</h2>
-    ${usingLogData ? `<p class="hint" style="margin-bottom:10px;">Using your most recent scale reading from ${latest.date}.</p>` : ""}
+    ${usingLogData ? `<p class="hint" style="margin-bottom:10px;">Using your most recent scale reading from ${formatShortDate(latest.date)}.</p>` : ""}
     <div class="kv">
       <div class="k">Weight</div><div>${effWeightKg} kg</div>
       <div class="k">Height</div><div>${a.heightCm} cm</div>
@@ -13314,7 +13335,7 @@ function renderCoachView(){
   wrap.innerHTML = notes.map(n=>`
     <div class="card" style="margin-bottom:12px;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
-        <strong>${n.date}</strong>
+        <strong>${formatShortDate(n.date)}</strong>
         <button type="button" class="ghost" onclick="deleteCoachNote('${n.id}')" style="font-size:.75rem; padding:4px 10px;">Delete</button>
       </div>
       <div style="margin-top:8px; font-size:.9rem; line-height:1.5;">${renderMarkdownLite(n.text)}</div>
