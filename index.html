@@ -779,9 +779,8 @@
       <div class="view-tabs" id="planSubtabs">
         <button type="button" id="planSubtabGeneral" class="active" onclick="switchPlanTab('general')">General Settings</button>
         <button type="button" id="planSubtabScaleLog" onclick="switchPlanTab('scalelog')">Scale Log Settings</button>
-        <button type="button" id="planSubtabTargets" onclick="switchPlanTab('targets')">Target ranges</button>
+        <button type="button" id="planSubtabTargets" onclick="switchPlanTab('targets')">Target ranges &amp; training plan</button>
         <button type="button" id="planSubtabNutrition" onclick="switchPlanTab('nutrition')">Nutrition Log Settings</button>
-        <button type="button" id="planSubtabWorkout" onclick="switchPlanTab('workout')">Workout Log Settings</button>
         <button type="button" id="planSubtabCoach" onclick="switchPlanTab('coach')">Coach Settings</button>
       </div>
 
@@ -938,86 +937,6 @@
           </div>
         </div>
 
-        <div id="pastPhasesWrap"></div>
-      </div>
-
-      <div id="planGroupNutrition" class="hidden">
-        <div class="card">
-          <h2>Daily physical condition questions</h2>
-          <div class="step-desc" style="margin-top:0;">Turn on the yes/no check-ins you want to answer each day in Nutrition Log. Whichever ones are on (except Good Sleep, asked once via a popup instead) show up there together as one small card — each question disappears from the card as soon as you answer it, with a red warning if any of the last 7 days is still missing an answer — and their results build up into a heatmap under Protein per day.</div>
-          <div class="field" style="display:flex; flex-direction:column; gap:10px;">
-            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_creatine" style="width:auto;"> Creatine <span style="color:var(--muted); font-weight:400;">— "Did you take Creatine 3g?"</span></label>
-            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_sleep" style="width:auto;"> Good Sleep <span style="color:var(--muted); font-weight:400;">— "Did you sleep well?"</span></label>
-            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_stomach" style="width:auto;"> Stomach problems <span style="color:var(--muted); font-weight:400;">— "Did you have stomach problems?"</span></label>
-            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_water" style="width:auto;"> Water intake <span style="color:var(--muted); font-weight:400;">— "Did you drink enough water?"</span></label>
-            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_caffeine" style="width:auto;"> High Caffeine Intake <span style="color:var(--muted); font-weight:400;">— "Did you have high caffeine intake?"</span></label>
-            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_alcohol" style="width:auto;"> Alcohol Intake <span style="color:var(--muted); font-weight:400;">— "Did you drink alcohol?"</span></label>
-          </div>
-        </div>
-        <div class="card">
-          <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-            <span id="packageFormTitle">My products / My meals</span>
-            <span style="display:flex; align-items:center; gap:8px; font-size:.78rem; font-weight:400; color:var(--muted);">
-              Filter: <select id="packageCategoryFilter" style="width:auto; padding:6px 10px;"><option value="">All categories</option></select>
-            </span>
-          </h2>
-          <div class="step-desc">Save a meal, product, or serving you eat often — like reading it off a nutrition label — so you can add the whole thing in one click above instead of retyping it. You can also look up and correct any of the built-in foods used in Quick pick.</div>
-          <div class="nav" style="justify-content:flex-start; margin-bottom:12px;">
-            <button type="button" class="secondary" id="packageFormToggleBtn">+ Add a meal</button>
-            <button type="button" class="secondary" id="pkgScanBarcodeBtn" title="Scan or enter a barcode to auto-fill a product"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M16.043 3.691L17.52 6H21.75C22.1478 6 22.5294 6.15804 22.8107 6.43934C23.092 6.72064 23.25 7.10218 23.25 7.5V19.5C23.25 19.8978 23.092 20.2794 22.8107 20.5607C22.5294 20.842 22.1478 21 21.75 21H2.25C1.85218 21 1.47064 20.842 1.18934 20.5607C0.908035 20.2794 0.75 19.8978 0.75 19.5V7.5C0.75 7.10218 0.908035 6.72064 1.18934 6.43934C1.47064 6.15804 1.85218 6 2.25 6H6.48L7.958 3.691C8.09369 3.47915 8.28048 3.30482 8.50118 3.18407C8.72189 3.06332 8.96942 3.00002 9.221 3H14.779C15.0307 2.99986 15.2785 3.06308 15.4994 3.18383C15.7203 3.30459 15.9072 3.479 16.043 3.691Z"></path><path d="M4 6V4.5"></path><path d="M12 17C14.2091 17 16 15.2091 16 13C16 10.7909 14.2091 9 12 9C9.79086 9 8 10.7909 8 13C8 15.2091 9.79086 17 12 17Z"></path></svg>Scan barcode</button>
-          </div>
-          <div id="packageFormWrap" class="hidden">
-            <form id="packageForm" autocomplete="off">
-              <div class="row-inline">
-                <div class="field"><label>Meal / package name *</label><input type="text" id="pkgName" required placeholder="e.g. Meal 1"></div>
-                <div class="field"><label>Calories (kcal) *</label><input type="number" id="pkgKcal" min="0" max="5000" step="any" required></div>
-              </div>
-              <div class="row-inline">
-                <div class="field"><label>Serving</label><input type="text" id="pkgServing" placeholder="e.g. 1 bar (40g), 1 portion"></div>
-                <div class="field"><label>Category</label><input type="text" id="pkgCategory" list="packageCategoryList" placeholder="e.g. Breakfast staples, Snacks"></div>
-              </div>
-              <div class="row-inline">
-                <div class="field"><label>Protein (g)</label><input type="number" id="pkgProtein" min="0" max="500" step="any"></div>
-                <div class="field"><label>Carbs (g)</label><input type="number" id="pkgCarb" min="0" max="500" step="any"></div>
-              </div>
-              <div class="row-inline">
-                <div class="field"><label>Fat (g)</label><input type="number" id="pkgFat" min="0" max="500" step="any"></div>
-                <div class="field"><label>Store <span style="font-weight:400;">(optional)</span></label>
-                  <select id="pkgStore">
-                    <option value="">—</option>
-                    <option value="Penny">Penny</option>
-                    <option value="Aldi">Aldi</option>
-                    <option value="Lidl">Lidl</option>
-                    <option value="Kaufland">Kaufland</option>
-                    <option value="Rewe">Rewe</option>
-                  </select>
-                </div>
-              </div>
-              <datalist id="packageCategoryList"></datalist>
-              <div class="field" style="margin-top:4px;">
-                <label>Units <span style="font-weight:400;">(optional — e.g. 1 tbsp, 1 unit, 1 slice, each with its weight in grams, so Amount can offer them as a quick pick)</span></label>
-                <div id="pkgUnitsWrap"></div>
-                <div class="nav" style="justify-content:flex-start; margin-top:6px;">
-                  <button type="button" class="secondary" id="pkgAddUnitBtn">+ Add unit</button>
-                </div>
-              </div>
-              <div class="nav" style="justify-content:flex-end;">
-                <button type="button" class="secondary hidden" id="pkgCancelBtn">Cancel edit</button>
-                <button type="submit" id="pkgSubmitBtn">Save package →</button>
-              </div>
-            </form>
-          </div>
-          <div class="row-inline" style="align-items:flex-end; margin-top:14px;">
-            <div class="field"><label>Search</label><input type="text" id="productSearch" placeholder="Type to filter…"></div>
-            <div class="field" style="flex:0 0 auto;">
-              <button type="button" class="secondary" id="commonFoodsToggleBtn" style="font-size:.78rem; padding:9px 14px;">Show built-in foods too →</button>
-            </div>
-          </div>
-          <div id="packagesTableWrap"></div>
-        </div>
-      </div>
-
-      <div id="planGroupWorkout" class="hidden">
         <div class="card">
           <h2>Rest-day guardrail</h2>
           <div class="step-desc" style="margin-top:0;">Choose when the Workout Log should nudge you toward a rest day instead of another non-cardio (strength) session. Cardio is never restricted by either rule below. Turn on one, both, or neither.</div>
@@ -1111,6 +1030,84 @@
             </div>
           </form>
           <div id="workoutPresetTableWrap"></div>
+        </div>
+
+        <div id="pastPhasesWrap"></div>
+      </div>
+
+      <div id="planGroupNutrition" class="hidden">
+        <div class="card">
+          <h2>Daily physical condition questions</h2>
+          <div class="step-desc" style="margin-top:0;">Turn on the yes/no check-ins you want to answer each day in Nutrition Log. Whichever ones are on (except Good Sleep, asked once via a popup instead) show up there together as one small card — each question disappears from the card as soon as you answer it, with a red warning if any of the last 7 days is still missing an answer — and their results build up into a heatmap under Protein per day.</div>
+          <div class="field" style="display:flex; flex-direction:column; gap:10px;">
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_creatine" style="width:auto;"> Creatine <span style="color:var(--muted); font-weight:400;">— "Did you take Creatine 3g?"</span></label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_sleep" style="width:auto;"> Good Sleep <span style="color:var(--muted); font-weight:400;">— "Did you sleep well?"</span></label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_stomach" style="width:auto;"> Stomach problems <span style="color:var(--muted); font-weight:400;">— "Did you have stomach problems?"</span></label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_water" style="width:auto;"> Water intake <span style="color:var(--muted); font-weight:400;">— "Did you drink enough water?"</span></label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_caffeine" style="width:auto;"> High Caffeine Intake <span style="color:var(--muted); font-weight:400;">— "Did you have high caffeine intake?"</span></label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_alcohol" style="width:auto;"> Alcohol Intake <span style="color:var(--muted); font-weight:400;">— "Did you drink alcohol?"</span></label>
+          </div>
+        </div>
+        <div class="card">
+          <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <span id="packageFormTitle">My products / My meals</span>
+            <span style="display:flex; align-items:center; gap:8px; font-size:.78rem; font-weight:400; color:var(--muted);">
+              Filter: <select id="packageCategoryFilter" style="width:auto; padding:6px 10px;"><option value="">All categories</option></select>
+            </span>
+          </h2>
+          <div class="step-desc">Save a meal, product, or serving you eat often — like reading it off a nutrition label — so you can add the whole thing in one click above instead of retyping it. You can also look up and correct any of the built-in foods used in Quick pick.</div>
+          <div class="nav" style="justify-content:flex-start; margin-bottom:12px;">
+            <button type="button" class="secondary" id="packageFormToggleBtn">+ Add a meal</button>
+            <button type="button" class="secondary" id="pkgScanBarcodeBtn" title="Scan or enter a barcode to auto-fill a product"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14" style="vertical-align:middle; margin-right:4px;"><path d="M16.043 3.691L17.52 6H21.75C22.1478 6 22.5294 6.15804 22.8107 6.43934C23.092 6.72064 23.25 7.10218 23.25 7.5V19.5C23.25 19.8978 23.092 20.2794 22.8107 20.5607C22.5294 20.842 22.1478 21 21.75 21H2.25C1.85218 21 1.47064 20.842 1.18934 20.5607C0.908035 20.2794 0.75 19.8978 0.75 19.5V7.5C0.75 7.10218 0.908035 6.72064 1.18934 6.43934C1.47064 6.15804 1.85218 6 2.25 6H6.48L7.958 3.691C8.09369 3.47915 8.28048 3.30482 8.50118 3.18407C8.72189 3.06332 8.96942 3.00002 9.221 3H14.779C15.0307 2.99986 15.2785 3.06308 15.4994 3.18383C15.7203 3.30459 15.9072 3.479 16.043 3.691Z"></path><path d="M4 6V4.5"></path><path d="M12 17C14.2091 17 16 15.2091 16 13C16 10.7909 14.2091 9 12 9C9.79086 9 8 10.7909 8 13C8 15.2091 9.79086 17 12 17Z"></path></svg>Scan barcode</button>
+          </div>
+          <div id="packageFormWrap" class="hidden">
+            <form id="packageForm" autocomplete="off">
+              <div class="row-inline">
+                <div class="field"><label>Meal / package name *</label><input type="text" id="pkgName" required placeholder="e.g. Meal 1"></div>
+                <div class="field"><label>Calories (kcal) *</label><input type="number" id="pkgKcal" min="0" max="5000" step="any" required></div>
+              </div>
+              <div class="row-inline">
+                <div class="field"><label>Serving</label><input type="text" id="pkgServing" placeholder="e.g. 1 bar (40g), 1 portion"></div>
+                <div class="field"><label>Category</label><input type="text" id="pkgCategory" list="packageCategoryList" placeholder="e.g. Breakfast staples, Snacks"></div>
+              </div>
+              <div class="row-inline">
+                <div class="field"><label>Protein (g)</label><input type="number" id="pkgProtein" min="0" max="500" step="any"></div>
+                <div class="field"><label>Carbs (g)</label><input type="number" id="pkgCarb" min="0" max="500" step="any"></div>
+              </div>
+              <div class="row-inline">
+                <div class="field"><label>Fat (g)</label><input type="number" id="pkgFat" min="0" max="500" step="any"></div>
+                <div class="field"><label>Store <span style="font-weight:400;">(optional)</span></label>
+                  <select id="pkgStore">
+                    <option value="">—</option>
+                    <option value="Penny">Penny</option>
+                    <option value="Aldi">Aldi</option>
+                    <option value="Lidl">Lidl</option>
+                    <option value="Kaufland">Kaufland</option>
+                    <option value="Rewe">Rewe</option>
+                  </select>
+                </div>
+              </div>
+              <datalist id="packageCategoryList"></datalist>
+              <div class="field" style="margin-top:4px;">
+                <label>Units <span style="font-weight:400;">(optional — e.g. 1 tbsp, 1 unit, 1 slice, each with its weight in grams, so Amount can offer them as a quick pick)</span></label>
+                <div id="pkgUnitsWrap"></div>
+                <div class="nav" style="justify-content:flex-start; margin-top:6px;">
+                  <button type="button" class="secondary" id="pkgAddUnitBtn">+ Add unit</button>
+                </div>
+              </div>
+              <div class="nav" style="justify-content:flex-end;">
+                <button type="button" class="secondary hidden" id="pkgCancelBtn">Cancel edit</button>
+                <button type="submit" id="pkgSubmitBtn">Save package →</button>
+              </div>
+            </form>
+          </div>
+          <div class="row-inline" style="align-items:flex-end; margin-top:14px;">
+            <div class="field"><label>Search</label><input type="text" id="productSearch" placeholder="Type to filter…"></div>
+            <div class="field" style="flex:0 0 auto;">
+              <button type="button" class="secondary" id="commonFoodsToggleBtn" style="font-size:.78rem; padding:9px 14px;">Show built-in foods too →</button>
+            </div>
+          </div>
+          <div id="packagesTableWrap"></div>
         </div>
       </div>
 
@@ -1880,8 +1877,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.54";
+const APP_VERSION = "1.55";
 const CHANGELOG = [
+  { version: "1.55", date: "2026-09-17", desc: "\"Workout Log Settings\" (My splits, My exercises, Rest-day guardrail) is now part of \"Target ranges & training plan\" instead of its own tab -- one continuous page: phase name/status, then Calories/Protein/aesthetic targets, then the training plan for that same phase, right below. My splits and the rest-day guardrail are per-phase again (v1.53 tried this and broke a live account; this version carries your training plan FORWARD when you complete a phase -- a new phase starts as an exact copy of what you had, not blank or reset to defaults -- and never silently loses data if something goes wrong, unlike v1.53's one-time-flag approach)." },
   { version: "1.54", date: "2026-09-17", desc: "Reverted the \"My splits\" and \"rest-day guardrail\" per-phase change from v1.53 -- it surfaced a real bug where a fully-configured split could render as empty. Both are back to being one shared setting across all phases, exactly as they worked before v1.53. Nothing was deleted: your actual split/exercise data lives in the same place it always has, this only fixes which copy of it the app was reading. The Planned duration (days) field and \"Day X of Y planned\" counter added in v1.53 are unaffected and stay." },
   { version: "1.53", date: "2026-09-17", desc: "Two additions to Target ranges (My Plan): (1) a new optional \"Planned duration (days)\" field on each phase -- when set, a \"Day X of Y planned\" counter shows next to the active phase's \"Started ...\" line, including a note once you've run past the planned length. (2) My splits and the rest-day guardrail (both in the Workout settings tab) are now per phase instead of one global setting -- starting a new phase gives it a fresh training plan (the 5 built-in default splits, default guardrail) rather than carrying the previous phase's over, and each card now shows which phase it applies to, with a link from Target ranges straight to it. Existing accounts' already-configured splits/guardrail carry over automatically onto whichever phase is active." },
   { version: "1.52", date: "2026-09-17", desc: "\"Copy yesterday's log\" on the Nutrition Log card is now scoped to whichever Meal is selected -- the button itself is now labeled e.g. \"Copy yesterday's Breakfast\", and clicking it only pulls in the most recent previous day that has entries for that specific meal, never a source day's other meals mixed in." },
@@ -3554,7 +3552,6 @@ const PLAN_SUBTABS = {
   scalelog: {group:"planGroupScaleLog", btn:"planSubtabScaleLog"},
   targets: {group:"planGroupTargets", btn:"planSubtabTargets"},
   nutrition: {group:"planGroupNutrition", btn:"planSubtabNutrition"},
-  workout: {group:"planGroupWorkout", btn:"planSubtabWorkout"},
   coach: {group:"planGroupCoach", btn:"planSubtabCoach"},
 };
 function switchPlanTab(tab){
@@ -8140,16 +8137,31 @@ function getDefaultWorkoutSplits(){
     {id:"split-cardio", name:"Cardio", emoji:"🏃", goal:"Jogging, treadmill, swimming — conditioning", color:"#a3714f", exercises: CARDIO_SPLIT_DEFAULT_EXERCISES.slice()},
   ];
 }
-// v1.53 REVERTED (v1.54): My splits briefly moved to being stored per-phase, but that surfaced a
-// real bug for at least one live account (a fully-configured split rendering as empty) that wasn't
-// caught by the test suite, so this reverts straight back to the single global store it was before
-// -- one array on the user object, shared across every phase, exactly as it worked prior to v1.53.
+// v1.53 tried making My splits per-phase with a one-time "migrated" flag, which broke a live
+// account (a fully-configured split rendered as empty) because the flag could end up set without
+// the copy actually happening, permanently hiding the real data behind it. v1.55 tries again
+// WITHOUT any flag: getWorkoutSplits() always resolves live, in order -- the active phase's own
+// array if it has one, else the legacy global array (so an account's current real splits are what
+// every phase sees until something is explicitly saved onto a specific phase), else the built-in
+// defaults. Nothing is ever "migrated and forgotten" -- there's simply nothing to get stuck.
+// completePhase() is what actually commits a phase-owned copy, by explicitly snapshotting
+// getWorkoutSplits() onto the new phase at the moment it's created (see below) -- so a new phase
+// always starts as an exact, real copy of whatever was in effect a moment before, never blank.
 function getWorkoutSplits(){
+  const active = getActivePhase();
+  if(active && Array.isArray(active.workoutSplits)) return active.workoutSplits.slice();
   const users = getUsers();
   const u = users[currentUserEmail];
-  return (u && u.workoutSplits) ? u.workoutSplits.slice() : getDefaultWorkoutSplits();
+  return (u && Array.isArray(u.workoutSplits)) ? u.workoutSplits.slice() : getDefaultWorkoutSplits();
 }
 function saveWorkoutSplitsArr(arr){
+  const phases = getPhases();
+  const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
+  if(active){
+    active.workoutSplits = arr;
+    savePhases(phases);
+    return;
+  }
   const users = getUsers();
   if(!users[currentUserEmail]) return;
   users[currentUserEmail].workoutSplits = arr;
@@ -8275,10 +8287,14 @@ function strengthTrainedDaysThisWeekBefore(date){
 // account's already-configured guardrail onto whichever phase is active the first time this runs.
 // v1.53 REVERTED (v1.54): rest-day guardrail also briefly moved to per-phase storage; reverted for
 // the same reason as My splits above -- back to a single global setting on the user object.
+// Same flag-free per-phase pattern as getWorkoutSplits() above: the active phase's own settings if
+// it has any, else the legacy global settings (so nothing changes for an account until it's
+// explicitly saved onto a specific phase), else the plain defaults below.
 function getRestGuardrailSettings(){
+  const active = getActivePhase();
   const users = getUsers();
   const u = users[currentUserEmail];
-  const s = (u && u.restGuardrailSettings) || {};
+  const s = (active && active.restGuardrailSettings) || (u && u.restGuardrailSettings) || {};
   return {
     streakEnabled: s.streakEnabled !== false,
     streakDays: (typeof s.streakDays === "number" && s.streakDays > 0) ? s.streakDays : 2,
@@ -8287,6 +8303,13 @@ function getRestGuardrailSettings(){
   };
 }
 function saveRestGuardrailSettings(s){
+  const phases = getPhases();
+  const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
+  if(active){
+    active.restGuardrailSettings = s;
+    savePhases(phases);
+    return;
+  }
   const users = getUsers();
   if(!users[currentUserEmail]) return;
   users[currentUserEmail].restGuardrailSettings = s;
@@ -13529,6 +13552,11 @@ function getPhases(){
       // auto-closes a phase when this is reached), shown as a "Day X of Y planned" counter next to
       // the "Started ..." line. null/blank means no plan length was given, same as calorieTarget.
       plannedDurationDays: null,
+      // workoutSplits/restGuardrailSettings are deliberately left unset here -- getWorkoutSplits()/
+      // getRestGuardrailSettings() fall back live to the account's existing legacy global values
+      // for as long as this phase has none of its own, so Phase 1 transparently keeps showing
+      // whatever splits/guardrail you already had configured (see v1.55 comment above those
+      // functions).
     }];
     u.phases = migrated;
     saveUsers(users);
@@ -13564,6 +13592,12 @@ function getPhaseForDate(dateStr){
 // -- read by milestones, Coach/AI export, and the risk narrative elsewhere), since the user chose
 // to keep those simple/unphased rather than rewiring every one of them to take a date.
 function completePhase(input){
+  // Snapshotted BEFORE anything below mutates the active phase -- these are today's real,
+  // currently-effective splits/guardrail (whether they live on the active phase already or are
+  // still falling back to the legacy global store), so the new phase starts as an exact copy,
+  // never blank. This is the "copy previous phase forward" behavior chosen for v1.55.
+  const carriedSplits = getWorkoutSplits();
+  const carriedGuardrail = getRestGuardrailSettings();
   const phases = getPhases();
   const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
   if(!active) return null;
@@ -13589,6 +13623,12 @@ function completePhase(input){
     // v1.53: like notes, always starts fresh for a new phase rather than carrying the old phase's
     // planned length forward -- a new phase is its own commitment with its own timeline.
     plannedDurationDays: input.plannedDurationDays != null ? input.plannedDurationDays : null,
+    // v1.55: unlike notes/plannedDurationDays, My splits and the rest-day guardrail DO carry
+    // forward -- a new phase starts as a real, editable copy of the training plan that was in
+    // effect a moment ago, not a blank slate. Each phase still owns its own copy from here on, so
+    // editing one phase's splits later never retroactively changes another phase's.
+    workoutSplits: carriedSplits,
+    restGuardrailSettings: carriedGuardrail,
   };
   savePhases(phases.concat([newPhase]));
   if(input.targetWeightKg != null){
