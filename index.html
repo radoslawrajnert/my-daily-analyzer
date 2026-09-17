@@ -913,7 +913,10 @@
           <div class="row-inline">
             <div class="field"><label>Calories / day</label><input type="number" id="targetCaloriesInput" step="any" min="0" max="8000" placeholder="Leave blank to auto-calculate"></div>
             <div class="field"><label>Protein / day (g)</label><input type="number" id="targetProteinInput" step="any" min="0" max="600" placeholder="Leave blank to auto-calculate"></div>
+            <div class="field"><label>Planned duration (days)</label><input type="number" id="targetPlannedDurationInput" step="1" min="1" max="1000" placeholder="Optional"></div>
           </div>
+          <div class="step-desc" id="phaseDurationCounter" style="margin:-8px 0 14px;"></div>
+          <div class="step-desc" style="margin:-8px 0 14px;">Training plan (splits + rest-day guardrail) is also per phase — <a href="#" onclick="switchPlanTab('workout'); return false;">set it up for this phase →</a></div>
           <div class="field"><label>Notes <span style="font-weight:400; color:var(--muted);">(included when you send this phase to the AI Coach)</span></label><textarea id="targetPhaseNotesInput" rows="3" placeholder="e.g. cutting harder this phase, watch energy levels"></textarea></div>
           <h3 style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);"><span>Aesthetic measures</span></h3>
           <div class="table-scroll">
@@ -1019,6 +1022,7 @@
         <div class="card">
           <h2>Rest-day guardrail</h2>
           <div class="step-desc" style="margin-top:0;">Choose when the Workout Log should nudge you toward a rest day instead of another non-cardio (strength) session. Cardio is never restricted by either rule below. Turn on one, both, or neither.</div>
+          <div class="step-desc" style="margin-top:0;">Applies to your active phase: <strong id="restGuardrailPhaseLabel">—</strong> — starting a new phase (Target ranges tab) resets this to the defaults above rather than carrying today's settings forward.</div>
           <div class="field" style="display:flex; flex-direction:column; gap:10px;">
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; flex-wrap:wrap;"><input type="checkbox" id="restGuardrailStreakCb" style="width:auto;" checked> <input type="number" id="restGuardrailStreakInput" min="1" max="14" value="2" style="width:56px; display:inline-block;"> non-cardio days in a row → recommend rest the day after</label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; flex-wrap:wrap;"><input type="checkbox" id="restGuardrailWeeklyCapCb" style="width:auto;"> Cap non-cardio sessions at <input type="number" id="restGuardrailWeeklyCapInput" min="1" max="14" value="3" style="width:56px; display:inline-block;"> per week (Mon–Sun)</label>
@@ -1028,6 +1032,7 @@
         <div class="card">
           <h2 id="workoutSplitFormTitle">My splits</h2>
           <div class="step-desc" style="margin-top:0;">Define the splits in your program (e.g. Lower A, Upper B) as an exact, ordered list of exercises — the quick pick in Log a set will offer that list first, in order, and "Copy last exercises" duplicates your last session for whichever split you pick.</div>
+          <div class="step-desc" style="margin-top:0;">Applies to your active phase: <strong id="workoutSplitsPhaseLabel">—</strong> — a new phase starts fresh from the built-in defaults here, not a copy of this one.</div>
           <form id="workoutSplitForm" autocomplete="off">
             <div class="row-inline">
               <div class="field"><label>Split name *</label><input type="text" id="workoutSplitName" required placeholder="e.g. Lower A"></div>
@@ -1753,6 +1758,7 @@
         <div class="field"><label>Calories / day</label><input type="number" id="newPhaseCalories" step="any" min="0" max="8000" placeholder="Leave blank to auto-calculate"></div>
         <div class="field"><label>Protein / day (g)</label><input type="number" id="newPhaseProtein" step="any" min="0" max="600" placeholder="Leave blank to auto-calculate"></div>
       </div>
+      <div class="field"><label>Planned duration (days) <span style="font-weight:400; color:var(--muted);">(optional)</span></label><input type="number" id="newPhasePlannedDuration" step="1" min="1" max="1000" placeholder="How long do you expect this phase to take?"></div>
       <div class="field"><label>Notes <span style="font-weight:400; color:var(--muted);">(optional, for this new phase)</span></label><textarea id="newPhaseNotes" rows="2" placeholder="e.g. cutting harder this phase, watch energy levels"></textarea></div>
       <div class="table-scroll">
         <table class="log-table">
@@ -1877,8 +1883,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.52";
+const APP_VERSION = "1.53";
 const CHANGELOG = [
+  { version: "1.53", date: "2026-09-17", desc: "Two additions to Target ranges (My Plan): (1) a new optional \"Planned duration (days)\" field on each phase -- when set, a \"Day X of Y planned\" counter shows next to the active phase's \"Started ...\" line, including a note once you've run past the planned length. (2) My splits and the rest-day guardrail (both in the Workout settings tab) are now per phase instead of one global setting -- starting a new phase gives it a fresh training plan (the 5 built-in default splits, default guardrail) rather than carrying the previous phase's over, and each card now shows which phase it applies to, with a link from Target ranges straight to it. Existing accounts' already-configured splits/guardrail carry over automatically onto whichever phase is active." },
   { version: "1.52", date: "2026-09-17", desc: "\"Copy yesterday's log\" on the Nutrition Log card is now scoped to whichever Meal is selected -- the button itself is now labeled e.g. \"Copy yesterday's Breakfast\", and clicking it only pulls in the most recent previous day that has entries for that specific meal, never a source day's other meals mixed in." },
   { version: "1.51", date: "2026-09-16", desc: "Two follow-up fixes to the Nutrition Log check-in card: (1) once you answer Yes or No, that question's row now disappears from the card entirely instead of collapsing into a small checkmark/cross badge -- the card only ever shows what's still left to answer, and once everything's done it says so plainly. You can still change a past answer from the heatmap below (click any cell). (2) Stomach problems moved onto this same card, alongside Creatine, Water, Caffeine and Alcohol -- it's no longer asked via the separate once-a-day popup. Good Sleep is now the only question still asked that way." },
   { version: "1.50", date: "2026-09-16", desc: "Two Nutrition Log check-in additions: (1) Two new daily questions -- High Caffeine Intake and Alcohol Intake -- join Creatine and Water intake on the card (off by default, turn them on in Settings -> Nutrition Log Settings); like Stomach problems, a Yes is the bad outcome for both, so it renders the warn-colored cross rather than green. (2) The card's red warning is now one general line (\"At least one of your daily check-in questions from the past 7 days hasn't been answered yet\") instead of naming each missing question for today only -- it now looks back over the last 7 days, so forgetting to answer 2 or 3 days ago no longer goes unnoticed until you scroll down to the heatmap." },
@@ -3518,6 +3525,7 @@ function switchView(view){
     renderVersionInfo();
     refreshCloudSyncSettingsUI();
     syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI(); syncDailyQuestionsSettingsUI(); renderTargetRangesTab();
+    renderWorkoutPlanPhaseLabels();
     // "My splits" and "My exercises" (moved here from the Workout Log tab, reachable now only by
     // clicking your name) need their own refresh on open -- renderWorkoutsView() also keeps them
     // current whenever the Workout Log tab itself is visited, but My Plan can be opened without
@@ -8135,16 +8143,45 @@ function getDefaultWorkoutSplits(){
     {id:"split-cardio", name:"Cardio", emoji:"🏃", goal:"Jogging, treadmill, swimming — conditioning", color:"#a3714f", exercises: CARDIO_SPLIT_DEFAULT_EXERCISES.slice()},
   ];
 }
-function getWorkoutSplits(){
+// v1.53: My splits is now PER PHASE -- each phase gets its own split list, chosen fresh when that
+// phase opens rather than inherited from whichever phase came before (same "fresh training plan"
+// idea as notes always starting blank for a new phase). Splits used to live once, globally, on the
+// user object; migrateWorkoutSplitsToActivePhaseOnce carries an existing account's already-built
+// splits onto whichever phase happens to be active the first time this code runs after the
+// upgrade, so nobody's program disappears. A brand-new phase created AFTER that one-time migration
+// simply has no workoutSplits of its own yet and falls back to the built-in defaults below, same
+// as a first-time user -- that's the "fresh start" for a new phase.
+function migrateWorkoutSplitsToActivePhaseOnce(){
   const users = getUsers();
   const u = users[currentUserEmail];
-  return (u && u.workoutSplits) ? u.workoutSplits.slice() : getDefaultWorkoutSplits();
+  if(!u || u.workoutSplitsMigratedToPhases) return;
+  // Migrates even a deliberately EMPTY array (someone who deleted every split) -- only a genuinely
+  // missing key (never touched My Splits at all) should fall through to the built-in defaults.
+  if(Array.isArray(u.workoutSplits)){
+    const phases = getPhases();
+    const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
+    if(active && !Array.isArray(active.workoutSplits)){
+      active.workoutSplits = u.workoutSplits.slice();
+      savePhases(phases);
+    }
+  }
+  const usersAfter = getUsers();
+  if(usersAfter[currentUserEmail]){
+    usersAfter[currentUserEmail].workoutSplitsMigratedToPhases = true;
+    saveUsers(usersAfter);
+  }
+}
+function getWorkoutSplits(){
+  migrateWorkoutSplitsToActivePhaseOnce();
+  const active = getActivePhase();
+  return (active && Array.isArray(active.workoutSplits)) ? active.workoutSplits.slice() : getDefaultWorkoutSplits();
 }
 function saveWorkoutSplitsArr(arr){
-  const users = getUsers();
-  if(!users[currentUserEmail]) return;
-  users[currentUserEmail].workoutSplits = arr;
-  saveUsers(users);
+  const phases = getPhases();
+  const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
+  if(!active) return;
+  active.workoutSplits = arr;
+  savePhases(phases);
 }
 // The default split *colors* have changed twice since the Workout Split feature first shipped (a
 // color-family grouping pass, then a specific palette swap) -- but someone who already has splits
@@ -8164,10 +8201,15 @@ function migrateLegacyDefaultSplitColorsOnce(force){
   const users = getUsers();
   const u = users[currentUserEmail];
   if(!u || (u.legacySplitColorsMigrated && !force)) return;
-  if(Array.isArray(u.workoutSplits) && u.workoutSplits.length){
+  // Reads/writes through getWorkoutSplits()/saveWorkoutSplitsArr() rather than u.workoutSplits
+  // directly -- splits now live on the active phase (v1.53), and those accessors already handle
+  // the one-time carry-over from the old global storage, so this color migration keeps working
+  // unchanged regardless of where the array actually lives.
+  const splits = getWorkoutSplits();
+  if(Array.isArray(splits) && splits.length){
     const targetColorById = new Map(getDefaultWorkoutSplits().map(s=>[s.id, s.color]));
     let changed = false;
-    const migrated = u.workoutSplits.map(s=>{
+    const migrated = splits.map(s=>{
       const legacyColors = LEGACY_DEFAULT_SPLIT_COLORS[s.id];
       const target = targetColorById.get(s.id);
       if(legacyColors && target && legacyColors.includes(s.color) && s.color !== target){
@@ -8259,10 +8301,32 @@ function strengthTrainedDaysThisWeekBefore(date){
 // Per-user toggles for the two rules above. streakDays/weeklyCap are both user-editable numbers
 // (see Rest-day guardrail card in My Plan) -- defaults below only apply until the user sets their
 // own value, and the streak rule stays on by default for anyone who's never touched this setting.
-function getRestGuardrailSettings(){
+// v1.53: like My splits above, the rest-day guardrail is now PER PHASE too -- a new phase starts
+// with the sensible defaults below (streak rule on at 2 days, weekly cap off) rather than
+// inheriting whatever the previous phase had tuned. One-time migration carries an existing
+// account's already-configured guardrail onto whichever phase is active the first time this runs.
+function migrateRestGuardrailToActivePhaseOnce(){
   const users = getUsers();
   const u = users[currentUserEmail];
-  const s = (u && u.restGuardrailSettings) || {};
+  if(!u || u.restGuardrailMigratedToPhases) return;
+  if(u.restGuardrailSettings){
+    const phases = getPhases();
+    const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
+    if(active && !active.restGuardrailSettings){
+      active.restGuardrailSettings = u.restGuardrailSettings;
+      savePhases(phases);
+    }
+  }
+  const usersAfter = getUsers();
+  if(usersAfter[currentUserEmail]){
+    usersAfter[currentUserEmail].restGuardrailMigratedToPhases = true;
+    saveUsers(usersAfter);
+  }
+}
+function getRestGuardrailSettings(){
+  migrateRestGuardrailToActivePhaseOnce();
+  const active = getActivePhase();
+  const s = (active && active.restGuardrailSettings) || {};
   return {
     streakEnabled: s.streakEnabled !== false,
     streakDays: (typeof s.streakDays === "number" && s.streakDays > 0) ? s.streakDays : 2,
@@ -8271,10 +8335,11 @@ function getRestGuardrailSettings(){
   };
 }
 function saveRestGuardrailSettings(s){
-  const users = getUsers();
-  if(!users[currentUserEmail]) return;
-  users[currentUserEmail].restGuardrailSettings = s;
-  saveUsers(users);
+  const phases = getPhases();
+  const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
+  if(!active) return;
+  active.restGuardrailSettings = s;
+  savePhases(phases);
 }
 // True once `date` is the recommended rest day under whichever rule(s) are enabled. Works for a
 // future date too (e.g. "tomorrow"), so the heatmap and the Workout Log banner can flag a rest day
@@ -13415,6 +13480,16 @@ HIDEABLE_TABS.forEach(key=>{
   });
 });
 
+// v1.53: shown next to Rest-day guardrail and My splits so it's clear both are scoped to whichever
+// phase is currently active (Target ranges tab), not a single global setting anymore.
+function renderWorkoutPlanPhaseLabels(){
+  const active = getActivePhase();
+  const name = active ? active.name : "—";
+  const restEl = document.getElementById("restGuardrailPhaseLabel");
+  const splitsEl = document.getElementById("workoutSplitsPhaseLabel");
+  if(restEl) restEl.textContent = name;
+  if(splitsEl) splitsEl.textContent = name;
+}
 function syncRestGuardrailUI(){
   const s = getRestGuardrailSettings();
   const streakCb = document.getElementById("restGuardrailStreakCb");
@@ -13509,6 +13584,10 @@ function getPhases(){
       calorieTarget: null,
       proteinTarget: null,
       notes: "",
+      // v1.53: how many days you're planning this phase to run -- purely informational (nothing
+      // auto-closes a phase when this is reached), shown as a "Day X of Y planned" counter next to
+      // the "Started ..." line. null/blank means no plan length was given, same as calorieTarget.
+      plannedDurationDays: null,
     }];
     u.phases = migrated;
     saveUsers(users);
@@ -13566,6 +13645,9 @@ function completePhase(input){
     calorieTarget: input.calorieTarget != null ? input.calorieTarget : null,
     proteinTarget: input.proteinTarget != null ? input.proteinTarget : null,
     notes: (input.notes && input.notes.trim()) || "",
+    // v1.53: like notes, always starts fresh for a new phase rather than carrying the old phase's
+    // planned length forward -- a new phase is its own commitment with its own timeline.
+    plannedDurationDays: input.plannedDurationDays != null ? input.plannedDurationDays : null,
   };
   savePhases(phases.concat([newPhase]));
   if(input.targetWeightKg != null){
@@ -13609,9 +13691,11 @@ function syncTargetKcalProteinNotesUI(){
   const calEl = document.getElementById("targetCaloriesInput");
   const proEl = document.getElementById("targetProteinInput");
   const notesEl = document.getElementById("targetPhaseNotesInput");
+  const durationEl = document.getElementById("targetPlannedDurationInput");
   if(calEl && document.activeElement !== calEl) calEl.value = (active && active.calorieTarget != null) ? active.calorieTarget : "";
   if(proEl && document.activeElement !== proEl) proEl.value = (active && active.proteinTarget != null) ? active.proteinTarget : "";
   if(notesEl && document.activeElement !== notesEl) notesEl.value = (active && active.notes) ? active.notes : "";
+  if(durationEl && document.activeElement !== durationEl) durationEl.value = (active && active.plannedDurationDays != null) ? active.plannedDurationDays : "";
 }
 function saveAestheticTargetsFromUI(){
   const current = getAestheticTargets();
@@ -13635,27 +13719,44 @@ function saveAestheticTargetsFromUI(){
   if(active){
     const calRaw = parseFloat(document.getElementById("targetCaloriesInput").value);
     const proRaw = parseFloat(document.getElementById("targetProteinInput").value);
+    const durationRaw = parseInt(document.getElementById("targetPlannedDurationInput").value, 10);
     active.calorieTarget = Number.isFinite(calRaw) ? calRaw : null;
     active.proteinTarget = Number.isFinite(proRaw) ? proRaw : null;
     active.notes = document.getElementById("targetPhaseNotesInput").value.trim();
+    active.plannedDurationDays = (Number.isFinite(durationRaw) && durationRaw > 0) ? durationRaw : null;
     savePhases(phases);
+    renderActivePhaseUI(); // refresh the "Day X of Y planned" counter immediately
   }
   showToast("Target ranges saved");
 }
 document.getElementById("saveAestheticTargetsBtn").addEventListener("click", saveAestheticTargetsFromUI);
 
 // --- Complete phase ----------------------------------------------------------------------------
+// v1.53: "Day X of Y planned" -- X counts the start date itself as Day 1 (inclusive), so a phase
+// started and completed on the same calendar day reads as "Day 1 of Y" rather than "Day 0 of Y".
+// Purely informational -- reaching or passing Y planned days never auto-closes the phase, it's
+// just a glance at how the timeline you set for yourself is tracking.
+function phaseDurationCounterText(active){
+  if(!active || active.plannedDurationDays == null) return "";
+  const elapsed = Math.round((new Date(todayStr()+"T00:00:00") - new Date(active.startDate+"T00:00:00")) / (24*3600*1000)) + 1;
+  const dayLabel = Math.max(1, elapsed);
+  const overBy = dayLabel - active.plannedDurationDays;
+  const overNote = overBy > 0 ? ` (${overBy} day${overBy===1?"":"s"} past plan)` : "";
+  return `Day ${dayLabel} of ${active.plannedDurationDays} planned${overNote}`;
+}
 function renderActivePhaseUI(){
   const nameEl = document.getElementById("activePhaseNameInput");
   const metaEl = document.getElementById("activePhaseMeta");
+  const counterEl = document.getElementById("phaseDurationCounter");
   if(!nameEl || !metaEl) return;
   const active = getActivePhase();
-  if(!active){ nameEl.value = "Phase 1"; metaEl.textContent = ""; return; }
+  if(!active){ nameEl.value = "Phase 1"; metaEl.textContent = ""; if(counterEl) counterEl.textContent = ""; return; }
   // Don't stomp on text the user is actively typing (e.g. a re-render triggered by something else
   // firing mid-edit) -- only refresh the field when it isn't focused.
   if(document.activeElement !== nameEl) nameEl.value = active.name;
   const logs = getScaleLogs().filter(l=>l.date >= active.startDate);
   metaEl.textContent = `Started ${formatShortDate(active.startDate)} · ${logs.length} reading${logs.length===1?"":"s"} logged`;
+  if(counterEl) counterEl.textContent = phaseDurationCounterText(active);
 }
 // v1.45: completed phases stay on record as a read-only, collapsed-by-default accordion below the
 // (always-expanded, editable) active phase -- so you can look back at what a past phase's targets
@@ -13748,6 +13849,7 @@ function openCompletePhaseModal(){
   document.getElementById("newPhaseCalories").value = currentTargets ? currentTargets.calories : "";
   document.getElementById("newPhaseProtein").value = currentTargets ? currentTargets.proteinG : "";
   document.getElementById("newPhaseNotes").value = ""; // notes always start blank for a new phase
+  document.getElementById("newPhasePlannedDuration").value = ""; // planned duration is its own fresh commitment, never prefilled
   const current = getAestheticTargets();
   AESTHETIC_TARGET_METRICS.forEach(m=>{
     const newBase = "newPhase"+m.base.slice(6); // "targetBodyFat" -> "newPhaseBodyFat"
@@ -13786,6 +13888,7 @@ document.getElementById("completePhaseForm").addEventListener("submit", (e)=>{
   const calVal = parseFloat(document.getElementById("newPhaseCalories").value);
   const proVal = parseFloat(document.getElementById("newPhaseProtein").value);
   const notesVal = document.getElementById("newPhaseNotes").value;
+  const durationVal = parseInt(document.getElementById("newPhasePlannedDuration").value, 10);
   completePhase({
     name,
     targetWeightKg: Number.isFinite(weightVal) ? weightVal : null,
@@ -13793,11 +13896,15 @@ document.getElementById("completePhaseForm").addEventListener("submit", (e)=>{
     calorieTarget: Number.isFinite(calVal) ? calVal : null,
     proteinTarget: Number.isFinite(proVal) ? proVal : null,
     notes: notesVal,
+    plannedDurationDays: (Number.isFinite(durationVal) && durationVal > 0) ? durationVal : null,
   });
   closeCompletePhaseModal();
   renderTargetRangesTab();
+  renderWorkoutPlanPhaseLabels();
+  syncRestGuardrailUI(); // the new phase has its own (default) guardrail settings -- refresh the form
+  if(typeof renderWorkoutSplitsTable === "function") renderWorkoutSplitsTable(); // ...and its own (default) splits
   if(typeof renderLogView === "function") renderLogView();
-  showToast("New phase started");
+  showToast("New phase started — don't forget to set up My splits and the rest-day guardrail for it");
 });
 
 // Which view to land on right after logging in -- or when reopening the app while a session is
