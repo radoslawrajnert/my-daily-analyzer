@@ -1269,7 +1269,7 @@
           </div>
           <div class="nav" style="justify-content:flex-end;">
             <button type="button" class="secondary hidden" id="foodCancelBtn">Cancel edit</button>
-            <button type="button" class="secondary" id="copyYesterdayBtn">Copy yesterday's log</button>
+            <button type="button" class="secondary" id="copyYesterdayBtn">Copy yesterday's Breakfast</button>
             <button type="submit" id="foodSubmitBtn">Add food →</button>
           </div>
         </form>
@@ -1877,8 +1877,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.51";
+const APP_VERSION = "1.52";
 const CHANGELOG = [
+  { version: "1.52", date: "2026-09-17", desc: "\"Copy yesterday's log\" on the Nutrition Log card is now scoped to whichever Meal is selected -- the button itself is now labeled e.g. \"Copy yesterday's Breakfast\", and clicking it only pulls in the most recent previous day that has entries for that specific meal, never a source day's other meals mixed in." },
   { version: "1.51", date: "2026-09-16", desc: "Two follow-up fixes to the Nutrition Log check-in card: (1) once you answer Yes or No, that question's row now disappears from the card entirely instead of collapsing into a small checkmark/cross badge -- the card only ever shows what's still left to answer, and once everything's done it says so plainly. You can still change a past answer from the heatmap below (click any cell). (2) Stomach problems moved onto this same card, alongside Creatine, Water, Caffeine and Alcohol -- it's no longer asked via the separate once-a-day popup. Good Sleep is now the only question still asked that way." },
   { version: "1.50", date: "2026-09-16", desc: "Two Nutrition Log check-in additions: (1) Two new daily questions -- High Caffeine Intake and Alcohol Intake -- join Creatine and Water intake on the card (off by default, turn them on in Settings -> Nutrition Log Settings); like Stomach problems, a Yes is the bad outcome for both, so it renders the warn-colored cross rather than green. (2) The card's red warning is now one general line (\"At least one of your daily check-in questions from the past 7 days hasn't been answered yet\") instead of naming each missing question for today only -- it now looks back over the last 7 days, so forgetting to answer 2 or 3 days ago no longer goes unnoticed until you scroll down to the heatmap." },
   { version: "1.48", date: "2026-09-16", desc: "Scale Log history table: the Date column now shows the full DD.MM.YYYY (e.g. 16.09.2026) instead of just DD.MM -- a year-less date was ambiguous once your history spans more than one year. Widened the column slightly to fit." },
@@ -2032,7 +2033,10 @@ const I18N_STRINGS = {
   "Protein (g)": "Proteína (g)",
   "Carbs (g)": "Hidratos de carbono (g)",
   "Fat (g)": "Gordura (g)",
-  "Copy yesterday's log": "Copiar registo de ontem",
+  "Copy yesterday's Breakfast": "Copiar o pequeno-almoço de ontem",
+  "Copy yesterday's Lunch": "Copiar o almoço de ontem",
+  "Copy yesterday's Dinner": "Copiar o jantar de ontem",
+  "Copy yesterday's Snack": "Copiar o lanche de ontem",
   "Add food →": "Adicionar alimento →",
   "Day log": "Registo do dia",
   "Notes for this day": "Notas para este dia",
@@ -6607,20 +6611,31 @@ document.getElementById("foodForm").addEventListener("submit", (e)=>{
   maybeShowDailyQuestionsPopup();
 });
 
-// Duplicates every entry from the last logged day into whichever date the Nutrition Log is
-// currently showing (not necessarily the real calendar today — you might be backfilling
-// yesterday). "Previous day" is interpreted loosely as "the last day you actually logged before
-// this one" — if you skipped a day or two, this still finds the last real entries instead of
-// coming up empty.
+// v1.52: copies only the currently selected MEAL (Breakfast/Lunch/Dinner/Snack), not the whole
+// day -- copying an entire day into, say, Breakfast made no sense once you'd already logged lunch
+// or dinner for today, and duplicated meals you didn't ask for. "Previous day" is still interpreted
+// loosely as "the last day that actually had an entry for THIS meal" -- if you skipped a day, or
+// never log Snacks, this still finds the last real match instead of coming up empty or grabbing the
+// wrong meal's food.
+function copyYesterdayBtnLabel(){
+  const meal = document.getElementById("foodMeal").value || "Snack";
+  return `Copy yesterday's ${meal}`;
+}
+function updateCopyYesterdayBtnLabel(){
+  const btn = document.getElementById("copyYesterdayBtn");
+  if(btn) btn.textContent = copyYesterdayBtnLabel();
+}
+document.getElementById("foodMeal").addEventListener("change", updateCopyYesterdayBtnLabel);
 document.getElementById("copyYesterdayBtn").addEventListener("click", ()=>{
   const log = getFoodLog();
   const targetDate = document.getElementById("foodDate").value.trim() || todayStr();
+  const meal = document.getElementById("foodMeal").value || "Snack";
   const sourceDate = Object.keys(log)
-    .filter(d => d < targetDate && log[d] && log[d].length)
+    .filter(d => d < targetDate && log[d] && log[d].some(e => e.meal === meal))
     .sort()
     .pop();
-  if(!sourceDate){ showToast("No previous entries to copy"); return; }
-  const source = log[sourceDate];
+  if(!sourceDate){ showToast(`No previous ${meal} entries to copy`); return; }
+  const source = log[sourceDate].filter(e => e.meal === meal);
   if(!log[targetDate]) log[targetDate] = [];
   source.forEach(entry=>{
     log[targetDate].push(Object.assign({}, entry, {id: genFoodId()}));
@@ -6629,7 +6644,7 @@ document.getElementById("copyYesterdayBtn").addEventListener("click", ()=>{
   const dayBeforeTarget = localDateStr(new Date(new Date(targetDate+"T00:00:00").getTime() - 86400000));
   const whenLabel = sourceDate === dayBeforeTarget ? "yesterday" : formatShortDate(sourceDate);
   const intoLabel = targetDate === todayStr() ? "" : ` into ${formatShortDate(targetDate)}`;
-  showToast(`Copied ${source.length} item${source.length===1?"":"s"} from ${whenLabel}${intoLabel}`);
+  showToast(`Copied ${source.length} ${meal} item${source.length===1?"":"s"} from ${whenLabel}${intoLabel}`);
   renderFoodView();
 });
 
@@ -7429,6 +7444,7 @@ function renderFoodView(){
     document.getElementById("foodMeal").value = defaultMealByTime();
     foodMealDefaulted = true;
   }
+  updateCopyYesterdayBtnLabel();
   const entries = getEntriesForDate(date);
   renderDailyQuestionsCard(date);
   renderFoodStreakBanner();
