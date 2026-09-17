@@ -916,7 +916,6 @@
             <div class="field"><label>Planned duration (days)</label><input type="number" id="targetPlannedDurationInput" step="1" min="1" max="1000" placeholder="Optional"></div>
           </div>
           <div class="step-desc" id="phaseDurationCounter" style="margin:-8px 0 14px;"></div>
-          <div class="step-desc" style="margin:-8px 0 14px;">Training plan (splits + rest-day guardrail) is also per phase — <a href="#" onclick="switchPlanTab('workout'); return false;">set it up for this phase →</a></div>
           <div class="field"><label>Notes <span style="font-weight:400; color:var(--muted);">(included when you send this phase to the AI Coach)</span></label><textarea id="targetPhaseNotesInput" rows="3" placeholder="e.g. cutting harder this phase, watch energy levels"></textarea></div>
           <h3 style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);"><span>Aesthetic measures</span></h3>
           <div class="table-scroll">
@@ -1022,7 +1021,6 @@
         <div class="card">
           <h2>Rest-day guardrail</h2>
           <div class="step-desc" style="margin-top:0;">Choose when the Workout Log should nudge you toward a rest day instead of another non-cardio (strength) session. Cardio is never restricted by either rule below. Turn on one, both, or neither.</div>
-          <div class="step-desc" style="margin-top:0;">Applies to your active phase: <strong id="restGuardrailPhaseLabel">—</strong> — starting a new phase (Target ranges tab) resets this to the defaults above rather than carrying today's settings forward.</div>
           <div class="field" style="display:flex; flex-direction:column; gap:10px;">
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; flex-wrap:wrap;"><input type="checkbox" id="restGuardrailStreakCb" style="width:auto;" checked> <input type="number" id="restGuardrailStreakInput" min="1" max="14" value="2" style="width:56px; display:inline-block;"> non-cardio days in a row → recommend rest the day after</label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; flex-wrap:wrap;"><input type="checkbox" id="restGuardrailWeeklyCapCb" style="width:auto;"> Cap non-cardio sessions at <input type="number" id="restGuardrailWeeklyCapInput" min="1" max="14" value="3" style="width:56px; display:inline-block;"> per week (Mon–Sun)</label>
@@ -1032,7 +1030,6 @@
         <div class="card">
           <h2 id="workoutSplitFormTitle">My splits</h2>
           <div class="step-desc" style="margin-top:0;">Define the splits in your program (e.g. Lower A, Upper B) as an exact, ordered list of exercises — the quick pick in Log a set will offer that list first, in order, and "Copy last exercises" duplicates your last session for whichever split you pick.</div>
-          <div class="step-desc" style="margin-top:0;">Applies to your active phase: <strong id="workoutSplitsPhaseLabel">—</strong> — a new phase starts fresh from the built-in defaults here, not a copy of this one.</div>
           <form id="workoutSplitForm" autocomplete="off">
             <div class="row-inline">
               <div class="field"><label>Split name *</label><input type="text" id="workoutSplitName" required placeholder="e.g. Lower A"></div>
@@ -1883,8 +1880,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.53";
+const APP_VERSION = "1.54";
 const CHANGELOG = [
+  { version: "1.54", date: "2026-09-17", desc: "Reverted the \"My splits\" and \"rest-day guardrail\" per-phase change from v1.53 -- it surfaced a real bug where a fully-configured split could render as empty. Both are back to being one shared setting across all phases, exactly as they worked before v1.53. Nothing was deleted: your actual split/exercise data lives in the same place it always has, this only fixes which copy of it the app was reading. The Planned duration (days) field and \"Day X of Y planned\" counter added in v1.53 are unaffected and stay." },
   { version: "1.53", date: "2026-09-17", desc: "Two additions to Target ranges (My Plan): (1) a new optional \"Planned duration (days)\" field on each phase -- when set, a \"Day X of Y planned\" counter shows next to the active phase's \"Started ...\" line, including a note once you've run past the planned length. (2) My splits and the rest-day guardrail (both in the Workout settings tab) are now per phase instead of one global setting -- starting a new phase gives it a fresh training plan (the 5 built-in default splits, default guardrail) rather than carrying the previous phase's over, and each card now shows which phase it applies to, with a link from Target ranges straight to it. Existing accounts' already-configured splits/guardrail carry over automatically onto whichever phase is active." },
   { version: "1.52", date: "2026-09-17", desc: "\"Copy yesterday's log\" on the Nutrition Log card is now scoped to whichever Meal is selected -- the button itself is now labeled e.g. \"Copy yesterday's Breakfast\", and clicking it only pulls in the most recent previous day that has entries for that specific meal, never a source day's other meals mixed in." },
   { version: "1.51", date: "2026-09-16", desc: "Two follow-up fixes to the Nutrition Log check-in card: (1) once you answer Yes or No, that question's row now disappears from the card entirely instead of collapsing into a small checkmark/cross badge -- the card only ever shows what's still left to answer, and once everything's done it says so plainly. You can still change a past answer from the heatmap below (click any cell). (2) Stomach problems moved onto this same card, alongside Creatine, Water, Caffeine and Alcohol -- it's no longer asked via the separate once-a-day popup. Good Sleep is now the only question still asked that way." },
@@ -3525,7 +3523,6 @@ function switchView(view){
     renderVersionInfo();
     refreshCloudSyncSettingsUI();
     syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI(); syncDailyQuestionsSettingsUI(); renderTargetRangesTab();
-    renderWorkoutPlanPhaseLabels();
     // "My splits" and "My exercises" (moved here from the Workout Log tab, reachable now only by
     // clicking your name) need their own refresh on open -- renderWorkoutsView() also keeps them
     // current whenever the Workout Log tab itself is visited, but My Plan can be opened without
@@ -8143,45 +8140,20 @@ function getDefaultWorkoutSplits(){
     {id:"split-cardio", name:"Cardio", emoji:"🏃", goal:"Jogging, treadmill, swimming — conditioning", color:"#a3714f", exercises: CARDIO_SPLIT_DEFAULT_EXERCISES.slice()},
   ];
 }
-// v1.53: My splits is now PER PHASE -- each phase gets its own split list, chosen fresh when that
-// phase opens rather than inherited from whichever phase came before (same "fresh training plan"
-// idea as notes always starting blank for a new phase). Splits used to live once, globally, on the
-// user object; migrateWorkoutSplitsToActivePhaseOnce carries an existing account's already-built
-// splits onto whichever phase happens to be active the first time this code runs after the
-// upgrade, so nobody's program disappears. A brand-new phase created AFTER that one-time migration
-// simply has no workoutSplits of its own yet and falls back to the built-in defaults below, same
-// as a first-time user -- that's the "fresh start" for a new phase.
-function migrateWorkoutSplitsToActivePhaseOnce(){
+// v1.53 REVERTED (v1.54): My splits briefly moved to being stored per-phase, but that surfaced a
+// real bug for at least one live account (a fully-configured split rendering as empty) that wasn't
+// caught by the test suite, so this reverts straight back to the single global store it was before
+// -- one array on the user object, shared across every phase, exactly as it worked prior to v1.53.
+function getWorkoutSplits(){
   const users = getUsers();
   const u = users[currentUserEmail];
-  if(!u || u.workoutSplitsMigratedToPhases) return;
-  // Migrates even a deliberately EMPTY array (someone who deleted every split) -- only a genuinely
-  // missing key (never touched My Splits at all) should fall through to the built-in defaults.
-  if(Array.isArray(u.workoutSplits)){
-    const phases = getPhases();
-    const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
-    if(active && !Array.isArray(active.workoutSplits)){
-      active.workoutSplits = u.workoutSplits.slice();
-      savePhases(phases);
-    }
-  }
-  const usersAfter = getUsers();
-  if(usersAfter[currentUserEmail]){
-    usersAfter[currentUserEmail].workoutSplitsMigratedToPhases = true;
-    saveUsers(usersAfter);
-  }
-}
-function getWorkoutSplits(){
-  migrateWorkoutSplitsToActivePhaseOnce();
-  const active = getActivePhase();
-  return (active && Array.isArray(active.workoutSplits)) ? active.workoutSplits.slice() : getDefaultWorkoutSplits();
+  return (u && u.workoutSplits) ? u.workoutSplits.slice() : getDefaultWorkoutSplits();
 }
 function saveWorkoutSplitsArr(arr){
-  const phases = getPhases();
-  const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
-  if(!active) return;
-  active.workoutSplits = arr;
-  savePhases(phases);
+  const users = getUsers();
+  if(!users[currentUserEmail]) return;
+  users[currentUserEmail].workoutSplits = arr;
+  saveUsers(users);
 }
 // The default split *colors* have changed twice since the Workout Split feature first shipped (a
 // color-family grouping pass, then a specific palette swap) -- but someone who already has splits
@@ -8201,10 +8173,6 @@ function migrateLegacyDefaultSplitColorsOnce(force){
   const users = getUsers();
   const u = users[currentUserEmail];
   if(!u || (u.legacySplitColorsMigrated && !force)) return;
-  // Reads/writes through getWorkoutSplits()/saveWorkoutSplitsArr() rather than u.workoutSplits
-  // directly -- splits now live on the active phase (v1.53), and those accessors already handle
-  // the one-time carry-over from the old global storage, so this color migration keeps working
-  // unchanged regardless of where the array actually lives.
   const splits = getWorkoutSplits();
   if(Array.isArray(splits) && splits.length){
     const targetColorById = new Map(getDefaultWorkoutSplits().map(s=>[s.id, s.color]));
@@ -8305,28 +8273,12 @@ function strengthTrainedDaysThisWeekBefore(date){
 // with the sensible defaults below (streak rule on at 2 days, weekly cap off) rather than
 // inheriting whatever the previous phase had tuned. One-time migration carries an existing
 // account's already-configured guardrail onto whichever phase is active the first time this runs.
-function migrateRestGuardrailToActivePhaseOnce(){
+// v1.53 REVERTED (v1.54): rest-day guardrail also briefly moved to per-phase storage; reverted for
+// the same reason as My splits above -- back to a single global setting on the user object.
+function getRestGuardrailSettings(){
   const users = getUsers();
   const u = users[currentUserEmail];
-  if(!u || u.restGuardrailMigratedToPhases) return;
-  if(u.restGuardrailSettings){
-    const phases = getPhases();
-    const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
-    if(active && !active.restGuardrailSettings){
-      active.restGuardrailSettings = u.restGuardrailSettings;
-      savePhases(phases);
-    }
-  }
-  const usersAfter = getUsers();
-  if(usersAfter[currentUserEmail]){
-    usersAfter[currentUserEmail].restGuardrailMigratedToPhases = true;
-    saveUsers(usersAfter);
-  }
-}
-function getRestGuardrailSettings(){
-  migrateRestGuardrailToActivePhaseOnce();
-  const active = getActivePhase();
-  const s = (active && active.restGuardrailSettings) || {};
+  const s = (u && u.restGuardrailSettings) || {};
   return {
     streakEnabled: s.streakEnabled !== false,
     streakDays: (typeof s.streakDays === "number" && s.streakDays > 0) ? s.streakDays : 2,
@@ -8335,11 +8287,10 @@ function getRestGuardrailSettings(){
   };
 }
 function saveRestGuardrailSettings(s){
-  const phases = getPhases();
-  const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
-  if(!active) return;
-  active.restGuardrailSettings = s;
-  savePhases(phases);
+  const users = getUsers();
+  if(!users[currentUserEmail]) return;
+  users[currentUserEmail].restGuardrailSettings = s;
+  saveUsers(users);
 }
 // True once `date` is the recommended rest day under whichever rule(s) are enabled. Works for a
 // future date too (e.g. "tomorrow"), so the heatmap and the Workout Log banner can flag a rest day
@@ -13480,16 +13431,6 @@ HIDEABLE_TABS.forEach(key=>{
   });
 });
 
-// v1.53: shown next to Rest-day guardrail and My splits so it's clear both are scoped to whichever
-// phase is currently active (Target ranges tab), not a single global setting anymore.
-function renderWorkoutPlanPhaseLabels(){
-  const active = getActivePhase();
-  const name = active ? active.name : "—";
-  const restEl = document.getElementById("restGuardrailPhaseLabel");
-  const splitsEl = document.getElementById("workoutSplitsPhaseLabel");
-  if(restEl) restEl.textContent = name;
-  if(splitsEl) splitsEl.textContent = name;
-}
 function syncRestGuardrailUI(){
   const s = getRestGuardrailSettings();
   const streakCb = document.getElementById("restGuardrailStreakCb");
@@ -13900,11 +13841,8 @@ document.getElementById("completePhaseForm").addEventListener("submit", (e)=>{
   });
   closeCompletePhaseModal();
   renderTargetRangesTab();
-  renderWorkoutPlanPhaseLabels();
-  syncRestGuardrailUI(); // the new phase has its own (default) guardrail settings -- refresh the form
-  if(typeof renderWorkoutSplitsTable === "function") renderWorkoutSplitsTable(); // ...and its own (default) splits
   if(typeof renderLogView === "function") renderLogView();
-  showToast("New phase started — don't forget to set up My splits and the rest-day guardrail for it");
+  showToast("New phase started");
 });
 
 // Which view to land on right after logging in -- or when reopening the app while a session is
