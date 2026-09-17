@@ -908,6 +908,7 @@
               <input type="text" id="activePhaseNameInput" title="Click to rename this phase" style="font-weight:700; font-size:1rem; color:var(--text); background:transparent; border:1px solid transparent; padding:2px 6px; margin:-2px 0 0 0; border-radius:6px; width:calc(100% - 70px); max-width:320px; display:inline-block;">
               <div class="step-desc" style="margin:2px 0 0;" id="activePhaseMeta">Started —</div>
             </div>
+            <button type="button" class="secondary danger hidden" id="deleteActivePhaseBtn" title="Delete this phase and reopen the previous one">Delete this phase</button>
             <button type="button" class="secondary" id="completePhaseBtn">Complete phase →</button>
           </div>
           <div class="row-inline">
@@ -1880,8 +1881,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.59";
+const APP_VERSION = "1.60";
 const CHANGELOG = [
+  { version: "1.60", date: "2026-09-17", desc: "New \"Delete this phase\" button next to Complete phase, for undoing an accidental or reconsidered phase completion -- shows up whenever there's a previous phase to fall back to. Confirms first, then removes the current phase and reopens the one before it (that becomes Active again). Nothing you've logged is deleted -- those dates just count as part of the reopened phase again -- but the deleted phase's own targets, notes, aesthetic ranges and splits are gone for good." },
   { version: "1.59", date: "2026-09-17", desc: "Completing a phase now opens the phase you just finished as an already-expanded entry at the top of the Past phases list right below the Active phase card -- visible proof its Calories/Protein/Notes/aesthetic ranges were captured -- at the same moment the Active badge above moves on to the new phase, instead of leaving it collapsed behind an extra click." },
   { version: "1.58", date: "2026-09-17", desc: "My splits' \"add a split\" form no longer sits open on the page by default -- it starts collapsed behind a \"+ Add new split\" button (matches the click-to-open pattern people expect), and opens automatically -- with a Cancel option -- when you click that button or Edit on an existing split. Saving, updating or canceling collapses it again." },
   { version: "1.57", date: "2026-09-17", desc: "\"My exercises\" moved back out of \"Target ranges & training plan\" into its own \"Workout Log Settings\" sub-tab (between it and Nutrition Log Settings) -- it's a reusable exercise library, not phase-specific like My splits/Rest-day guardrail, so it didn't belong bundled with the per-phase stuff. Also reordered the Active phase card so Rest-day guardrail now appears before Aesthetic measures instead of after." },
@@ -13765,16 +13767,45 @@ function renderActivePhaseUI(){
   const nameEl = document.getElementById("activePhaseNameInput");
   const metaEl = document.getElementById("activePhaseMeta");
   const counterEl = document.getElementById("phaseDurationCounter");
+  const deleteBtn = document.getElementById("deleteActivePhaseBtn");
   if(!nameEl || !metaEl) return;
   const active = getActivePhase();
-  if(!active){ nameEl.value = "Phase 1"; metaEl.textContent = ""; if(counterEl) counterEl.textContent = ""; return; }
+  if(!active){ nameEl.value = "Phase 1"; metaEl.textContent = ""; if(counterEl) counterEl.textContent = ""; if(deleteBtn) deleteBtn.classList.add("hidden"); return; }
   // Don't stomp on text the user is actively typing (e.g. a re-render triggered by something else
   // firing mid-edit) -- only refresh the field when it isn't focused.
   if(document.activeElement !== nameEl) nameEl.value = active.name;
   const logs = getScaleLogs().filter(l=>l.date >= active.startDate);
   metaEl.textContent = `Started ${formatShortDate(active.startDate)} · ${logs.length} reading${logs.length===1?"":"s"} logged`;
   if(counterEl) counterEl.textContent = phaseDurationCounterText(active);
+  // "Delete this phase" only makes sense -- and only shows up -- when there's a previous phase to
+  // fall back to. Phase 1 has nowhere to go back to, so it never gets the button.
+  if(deleteBtn) deleteBtn.classList.toggle("hidden", getPhases().length <= 1);
 }
+// Undo for an accidental (or since-reconsidered) "Complete phase" click: removes the CURRENT active
+// phase entirely and reopens the one right before it (endDate back to null, becomes active again).
+// Deliberately simple and safe given this app's data model: readings/food/workout log entries are
+// independently date-stamped, never owned by a phase object, so nothing logged gets deleted -- dates
+// that fell inside the deleted phase's range just count as part of the reopened phase again (same
+// getPhaseForDate() lookup every other date-based judging already uses). What DOES go away is this
+// phase's own record: its name, targets, notes, aesthetic ranges and its own copy of splits/guardrail
+// -- exactly the things you'd expect "undo" to discard.
+function deleteActivePhase(){
+  const phases = getPhases();
+  const idx = phases.findIndex(p=>p.endDate == null);
+  const activeIdx = idx >= 0 ? idx : phases.length - 1;
+  if(activeIdx <= 0) return; // nothing before Phase 1 to fall back to
+  const active = phases[activeIdx];
+  const prev = phases[activeIdx - 1];
+  if(!confirm(`Delete "${active.name}" and go back to "${prev.name}"?\n\nAnything you've logged stays in your history -- those dates will just count as part of "${prev.name}" again. But "${active.name}"'s own targets, notes, aesthetic ranges and splits will be gone for good.`)) return;
+  phases.splice(activeIdx, 1);
+  prev.endDate = null;
+  savePhases(phases);
+  renderTargetRangesTab();
+  if(typeof renderLogView === "function") renderLogView();
+  showToast(`Deleted "${active.name}" -- "${prev.name}" is active again`);
+}
+window.deleteActivePhase = deleteActivePhase;
+document.getElementById("deleteActivePhaseBtn").addEventListener("click", deleteActivePhase);
 // v1.45: completed phases stay on record as a read-only, collapsed-by-default accordion below the
 // (always-expanded, editable) active phase -- so you can look back at what a past phase's targets
 // actually were without cluttering the tab with every phase expanded at once.
