@@ -899,8 +899,8 @@
 
       <div id="planGroupTargets" class="hidden">
         <div class="card" id="activePhaseTargetsCard" style="border:1px solid var(--accent);">
-          <h2>Your target ranges by phase</h2>
-          <div class="step-desc" style="margin-top:0;">Calories, protein and aesthetic ranges for whichever phase is active — saved to your profile so you can compare future readings and logs against them. Past phases stay on record below.</div>
+          <h2>Active phase</h2>
+          <div class="step-desc" style="margin-top:0;">Targets, aesthetic ranges, rest-day guardrail and splits for whichever phase is active — all saved together under this phase. Complete it and start a new one, and these start fresh under the new phase too (copied over from the last phase as an editable starting point, so you can swap in new exercises without retyping the whole list). Past phases, with their own settings as they were, stay on record below.</div>
           <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin:14px 0; padding:10px 14px; background:var(--panel2); border-radius:var(--radius-sm);">
             <div style="flex:1; min-width:0;">
               <span class="badge ok" style="margin-right:8px;">Active</span>
@@ -935,19 +935,14 @@
           <div class="nav" style="justify-content:flex-end;">
             <button type="button" id="saveAestheticTargetsBtn">Save →</button>
           </div>
-        </div>
-
-        <div class="card">
-          <h2>Rest-day guardrail</h2>
+          <h3 style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);"><span>Rest-day guardrail</span></h3>
           <div class="step-desc" style="margin-top:0;">Choose when the Workout Log should nudge you toward a rest day instead of another non-cardio (strength) session. Cardio is never restricted by either rule below. Turn on one, both, or neither.</div>
           <div class="field" style="display:flex; flex-direction:column; gap:10px;">
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; flex-wrap:wrap;"><input type="checkbox" id="restGuardrailStreakCb" style="width:auto;" checked> <input type="number" id="restGuardrailStreakInput" min="1" max="14" value="2" style="width:56px; display:inline-block;"> non-cardio days in a row → recommend rest the day after</label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; flex-wrap:wrap;"><input type="checkbox" id="restGuardrailWeeklyCapCb" style="width:auto;"> Cap non-cardio sessions at <input type="number" id="restGuardrailWeeklyCapInput" min="1" max="14" value="3" style="width:56px; display:inline-block;"> per week (Mon–Sun)</label>
           </div>
-        </div>
 
-        <div class="card">
-          <h2 id="workoutSplitFormTitle">My splits</h2>
+          <h3 id="workoutSplitFormTitle" style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);"><span>My splits</span></h3>
           <div class="step-desc" style="margin-top:0;">Define the splits in your program (e.g. Lower A, Upper B) as an exact, ordered list of exercises — the quick pick in Log a set will offer that list first, in order, and "Copy last exercises" duplicates your last session for whichever split you pick.</div>
           <form id="workoutSplitForm" autocomplete="off">
             <div class="row-inline">
@@ -1877,8 +1872,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.55";
+const APP_VERSION = "1.56";
 const CHANGELOG = [
+  { version: "1.56", date: "2026-09-17", desc: "Rest-day guardrail and My splits no longer sit in their own separate bordered cards below \"Target ranges & training plan\" -- they're now sections inside the same Active phase card as Calories/Protein/aesthetic targets, so the whole thing reads as one unit that belongs to whichever phase is active. No data changed (v1.55's per-phase storage was already correct) -- this only fixes how it looks, so it's visually obvious these settings reset (as an editable copy) when you complete a phase and start the next one." },
   { version: "1.55", date: "2026-09-17", desc: "\"Workout Log Settings\" (My splits, My exercises, Rest-day guardrail) is now part of \"Target ranges & training plan\" instead of its own tab -- one continuous page: phase name/status, then Calories/Protein/aesthetic targets, then the training plan for that same phase, right below. My splits and the rest-day guardrail are per-phase again (v1.53 tried this and broke a live account; this version carries your training plan FORWARD when you complete a phase -- a new phase starts as an exact copy of what you had, not blank or reset to defaults -- and never silently loses data if something goes wrong, unlike v1.53's one-time-flag approach)." },
   { version: "1.54", date: "2026-09-17", desc: "Reverted the \"My splits\" and \"rest-day guardrail\" per-phase change from v1.53 -- it surfaced a real bug where a fully-configured split could render as empty. Both are back to being one shared setting across all phases, exactly as they worked before v1.53. Nothing was deleted: your actual split/exercise data lives in the same place it always has, this only fixes which copy of it the app was reading. The Planned duration (days) field and \"Day X of Y planned\" counter added in v1.53 are unaffected and stay." },
   { version: "1.53", date: "2026-09-17", desc: "Two additions to Target ranges (My Plan): (1) a new optional \"Planned duration (days)\" field on each phase -- when set, a \"Day X of Y planned\" counter shows next to the active phase's \"Started ...\" line, including a note once you've run past the planned length. (2) My splits and the rest-day guardrail (both in the Workout settings tab) are now per phase instead of one global setting -- starting a new phase gives it a fresh training plan (the 5 built-in default splits, default guardrail) rather than carrying the previous phase's over, and each card now shows which phase it applies to, with a link from Target ranges straight to it. Existing accounts' already-configured splits/guardrail carry over automatically onto whichever phase is active." },
