@@ -1880,8 +1880,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.58";
+const APP_VERSION = "1.59";
 const CHANGELOG = [
+  { version: "1.59", date: "2026-09-17", desc: "Completing a phase now opens the phase you just finished as an already-expanded entry at the top of the Past phases list right below the Active phase card -- visible proof its Calories/Protein/Notes/aesthetic ranges were captured -- at the same moment the Active badge above moves on to the new phase, instead of leaving it collapsed behind an extra click." },
   { version: "1.58", date: "2026-09-17", desc: "My splits' \"add a split\" form no longer sits open on the page by default -- it starts collapsed behind a \"+ Add new split\" button (matches the click-to-open pattern people expect), and opens automatically -- with a Cancel option -- when you click that button or Edit on an existing split. Saving, updating or canceling collapses it again." },
   { version: "1.57", date: "2026-09-17", desc: "\"My exercises\" moved back out of \"Target ranges & training plan\" into its own \"Workout Log Settings\" sub-tab (between it and Nutrition Log Settings) -- it's a reusable exercise library, not phase-specific like My splits/Rest-day guardrail, so it didn't belong bundled with the per-phase stuff. Also reordered the Active phase card so Rest-day guardrail now appears before Aesthetic measures instead of after." },
   { version: "1.56", date: "2026-09-17", desc: "Rest-day guardrail and My splits no longer sit in their own separate bordered cards below \"Target ranges & training plan\" -- they're now sections inside the same Active phase card as Calories/Protein/aesthetic targets, so the whole thing reads as one unit that belongs to whichever phase is active. No data changed (v1.55's per-phase storage was already correct) -- this only fixes how it looks, so it's visually obvious these settings reset (as an editable copy) when you complete a phase and start the next one." },
@@ -13635,6 +13636,13 @@ function completePhase(input){
   // started, so its end is whichever is later, keeping every phase's date range non-empty and
   // every later phase strictly after it (no overlapping/ambiguous dates for getPhaseForDate).
   active.endDate = active.startDate > today ? active.startDate : today;
+  // The phase you just finished should show up as a new, already-open entry in the Past phases
+  // list right below the Active phase card -- not collapsed to a single unopened row -- so it's
+  // immediately obvious your old phase's numbers were captured before the Active badge above moves
+  // on to the new one. pastPhaseExpanded is declared further down but already exists by the time
+  // this function is actually called (it's only invoked from user interaction, after the whole
+  // script has finished its first top-to-bottom run).
+  pastPhaseExpanded.add(active.id);
   const newPhase = {
     id: "phase-"+Date.now(),
     name: (input.name && input.name.trim()) || ("Phase "+(phases.length+1)),
