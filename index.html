@@ -780,6 +780,7 @@
         <button type="button" id="planSubtabGeneral" class="active" onclick="switchPlanTab('general')">General Settings</button>
         <button type="button" id="planSubtabScaleLog" onclick="switchPlanTab('scalelog')">Scale Log Settings</button>
         <button type="button" id="planSubtabTargets" onclick="switchPlanTab('targets')">Target ranges &amp; training plan</button>
+        <button type="button" id="planSubtabWorkoutLog" onclick="switchPlanTab('workoutlog')">Workout Log Settings</button>
         <button type="button" id="planSubtabNutrition" onclick="switchPlanTab('nutrition')">Nutrition Log Settings</button>
         <button type="button" id="planSubtabCoach" onclick="switchPlanTab('coach')">Coach Settings</button>
       </div>
@@ -916,6 +917,14 @@
           </div>
           <div class="step-desc" id="phaseDurationCounter" style="margin:-8px 0 14px;"></div>
           <div class="field"><label>Notes <span style="font-weight:400; color:var(--muted);">(included when you send this phase to the AI Coach)</span></label><textarea id="targetPhaseNotesInput" rows="3" placeholder="e.g. cutting harder this phase, watch energy levels"></textarea></div>
+
+          <h3 style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);"><span>Rest-day guardrail</span></h3>
+          <div class="step-desc" style="margin-top:0;">Choose when the Workout Log should nudge you toward a rest day instead of another non-cardio (strength) session. Cardio is never restricted by either rule below. Turn on one, both, or neither.</div>
+          <div class="field" style="display:flex; flex-direction:column; gap:10px;">
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; flex-wrap:wrap;"><input type="checkbox" id="restGuardrailStreakCb" style="width:auto;" checked> <input type="number" id="restGuardrailStreakInput" min="1" max="14" value="2" style="width:56px; display:inline-block;"> non-cardio days in a row → recommend rest the day after</label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; flex-wrap:wrap;"><input type="checkbox" id="restGuardrailWeeklyCapCb" style="width:auto;"> Cap non-cardio sessions at <input type="number" id="restGuardrailWeeklyCapInput" min="1" max="14" value="3" style="width:56px; display:inline-block;"> per week (Mon–Sun)</label>
+          </div>
+
           <h3 style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);"><span>Aesthetic measures</span></h3>
           <div class="table-scroll">
             <table class="log-table">
@@ -935,16 +944,13 @@
           <div class="nav" style="justify-content:flex-end;">
             <button type="button" id="saveAestheticTargetsBtn">Save →</button>
           </div>
-          <h3 style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);"><span>Rest-day guardrail</span></h3>
-          <div class="step-desc" style="margin-top:0;">Choose when the Workout Log should nudge you toward a rest day instead of another non-cardio (strength) session. Cardio is never restricted by either rule below. Turn on one, both, or neither.</div>
-          <div class="field" style="display:flex; flex-direction:column; gap:10px;">
-            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; flex-wrap:wrap;"><input type="checkbox" id="restGuardrailStreakCb" style="width:auto;" checked> <input type="number" id="restGuardrailStreakInput" min="1" max="14" value="2" style="width:56px; display:inline-block;"> non-cardio days in a row → recommend rest the day after</label>
-            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; flex-wrap:wrap;"><input type="checkbox" id="restGuardrailWeeklyCapCb" style="width:auto;"> Cap non-cardio sessions at <input type="number" id="restGuardrailWeeklyCapInput" min="1" max="14" value="3" style="width:56px; display:inline-block;"> per week (Mon–Sun)</label>
-          </div>
 
           <h3 id="workoutSplitFormTitle" style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border);"><span>My splits</span></h3>
           <div class="step-desc" style="margin-top:0;">Define the splits in your program (e.g. Lower A, Upper B) as an exact, ordered list of exercises — the quick pick in Log a set will offer that list first, in order, and "Copy last exercises" duplicates your last session for whichever split you pick.</div>
-          <form id="workoutSplitForm" autocomplete="off">
+          <div class="nav" style="justify-content:flex-start; margin:0 0 12px;">
+            <button type="button" class="secondary" id="addNewSplitBtn">+ Add new split</button>
+          </div>
+          <form id="workoutSplitForm" class="hidden" autocomplete="off">
             <div class="row-inline">
               <div class="field"><label>Split name *</label><input type="text" id="workoutSplitName" required placeholder="e.g. Lower A"></div>
               <div class="field"><label>Emoji</label><input type="text" id="workoutSplitEmoji" maxlength="4" placeholder="🦵"></div>
@@ -987,6 +993,10 @@
           <div id="workoutSplitTableWrap"></div>
         </div>
 
+        <div id="pastPhasesWrap"></div>
+      </div>
+
+      <div id="planGroupWorkoutLog" class="hidden">
         <div class="card">
           <h2 id="workoutPresetFormTitle">My exercises</h2>
           <div class="step-desc" style="margin-top:0;">Save exercises you do often so they show up as a one-click quick pick above instead of retyping the name and category each time. Tag one to a split so it only shows up when that split is selected.</div>
@@ -1026,8 +1036,6 @@
           </form>
           <div id="workoutPresetTableWrap"></div>
         </div>
-
-        <div id="pastPhasesWrap"></div>
       </div>
 
       <div id="planGroupNutrition" class="hidden">
@@ -1872,8 +1880,10 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.56";
+const APP_VERSION = "1.58";
 const CHANGELOG = [
+  { version: "1.58", date: "2026-09-17", desc: "My splits' \"add a split\" form no longer sits open on the page by default -- it starts collapsed behind a \"+ Add new split\" button (matches the click-to-open pattern people expect), and opens automatically -- with a Cancel option -- when you click that button or Edit on an existing split. Saving, updating or canceling collapses it again." },
+  { version: "1.57", date: "2026-09-17", desc: "\"My exercises\" moved back out of \"Target ranges & training plan\" into its own \"Workout Log Settings\" sub-tab (between it and Nutrition Log Settings) -- it's a reusable exercise library, not phase-specific like My splits/Rest-day guardrail, so it didn't belong bundled with the per-phase stuff. Also reordered the Active phase card so Rest-day guardrail now appears before Aesthetic measures instead of after." },
   { version: "1.56", date: "2026-09-17", desc: "Rest-day guardrail and My splits no longer sit in their own separate bordered cards below \"Target ranges & training plan\" -- they're now sections inside the same Active phase card as Calories/Protein/aesthetic targets, so the whole thing reads as one unit that belongs to whichever phase is active. No data changed (v1.55's per-phase storage was already correct) -- this only fixes how it looks, so it's visually obvious these settings reset (as an editable copy) when you complete a phase and start the next one." },
   { version: "1.55", date: "2026-09-17", desc: "\"Workout Log Settings\" (My splits, My exercises, Rest-day guardrail) is now part of \"Target ranges & training plan\" instead of its own tab -- one continuous page: phase name/status, then Calories/Protein/aesthetic targets, then the training plan for that same phase, right below. My splits and the rest-day guardrail are per-phase again (v1.53 tried this and broke a live account; this version carries your training plan FORWARD when you complete a phase -- a new phase starts as an exact copy of what you had, not blank or reset to defaults -- and never silently loses data if something goes wrong, unlike v1.53's one-time-flag approach)." },
   { version: "1.54", date: "2026-09-17", desc: "Reverted the \"My splits\" and \"rest-day guardrail\" per-phase change from v1.53 -- it surfaced a real bug where a fully-configured split could render as empty. Both are back to being one shared setting across all phases, exactly as they worked before v1.53. Nothing was deleted: your actual split/exercise data lives in the same place it always has, this only fixes which copy of it the app was reading. The Planned duration (days) field and \"Day X of Y planned\" counter added in v1.53 are unaffected and stay." },
@@ -3547,6 +3557,7 @@ const PLAN_SUBTABS = {
   general: {group:"planGroupGeneral", btn:"planSubtabGeneral"},
   scalelog: {group:"planGroupScaleLog", btn:"planSubtabScaleLog"},
   targets: {group:"planGroupTargets", btn:"planSubtabTargets"},
+  workoutlog: {group:"planGroupWorkoutLog", btn:"planSubtabWorkoutLog"},
   nutrition: {group:"planGroupNutrition", btn:"planSubtabNutrition"},
   coach: {group:"planGroupCoach", btn:"planSubtabCoach"},
 };
@@ -10590,7 +10601,26 @@ function exitWorkoutSplitEditMode(){
   document.getElementById("workoutSplitFormTitle").textContent = "My splits";
   document.getElementById("workoutSplitSubmitBtn").textContent = "Save split →";
   document.getElementById("workoutSplitCancelBtn").classList.add("hidden");
+  document.getElementById("workoutSplitForm").classList.add("hidden");
+  document.getElementById("addNewSplitBtn").classList.remove("hidden");
 }
+
+// Form starts collapsed behind "+ Add new split" -- only becomes available once the user actively
+// asks for it (either adding a new one, or editing an existing one via the table below).
+document.getElementById("addNewSplitBtn").addEventListener("click", ()=>{
+  document.getElementById("workoutSplitForm").reset();
+  document.getElementById("workoutSplitColor").value = "#4ee1a3";
+  editingWorkoutSplitId = null;
+  draftSplitExercises = [];
+  renderDraftSplitExerciseList();
+  document.getElementById("workoutSplitFormTitle").textContent = "New split";
+  document.getElementById("workoutSplitSubmitBtn").textContent = "Save split →";
+  document.getElementById("workoutSplitCancelBtn").classList.remove("hidden");
+  document.getElementById("workoutSplitForm").classList.remove("hidden");
+  document.getElementById("addNewSplitBtn").classList.add("hidden");
+  document.getElementById("workoutSplitForm").scrollIntoView({behavior:"smooth", block:"start"});
+  document.getElementById("workoutSplitName").focus();
+});
 
 function editWorkoutSplit(id){
   const split = getWorkoutSplits().find(s=>s.id===id);
@@ -10605,6 +10635,8 @@ function editWorkoutSplit(id){
   document.getElementById("workoutSplitFormTitle").textContent = `Edit split — ${split.name}`;
   document.getElementById("workoutSplitSubmitBtn").textContent = "Update split →";
   document.getElementById("workoutSplitCancelBtn").classList.remove("hidden");
+  document.getElementById("workoutSplitForm").classList.remove("hidden");
+  document.getElementById("addNewSplitBtn").classList.add("hidden");
   document.getElementById("workoutSplitForm").scrollIntoView({behavior:"smooth", block:"start"});
 }
 window.editWorkoutSplit = editWorkoutSplit;
