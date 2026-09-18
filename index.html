@@ -1131,6 +1131,23 @@
     <div id="logView" class="hidden">
       <div class="card">
         <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+          <span>History</span>
+          <span style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="secondary" id="copyScaleSummaryBtn" style="font-size:.78rem; padding:6px 12px;" title="Copies a plain-text summary of your trend and readings — paste it into ChatGPT or any AI assistant">Copy summary ⧉</button>
+            <button type="button" class="secondary" id="exportScaleCsvBtn" style="font-size:.78rem; padding:6px 12px;">Export CSV ⬇</button>
+          </span>
+        </h2>
+        <div id="goalProgressWrap"></div>
+        <div id="recentChangesWrap"></div>
+        <div id="bodyChangeWrap"></div>
+        <div id="trendChartWrap" class="trend-wrap"></div>
+        <div id="plateauWrap"></div>
+        <div id="miniTrendsWrap"></div>
+        <div id="logTableWrap"></div>
+      </div>
+
+      <div class="card">
+        <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
           <span id="logFormTitle">Add a scale reading</span>
           <button type="button" class="secondary" id="logFormToggleBtn" onclick="toggleLogForm()">+ Add a reading</button>
         </h2>
@@ -1190,23 +1207,6 @@
             </div>
           </form>
         </div>
-      </div>
-
-      <div class="card">
-        <h2 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-          <span>History</span>
-          <span style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button type="button" class="secondary" id="copyScaleSummaryBtn" style="font-size:.78rem; padding:6px 12px;" title="Copies a plain-text summary of your trend and readings — paste it into ChatGPT or any AI assistant">Copy summary ⧉</button>
-            <button type="button" class="secondary" id="exportScaleCsvBtn" style="font-size:.78rem; padding:6px 12px;">Export CSV ⬇</button>
-          </span>
-        </h2>
-        <div id="goalProgressWrap"></div>
-        <div id="recentChangesWrap"></div>
-        <div id="bodyChangeWrap"></div>
-        <div id="trendChartWrap" class="trend-wrap"></div>
-        <div id="plateauWrap"></div>
-        <div id="miniTrendsWrap"></div>
-        <div id="logTableWrap"></div>
       </div>
 
       <div class="card hidden" id="photoTimelineCard">
@@ -1881,8 +1881,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.61";
+const APP_VERSION = "1.62";
 const CHANGELOG = [
+  { version: "1.62", date: "2026-09-18", desc: "Scale Log page reordered: History now shows first, with the \"+ Add a reading\" card right below it (instead of above), then Photo Timeline stays last. Pure layout change -- nothing about how logging or editing a reading works." },
   { version: "1.61", date: "2026-09-18", desc: "Stomach problems is now asked once via the automatic login/first-log popup, same as Good Sleep -- it no longer shows up as a row on the Nutrition Log card. Turn it on in Settings -> Nutrition Log Settings as before; it still builds into the same heatmap, and you can still answer late or change an answer from any heatmap cell." },
   { version: "1.60", date: "2026-09-17", desc: "New \"Delete this phase\" button next to Complete phase, for undoing an accidental or reconsidered phase completion -- shows up whenever there's a previous phase to fall back to. Confirms first, then removes the current phase and reopens the one before it (that becomes Active again). Nothing you've logged is deleted -- those dates just count as part of the reopened phase again -- but the deleted phase's own targets, notes, aesthetic ranges and splits are gone for good." },
   { version: "1.59", date: "2026-09-17", desc: "Completing a phase now opens the phase you just finished as an already-expanded entry at the top of the Past phases list right below the Active phase card -- visible proof its Calories/Protein/Notes/aesthetic ranges were captured -- at the same moment the Active badge above moves on to the new phase, instead of leaving it collapsed behind an extra click." },
