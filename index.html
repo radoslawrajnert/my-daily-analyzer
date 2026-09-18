@@ -1042,7 +1042,7 @@
       <div id="planGroupNutrition" class="hidden">
         <div class="card">
           <h2>Daily physical condition questions</h2>
-          <div class="step-desc" style="margin-top:0;">Turn on the yes/no check-ins you want to answer each day in Nutrition Log. Whichever ones are on (except Good Sleep, asked once via a popup instead) show up there together as one small card — each question disappears from the card as soon as you answer it, with a red warning if any of the last 7 days is still missing an answer — and their results build up into a heatmap under Protein per day.</div>
+          <div class="step-desc" style="margin-top:0;">Turn on the yes/no check-ins you want to answer each day in Nutrition Log. Whichever ones are on (except Good Sleep and Stomach problems, each asked once via a popup instead) show up there together as one small card — each question disappears from the card as soon as you answer it, with a red warning if any of the last 7 days is still missing an answer — and their results build up into a heatmap under Protein per day.</div>
           <div class="field" style="display:flex; flex-direction:column; gap:10px;">
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_creatine" style="width:auto;"> Creatine <span style="color:var(--muted); font-weight:400;">— "Did you take Creatine 3g?"</span></label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_sleep" style="width:auto;"> Good Sleep <span style="color:var(--muted); font-weight:400;">— "Did you sleep well?"</span></label>
@@ -1881,8 +1881,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.60";
+const APP_VERSION = "1.61";
 const CHANGELOG = [
+  { version: "1.61", date: "2026-09-18", desc: "Stomach problems is now asked once via the automatic login/first-log popup, same as Good Sleep -- it no longer shows up as a row on the Nutrition Log card. Turn it on in Settings -> Nutrition Log Settings as before; it still builds into the same heatmap, and you can still answer late or change an answer from any heatmap cell." },
   { version: "1.60", date: "2026-09-17", desc: "New \"Delete this phase\" button next to Complete phase, for undoing an accidental or reconsidered phase completion -- shows up whenever there's a previous phase to fall back to. Confirms first, then removes the current phase and reopens the one before it (that becomes Active again). Nothing you've logged is deleted -- those dates just count as part of the reopened phase again -- but the deleted phase's own targets, notes, aesthetic ranges and splits are gone for good." },
   { version: "1.59", date: "2026-09-17", desc: "Completing a phase now opens the phase you just finished as an already-expanded entry at the top of the Past phases list right below the Active phase card -- visible proof its Calories/Protein/Notes/aesthetic ranges were captured -- at the same moment the Active badge above moves on to the new phase, instead of leaving it collapsed behind an extra click." },
   { version: "1.58", date: "2026-09-17", desc: "My splits' \"add a split\" form no longer sits open on the page by default -- it starts collapsed behind a \"+ Add new split\" button (matches the click-to-open pattern people expect), and opens automatically -- with a Cancel option -- when you click that button or Edit on an existing split. Saving, updating or canceling collapses it again." },
@@ -5452,13 +5453,13 @@ const DAILY_CONDITION_QUESTIONS = [
   { id: "caffeine", settingLabel: "High Caffeine Intake", question: "Did you have high caffeine intake?", goodValue: false },
   { id: "alcohol",  settingLabel: "Alcohol Intake",       question: "Did you drink alcohol?",              goodValue: false },
 ];
-// Creatine, Stomach problems, Water, Caffeine and Alcohol all live on the Nutrition Log card. v1.51:
-// Stomach problems moved here from the popup-only set (per follow-up feedback grouping it with Water)
-// -- Good Sleep is the only one left that isn't naturally a "food" question, so it alone is still
-// asked once via an automatic popup the first time anything is logged that day (see
-// maybeShowDailyQuestionsPopup) -- and can always be changed afterward from the heatmap.
-const NUTRITION_CARD_QUESTION_IDS = ["creatine", "stomach", "water", "caffeine", "alcohol"];
-const POPUP_QUESTION_IDS = ["sleep"];
+// Creatine, Water, Caffeine and Alcohol live on the Nutrition Log card. v1.51 moved Stomach problems
+// there too (grouping it with Water); v1.61 moved it back to the popup-only set at the user's request,
+// matching Good Sleep -- both are asked once via an automatic popup the first time anything is logged
+// that day (see maybeShowDailyQuestionsPopup) rather than as an inline card row, and can always be
+// changed afterward from the heatmap.
+const NUTRITION_CARD_QUESTION_IDS = ["creatine", "water", "caffeine", "alcohol"];
+const POPUP_QUESTION_IDS = ["sleep", "stomach"];
 function getDailyQuestionsEnabled(){
   const users = getUsers();
   const u = users[currentUserEmail];
