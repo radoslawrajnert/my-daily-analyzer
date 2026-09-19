@@ -1925,8 +1925,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.70";
+const APP_VERSION = "1.71";
 const CHANGELOG = [
+  { version: "1.71", date: "2026-09-19", desc: "The v1.70 cross-device fix for exercise reference photos didn't actually work for most people -- it relied on a Firebase Storage \"CORS\" setting most Cloud Sync setups never had turned on, so photos still silently failed to reach other devices. Replaced it with a simpler approach that needs no extra setup at all: exercise reference photos are now saved smaller (a quick reference photo, not a progress photo) and travel through the exact same sync that already reliably moves the rest of your account -- your notes, workouts, everything. Whichever device saved an exercise most recently now wins for that exercise, so a photo (or note) added on your computer will show up on your phone next time it syncs, and vice versa, with no CORS step required. Still needs Cloud Sync turned on (Settings -> Cloud Sync) on every device -- that part hasn't changed." },
   { version: "1.70", date: "2026-09-19", desc: "Fixed exercise reference photos (the machine-setup photos you attach per exercise) not showing up on a different device -- they previously stayed stuck on whichever device you added them from, since only your notes ever reached the cloud. They now upload to the same cloud photo storage your scale-log progress photos already use, so a photo added on your computer will actually show up on your phone at the gym (and vice versa). Requires Cloud Sync to be turned on (Settings -> Cloud Sync) on every device you use -- if you haven't set that up yet, see the setup guide linked there. Existing photos already on a device are unaffected and will sync up the next time that device is online." },
   { version: "1.69", date: "2026-09-19", desc: "The app is now installable -- on Android/desktop Chrome/Edge you'll see an \"Install\" option (address bar icon or browser menu) that adds it to your home screen/app list with its own icon and no browser chrome, and iOS Safari can do the same via Share -> \"Add to Home Screen\". Once installed, it also keeps working if you briefly lose signal, since the app itself (not your logged data, which already lived in localStorage/Cloud Sync) is now cached on-device too." },
   { version: "1.68", date: "2026-09-19", desc: "The Today dashboard now surfaces simple patterns it notices in your own logged data -- automatically, without asking the Coach or exporting anything. Right now it checks two things: whether your next-day calorie intake tends to run higher after a night you marked as poor sleep, and whether your weight tends to tick up more the day after logging alcohol. Each only appears once you've got at least 4 days on both sides of the comparison and the difference is large enough to plausibly mean something -- otherwise it stays quiet rather than guessing from noise. Needs the relevant daily check-in question (Good Sleep / Alcohol Intake) turned on in Settings." },
@@ -2674,6 +2675,16 @@ function initFirebaseIfConfigured(){
   }
 }
 
+// Estimates the byte size of a base64 data: URL (roughly 3/4 of the base64 string's length, since
+// base64 inflates raw bytes by 4/3) -- not exact (ignores padding), but fine for a size BUDGET
+// rather than a hard byte-for-byte accounting.
+function dataUrlByteLength(dataUrl){
+  if(typeof dataUrl !== "string") return 0;
+  const idx = dataUrl.indexOf(",");
+  const b64 = idx >= 0 ? dataUrl.slice(idx+1) : dataUrl;
+  return Math.ceil(b64.length * 0.75);
+}
+
 // Strips fields that shouldn't be embedded in the Firestore document (password, raw photo data)
 // before writing. Photos themselves go to Firebase Storage separately (see
 // syncScaleLogPhotosToCloud/attachPhotoUrls below) -- only their small download URLs end up here.
@@ -2696,34 +2707,45 @@ function sanitizeForCloud(u){
       return rest;
     });
   }
-  // Per-exercise reference photos: same reasoning as scale-log photos (see comment above) -- a
-  // handful of these embedded as base64 can push the whole document past Firestore's 1MB limit,
-  // which fails the WHOLE sync (not just this field) and, worse, leaves the cloud copy stale so a
-  // later pull can wipe the photo back out locally (see mergeExerciseReferences). The raw photo
-  // is stripped here same as before; pushToCloud (v1.70) now also uploads it to Firebase Storage
-  // via syncExerciseRefPhotosToCloud and attaches the resulting download URL afterward
-  // (attachExerciseRefPhotoUrls) -- so it does reach the cloud, just as a small URL rather than
-  // the raw bytes, exactly like scale photos.
+  // Per-exercise reference photos (v1.71): unlike scale-log photos, these go straight into the
+  // Firestore document rather than a separate Storage upload. v1.70 tried the Storage route (like
+  // scale photos), but that depends on the user's Firebase Storage bucket having a working CORS
+  // policy -- a one-time setup step most people never do -- so it silently failed to actually
+  // deliver photos cross-device for anyone who hadn't done that. Embedding instead rides on the
+  // exact same Firestore sync that's already proven to work for the rest of the account (notes,
+  // workouts, etc.), no extra setup required. This only works because exerciseRefPhoto resizes
+  // MUCH smaller than a scale photo (see setupPhotoDropzone) -- a few KB instead of tens of KB --
+  // so a realistic number of them stay well under Firestore's 1MB/doc limit. As a hard safety net
+  // against ever silently blowing that limit (the exact failure mode a past bug hit), keep photos
+  // smallest-first up to a fixed byte budget and drop any that don't fit rather than let the whole
+  // document -- everything else in it included -- fail to save.
   if(clone.exerciseReferences && typeof clone.exerciseReferences === "object"){
-    const refs = {};
-    Object.keys(clone.exerciseReferences).forEach(k=>{
+    const EXREF_PHOTO_BUDGET_BYTES = 700000;
+    const entries = Object.keys(clone.exerciseReferences).map(k=>{
       const r = clone.exerciseReferences[k] || {};
-      refs[k] = { note: r.note || "" };
+      return {k, note: r.note || "", updatedAt: r.updatedAt || 0, photo: r.photo || null, bytes: dataUrlByteLength(r.photo)};
+    });
+    entries.sort((a,b)=> a.bytes - b.bytes);
+    const refs = {};
+    let used = 0;
+    entries.forEach(({k, note, updatedAt, photo, bytes})=>{
+      const keepPhoto = bytes > 0 && (used + bytes) <= EXREF_PHOTO_BUDGET_BYTES;
+      if(keepPhoto) used += bytes;
+      refs[k] = { note, updatedAt, photo: keepPhoto ? photo : null };
     });
     clone.exerciseReferences = refs;
   }
   return clone;
 }
 
-// v1.70: exercise reference photos now upload to Firebase Storage too (see
-// syncExerciseRefPhotosToCloud below), same as scale-log photos already did -- so a photo added on
-// one device (e.g. your computer) actually shows up on another (e.g. your phone at the gym)
-// instead of staying stuck on whichever device you were on when you added it. On pull: this
-// device's own freshly-added photo (a data: URL not yet even pushed) always wins, since it's
-// already right here with zero network round-trip; otherwise fall back to the cloud's uploaded
-// URL (a photo added on a different device) so it actually shows up here; only fall back to
-// whatever this device already had (could itself be an old cloud URL from a previous pull) if
-// neither of those applies, so a photo already showing here never gets silently blanked out.
+// v1.71: exercise reference photos are embedded directly in the synced document now (see
+// sanitizeForCloud above), so cloud and local are directly comparable copies of the same thing --
+// no separate URL indirection. Merge by last-write-wins PER EXERCISE, using the updatedAt stamp
+// set whenever a reference is saved (see the exerciseRefSaveBtn handler): whichever side was
+// touched more recently wins outright (photo + note together, not merged field-by-field), so a
+// photo added on one device reliably reaches another, while a genuinely newer edit on THIS device
+// (already here, zero round-trip, could be seconds old and not pushed yet) is never clobbered by
+// an older cloud snapshot -- the exact failure the original v1.26 fix was guarding against.
 function mergeExerciseReferences(cloudRefs, localRefs){
   const local = localRefs || {};
   const cloud = cloudRefs || {};
@@ -2731,10 +2753,13 @@ function mergeExerciseReferences(cloudRefs, localRefs){
   const merged = {};
   keys.forEach(k=>{
     const l = local[k], c = cloud[k];
-    const localPhoto = (l && l.photo) || null;
-    const photo = isLocalPhotoDataUrl(localPhoto) ? localPhoto : ((c && c.photoUrl) || localPhoto || null);
-    const note = (l && l.note) || (c && c.note) || "";
-    if(photo || note) merged[k] = {photo, note};
+    let winner;
+    if(l && c) winner = (c.updatedAt || 0) > (l.updatedAt || 0) ? c : l;
+    else winner = l || c;
+    if(!winner) return;
+    const photo = winner.photo || null;
+    const note = winner.note || "";
+    if(photo || note) merged[k] = {photo, note, updatedAt: winner.updatedAt || 0};
   });
   return merged;
 }
@@ -2748,18 +2773,6 @@ function attachPhotoUrls(clone, urlsByDate){
     const urls = urlsByDate.get(l.date);
     return urls ? Object.assign({}, l, urls) : l;
   });
-}
-
-// Same idea as attachPhotoUrls, for exercise reference photos: merges the {key -> photoUrl} map
-// from syncExerciseRefPhotosToCloud onto an already-sanitized clone's exerciseReferences.
-function attachExerciseRefPhotoUrls(clone, urlsByKey){
-  if(!clone.exerciseReferences || !urlsByKey || !urlsByKey.size) return;
-  const out = {};
-  Object.keys(clone.exerciseReferences).forEach(k=>{
-    const url = urlsByKey.get(k);
-    out[k] = url ? Object.assign({}, clone.exerciseReferences[k], {photoUrl: url}) : clone.exerciseReferences[k];
-  });
-  clone.exerciseReferences = out;
 }
 
 // ---- Photo upload cache: remembers which exact photo (by content hash) was last uploaded for
@@ -2853,71 +2866,6 @@ async function syncScaleLogPhotosToCloud(email, scaleLogs){
   return urlsByDate;
 }
 
-// ---- Exercise reference photos: same Storage-upload pattern as scale-log photos above (v1.70).
-// These previously stayed device-local on purpose (see the old comment on sanitizeForCloud) to
-// dodge Firestore's 1MB document limit -- but Storage has no such limit, so uploading them there
-// (exactly like scale photos already do) and only ever putting the small download URL in Firestore
-// solves that concern too, while actually letting a photo added on one device show up on another. ----
-function exerciseRefStoragePath(uid, key){
-  // encodeURIComponent so a "/" in a free-typed exercise name can't be misread as a Storage
-  // subdirectory boundary, and so two differently-cased/spaced names that normalize to the same
-  // key (see exerciseRefKey) always resolve to the same path.
-  return `users/${uid}/exerciseRefPhotos/${encodeURIComponent(key)}.jpg`;
-}
-async function ensureExerciseRefPhotoUploaded(email, key, dataUrl){
-  if(!fbStorage || !fbUser) return null;
-  const cache = getPhotoUploadCache();
-  const cacheKey = photoCacheKey(email, "exref:"+key, "photo");
-  const hash = simpleHash(dataUrl);
-  const cached = cache[cacheKey];
-  if(cached && cached.hash === hash && cached.url) return cached.url;
-  try{
-    const blob = await (await fetch(dataUrl)).blob();
-    const ref = fbStorage.ref().child(exerciseRefStoragePath(fbUser.uid, key));
-    await ref.put(blob, {contentType: "image/jpeg"});
-    const url = await ref.getDownloadURL();
-    cache[cacheKey] = {hash, url};
-    savePhotoUploadCache(cache);
-    return url;
-  } catch(e){
-    console.error("Exercise reference photo upload failed", e);
-    return null;
-  }
-}
-async function deleteExerciseRefPhotoIfUploaded(email, key){
-  const cache = getPhotoUploadCache();
-  const cacheKey = photoCacheKey(email, "exref:"+key, "photo");
-  if(!cache[cacheKey]) return;
-  if(fbStorage && fbUser){
-    try{ await fbStorage.ref().child(exerciseRefStoragePath(fbUser.uid, key)).delete(); }
-    catch(e){ /* already gone, or Storage rules not set up yet -- not fatal */ }
-  }
-  delete cache[cacheKey];
-  savePhotoUploadCache(cache);
-}
-// Walks every exercise reference, uploads any locally-owned photo (a data: URL) that's new or
-// changed since the last sync, and cleans up Storage objects for photos removed locally. Returns a
-// Map of key -> download URL for whichever photos now have a cloud copy.
-async function syncExerciseRefPhotosToCloud(email, exerciseReferences){
-  const urlsByKey = new Map();
-  if(!fbStorage) return urlsByKey; // Storage unavailable -- skip entirely, exactly like scale photos
-  const refs = exerciseReferences || {};
-  for(const key of Object.keys(refs)){
-    const value = refs[key] && refs[key].photo;
-    if(isLocalPhotoDataUrl(value)){
-      const url = await ensureExerciseRefPhotoUploaded(email, key, value);
-      if(url) urlsByKey.set(key, url);
-    } else if(typeof value === "string" && value){
-      // Already a URL (arrived from another device via an earlier pull) -- nothing to upload,
-      // just carry it forward so the cloud doc doesn't lose it.
-      urlsByKey.set(key, value);
-    } else {
-      await deleteExerciseRefPhotoIfUploaded(email, key);
-    }
-  }
-  return urlsByKey;
-}
-
 // Combines a freshly-pulled cloud scale log with what's stored locally. A local data: URL photo
 // (this device's own upload) always wins, since it's already right here with zero network
 // round-trip; otherwise falls back to whatever cloud URL is available (a photo taken/added on a
@@ -2963,10 +2911,8 @@ function pushToCloud(){
     const u = users[currentUserEmail];
     if(!u) return;
     const urlsByDate = await syncScaleLogPhotosToCloud(currentUserEmail, u.scaleLogs);
-    const exRefUrlsByKey = await syncExerciseRefPhotosToCloud(currentUserEmail, u.exerciseReferences);
     const clean = sanitizeForCloud(u);
     attachPhotoUrls(clean, urlsByDate);
-    attachExerciseRefPhotoUrls(clean, exRefUrlsByKey);
     fbDb.collection("users").doc(fbUser.uid).set(clean)
       .then(()=> updateCloudSyncStatus("Synced " + new Date().toLocaleTimeString()))
       .catch(err=> updateCloudSyncStatus("Sync error: " + err.message));
@@ -4300,7 +4246,9 @@ function computeLogBMI(entry){
 
 let editingLogDate = null;
 
-function setupPhotoDropzone(prefix){
+function setupPhotoDropzone(prefix, maxDim, quality){
+  maxDim = maxDim || 500;
+  quality = quality || 0.8;
   const zone = document.getElementById(prefix+"Drop");
   const input = document.getElementById(prefix+"Input");
   const empty = document.getElementById(prefix+"Empty");
@@ -4333,7 +4281,7 @@ function setupPhotoDropzone(prefix){
   async function handleFile(file){
     if(!file || !file.type || !file.type.startsWith("image/")){ showToast("That doesn't look like an image"); return; }
     try{
-      const dataUrl = await resizeImageFile(file, 500, 0.8);
+      const dataUrl = await resizeImageFile(file, maxDim, quality);
       show(dataUrl);
     }catch(err){
       showToast("Couldn't load that image");
@@ -10605,7 +10553,11 @@ function exerciseVideoLinkHtml(exerciseName){
 }
 
 let editingExerciseRefName = null;
-const exerciseRefPhoto = setupPhotoDropzone("exerciseRefPhoto");
+// v1.71: much smaller/more compressed than the default (500px/0.8) scale-log photos -- this is a
+// quick "which pin position, which seat height" reminder, not a progress photo, so a few KB is
+// plenty. Small on purpose: it's what lets these sync as part of the normal Firestore document
+// (see sanitizeForCloud) instead of needing a separate Storage upload + CORS setup.
+const exerciseRefPhoto = setupPhotoDropzone("exerciseRefPhoto", 260, 0.55);
 function openExerciseRefModal(exerciseName){
   if(!exerciseName) return;
   editingExerciseRefName = exerciseName;
@@ -10633,7 +10585,10 @@ document.getElementById("exerciseRefSaveBtn").addEventListener("click", ()=>{
   if(!photo && !note){
     delete refs[key];
   } else {
-    refs[key] = {photo: photo || null, note};
+    // updatedAt drives mergeExerciseReferences' last-write-wins logic across devices -- stamped
+    // fresh on every save so this device's edit always reads as the newest once it reaches the
+    // cloud, and so it correctly loses to an even-newer edit made on another device meanwhile.
+    refs[key] = {photo: photo || null, note, updatedAt: Date.now()};
   }
   saveExerciseReferencesObj(refs);
   closeExerciseRefModal();
