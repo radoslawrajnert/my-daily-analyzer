@@ -1602,9 +1602,12 @@
           </div>
         </div>
         <div class="nav" style="justify-content:flex-start; flex-wrap:wrap;">
-          <button type="button" id="coachGenerateBtn">Generate export + download photos →</button>
+          <button type="button" id="coachAskDirectBtn">Ask AI Coach now →</button>
+          <button type="button" class="secondary" id="coachGenerateBtn">Generate full export + photos (paste into ChatGPT/Claude) →</button>
           <button type="button" class="secondary hidden" id="coachCopyBtn">Copy to clipboard</button>
         </div>
+        <div class="step-desc hidden" id="coachDirectStatus" style="margin-top:8px;"></div>
+        <div class="step-desc" style="margin-top:8px;">"Ask AI Coach now" uses the free API key from Settings → AI Assistant and reviews your data right here — text and full CSV logs only, no progress photos (fast, one click). "Generate full export" is the deeper option: it also bundles your progress photos, for pasting into any AI chat of your choice.</div>
         <div class="field hidden" id="coachExportWrap" style="margin-top:14px;">
           <label>Your export — this is exactly what gets sent, nothing is hidden (copy this into a chat with Claude, and attach the downloaded photos too)</label>
           <textarea id="coachExportText" rows="18" readonly style="font-family:monospace; font-size:.8rem;"></textarea>
@@ -1881,8 +1884,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.65";
+const APP_VERSION = "1.66";
 const CHANGELOG = [
+  { version: "1.66", date: "2026-09-19", desc: "New \"Ask AI Coach now\" button on the Coach tab -- reviews your data right there using the same free API key already set up for AI Log (Settings -> AI Assistant), and saves the reply straight into Past feedback. No more copying the export out, pasting into ChatGPT/Claude, then pasting the reply back -- one click. This fast path includes your full CSV logs but not progress photos; \"Generate full export + photos\" (previously the only option) is still there for a photo-inclusive review you paste into any AI chat yourself." },
   { version: "1.65", date: "2026-09-19", desc: "The Coach export's assessment (Weight & measurements, Nutrition, Workout, Habits, and every \"last 90 days\" figure) now stops at yesterday instead of today -- today's entries are usually still incomplete when you'd generate this (before dinner's logged, before today's workout, etc.), so they no longer skew averages, day-counts, or the \"started X -> now Y\" weight line. A new line under the export header spells out the cutoff date. The raw CSV attachments (scale/nutrition/workout/daily-checkin) are unaffected -- those stay the complete, literal log, today's entries included." },
   { version: "1.64", date: "2026-09-19", desc: "The Coach export's Daily check-in section is now a proper CSV (\"daily-checkin-log.csv\") attached alongside scale/nutrition/workout data, instead of a 90-day Yes/No stats block in the export text -- the text now just names which questions are tracked and points at the attached file. Also: the phase \"started\" date in the new Target ranges section, and every date in the new CSV, are formatted DD.MM.YYYY." },
   { version: "1.63", date: "2026-09-19", desc: "The Coach export is significantly more complete now. Three new sections: \"Target ranges & current phase\" (your calorie/protein targets, phase notes/day-counter, and -- new -- your full aesthetic target ranges for body fat, muscle, waist, etc.), \"Rest-day guardrail\" (which rules are on, e.g. \"rest after 3 consecutive training days\"), and \"Daily check-in\" (90-day Yes/No stats for Good Sleep, Stomach problems, Creatine, Water, Caffeine, Alcohol -- whichever you have turned on). The AI's reply format also gained a 7th required section, \"Recovery & Consistency\", specifically asking it to comment on rest-day adherence and daily check-in patterns -- and flag anything that lines up with a plateau or a trend elsewhere in the report." },
@@ -14054,7 +14058,8 @@ function syncCoachFocusUI(){
 // stays correct automatically as those features evolve. userNotes is whatever the person
 // typed in the "anything you want to ask the coach" box -- shown verbatim, nothing is added
 // or paraphrased on their behalf.
-function buildCoachExport(userNotes, attachments, skipped){
+function buildCoachExport(userNotes, attachments, skipped, opts){
+  const directMode = !!(opts && opts.directMode);
   const lines = [];
   const a = answers || {};
   const targets = getPlanTargets();
@@ -14070,7 +14075,9 @@ function buildCoachExport(userNotes, attachments, skipped){
   lines.push(`_Generated ${todayStr()}_`);
   lines.push(`_Assessment covers data through ${formatDateDisplay(assessmentEndDate)} — today is left out since it's still in progress._`);
   lines.push("");
-  lines.push("You are acting as my personal trainer and health coach. Review my tracked data below, plus a roughly weekly front/back progress photo (attached separately, in chronological order) so you can see how my body has actually changed over time, not just a single before/after. Be objective and direct — base your read strictly on the data and photos, not on reassurance. Call out anything concerning, inconsistent, or working against my stated goal, not just what's going well; don't soften a genuine problem to be encouraging. This isn't a request for medical advice; if anything looks like it needs a doctor rather than a guess, say so instead of speculating.");
+  lines.push(directMode
+    ? "You are acting as my personal trainer and health coach. Review my tracked data below, including the full raw CSV logs inlined near the end -- this is a fast, text-only in-app review, so no progress photos are attached this time (I can send you those separately in a follow-up if you want them). Be objective and direct — base your read strictly on the data, not on reassurance. Call out anything concerning, inconsistent, or working against my stated goal, not just what's going well; don't soften a genuine problem to be encouraging. This isn't a request for medical advice; if anything looks like it needs a doctor rather than a guess, say so instead of speculating."
+    : "You are acting as my personal trainer and health coach. Review my tracked data below, plus a roughly weekly front/back progress photo (attached separately, in chronological order) so you can see how my body has actually changed over time, not just a single before/after. Be objective and direct — base your read strictly on the data and photos, not on reassurance. Call out anything concerning, inconsistent, or working against my stated goal, not just what's going well; don't soften a genuine problem to be encouraging. This isn't a request for medical advice; if anything looks like it needs a doctor rather than a guess, say so instead of speculating.");
   lines.push("");
   lines.push("This needs to follow one very specific, stable structure — not just for readability, but because I paste your reply back into my tracking app, which parses this exact structure to display it as a nicely formatted report. Please follow it precisely, every time, so my reviews stay comparable and display correctly:");
   lines.push("1. Overall Assessment — one or two sentences: is my trajectory right now good, stalled, or concerning?");
@@ -14344,7 +14351,31 @@ function buildCoachExport(userNotes, attachments, skipped){
   }
 
   lines.push("---");
-  if(attachments && attachments.length){
+  if(directMode){
+    // No file attachments are possible on this path (it's a plain-text API call, not a chat upload) --
+    // so the full raw logs are inlined as fenced CSV blocks instead, same data as the CSVs the manual
+    // export flow zips up (scale/nutrition/workout/daily-checkin), just pasted in rather than attached.
+    // Only photos are genuinely left out here.
+    const csvParts = [];
+    if(focus.weightNutrition){
+      const scaleCsv = buildScaleCsv(); if(scaleCsv) csvParts.push({name: "scale-log-full.csv", text: scaleCsv});
+      const foodCsv = buildFoodCsv(); if(foodCsv) csvParts.push({name: "nutrition-log-full.csv", text: foodCsv});
+      const workoutCsv = buildWorkoutCsv(); if(workoutCsv) csvParts.push({name: "workout-log-full.csv", text: workoutCsv});
+      const checkinCsv = buildDailyCheckinCsv(); if(checkinCsv) csvParts.push({name: "daily-checkin-log.csv", text: checkinCsv});
+    }
+    if(csvParts.length){
+      lines.push("_Full raw logs, inlined below since this fast in-app path can't attach files the way a chat upload can:_");
+      lines.push("");
+      csvParts.forEach(p=>{
+        lines.push(`### ${p.name}`);
+        lines.push("```csv");
+        lines.push(p.text);
+        lines.push("```");
+        lines.push("");
+      });
+    }
+    lines.push("_No progress photos are included in this fast, in-app review — only text and the CSV logs above. For a photo-inclusive review, use \"Generate full export + photos\" instead and paste the result into an AI chat of your choice._");
+  } else if(attachments && attachments.length){
     const bundled = attachments.length > 1;
     lines.push(`_The following ${attachments.length===1?"file was":`${attachments.length} files were`} ${bundled?'bundled into one "coach-export-files.zip"':'downloaded'} alongside this export — I'm attaching ${attachments.length===1?"it":"them"} to this message so you have the full underlying data (not just the summary above) and can see my actual visual progress:_`);
     attachments.forEach(f=> lines.push(`  - ${f.name} — ${f.description}`));
@@ -14786,6 +14817,38 @@ async function downloadFilesAsZip(attachments){
   downloadDataUrl(url, "coach-export-files.zip");
   setTimeout(()=> URL.revokeObjectURL(url), 5000);
 }
+
+// v1.66: "Ask AI Coach now" -- calls the same Gemini/Groq/OpenRouter key already configured for
+// the AI Log tab (Settings -> AI Assistant) directly, with the text-only/directMode export (full
+// CSVs inlined, no photos -- see buildCoachExport), and saves the reply exactly like pasting one
+// back manually would. Turns the previous copy-out/paste-elsewhere/paste-back three-step loop into
+// one click for anyone who doesn't need the photo-inclusive review this run.
+document.getElementById("coachAskDirectBtn").addEventListener("click", async ()=>{
+  const statusEl = document.getElementById("coachDirectStatus");
+  const askBtn = document.getElementById("coachAskDirectBtn");
+  statusEl.classList.remove("hidden");
+  if(!isAiConfigured()){
+    statusEl.textContent = "Add a free API key in Settings → AI Assistant first, then come back here.";
+    return;
+  }
+  const userNotes = document.getElementById("coachUserNotesInput").value;
+  askBtn.disabled = true;
+  statusEl.textContent = "Asking your AI coach… this can take a few seconds.";
+  try{
+    const text = buildCoachExport(userNotes, [], [], {directMode: true});
+    const reply = await callAiProvider(text);
+    const notes = getCoachNotes();
+    notes.push({id: genCoachId(), date: todayStr(), text: reply});
+    saveCoachNotesArr(notes);
+    renderCoachView();
+    statusEl.textContent = `Coach review ready — see it under "Past feedback" below.`;
+    showToast("Coach review ready");
+  } catch(e){
+    statusEl.textContent = "AI request failed: " + e.message;
+  } finally {
+    askBtn.disabled = false;
+  }
+});
 
 document.getElementById("coachGenerateBtn").addEventListener("click", async ()=>{
   const userNotes = document.getElementById("coachUserNotesInput").value;
