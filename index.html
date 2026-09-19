@@ -1120,7 +1120,7 @@
           <h2>AI Coach focus</h2>
           <div class="step-desc" style="margin-top:0;">Choose what the Coach tab's export includes. Turn off anything you don't want feedback on right now — e.g. leave only Nutrition on and the export won't mention habits or commitments at all.</div>
           <div class="field" style="display:flex; flex-direction:column; gap:10px;">
-            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="coachFocusWeightNutrition" style="width:auto;" checked> Weight, measurements &amp; nutrition (incl. workouts &amp; photos)</label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="coachFocusWeightNutrition" style="width:auto;" checked> Weight, measurements &amp; nutrition (incl. target ranges, training plan, rest-day guardrail, workouts, daily check-in &amp; photos)</label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="coachFocusHabits" style="width:auto;" checked> Habits</label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="coachFocusCommitments" style="width:auto;" checked> Commitments</label>
           </div>
@@ -1881,8 +1881,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.62";
+const APP_VERSION = "1.63";
 const CHANGELOG = [
+  { version: "1.63", date: "2026-09-19", desc: "The Coach export is significantly more complete now. Three new sections: \"Target ranges & current phase\" (your calorie/protein targets, phase notes/day-counter, and -- new -- your full aesthetic target ranges for body fat, muscle, waist, etc.), \"Rest-day guardrail\" (which rules are on, e.g. \"rest after 3 consecutive training days\"), and \"Daily check-in\" (90-day Yes/No stats for Good Sleep, Stomach problems, Creatine, Water, Caffeine, Alcohol -- whichever you have turned on). The AI's reply format also gained a 7th required section, \"Recovery & Consistency\", specifically asking it to comment on rest-day adherence and daily check-in patterns -- and flag anything that lines up with a plateau or a trend elsewhere in the report." },
   { version: "1.62", date: "2026-09-18", desc: "Scale Log page reordered: History now shows first, with the \"+ Add a reading\" card right below it (instead of above), then Photo Timeline stays last. Pure layout change -- nothing about how logging or editing a reading works." },
   { version: "1.61", date: "2026-09-18", desc: "Stomach problems is now asked once via the automatic login/first-log popup, same as Good Sleep -- it no longer shows up as a row on the Nutrition Log card. Turn it on in Settings -> Nutrition Log Settings as before; it still builds into the same heatmap, and you can still answer late or change an answer from any heatmap cell." },
   { version: "1.60", date: "2026-09-17", desc: "New \"Delete this phase\" button next to Complete phase, for undoing an accidental or reconsidered phase completion -- shows up whenever there's a previous phase to fall back to. Confirms first, then removes the current phase and reopens the one before it (that becomes Active again). Nothing you've logged is deleted -- those dates just count as part of the reopened phase again -- but the deleted phase's own targets, notes, aesthetic ranges and splits are gone for good." },
@@ -14043,6 +14044,7 @@ function buildCoachExport(userNotes, attachments, skipped){
   lines.push(`4. Data Quality Flags — anything that looks like a likely data-entry mistake or a genuine outlier (an implausible jump in weight, a measurement that doesn't fit the trend, a day's numbers that look mistyped). Say "Nothing stood out" if there's nothing to flag.`);
   lines.push(`5. Answers to My Questions — only if I've added something in the section below; treat it as supplementary to the report above, not the main focus. If I didn't add anything, write "No question this time."`);
   lines.push(`6. Exercise Progression Guidance — only if workout data is included below; otherwise write "No workout data this time." For each main lift listed, give a one-line verdict: increase the weight/reps, hold at the current load for another session or two, or back off (deload) -- and say briefly why, based on the last top set, the suggested next load, and whether it's flagged as plateaued. Group by movement pattern rather than restating every single exercise line by line if several are clearly telling the same story.`);
+  lines.push(`7. Recovery & Consistency — only if rest-day guardrail and/or daily check-in data is included below; otherwise write "No recovery/check-in data this time." Comment on whether rest days are actually being taken relative to the configured guardrail rule(s), and flag any daily check-in pattern worth calling out (e.g. frequent poor sleep, recurring stomach problems, low hydration, high caffeine/alcohol days) -- especially if it lines up with a plateau or another concerning trend noted elsewhere in this report.`);
   lines.push("");
   lines.push(`Formatting rules for the reply itself: put each section title on its own line, written exactly as "1. Overall Assessment" etc. (a number, a period, a space, then just the short title — nothing else on that line); use "* " at the start of a line for bullet points; use **double asterisks** around anything you want bolded. Don't use markdown # headers instead of the numbered titles above, and don't merge two sections onto one line.`);
   lines.push("");
@@ -14073,14 +14075,32 @@ function buildCoachExport(userNotes, attachments, skipped){
   const focus = getCoachFocus();
 
   if(focus.weightNutrition){
-    if(targets) lines.push(`Daily targets: ${targets.calories} kcal, ${targets.proteinG}g protein, ${targets.carbG}g carbs, ${targets.fatG}g fat`);
+    // v1.62: this used to be a couple of loose one-line facts scattered above "Weight & measurements"
+    // (just the calorie/protein target and the phase name). It's now its own section, up front, and
+    // also carries the phase's day-counter and its full aesthetic target ranges (min-max for body fat,
+    // muscle, waist, etc.) -- previously the export never told the coach what those targets actually
+    // were, only whether a logged reading happened to fall inside them.
+    lines.push("## Target ranges & current phase");
     // v1.45: the active phase's own notes (Settings -> Target ranges) ride along with the export so
     // context the user typed there -- e.g. "cutting harder this phase, watch energy" -- reaches the
     // AI review too, not just the raw numbers.
     const activePhaseForExport = (typeof getActivePhase === "function") ? getActivePhase() : null;
     if(activePhaseForExport){
-      lines.push(`Current phase: ${activePhaseForExport.name} (started ${activePhaseForExport.startDate})`);
-      if(activePhaseForExport.notes) lines.push(`Phase notes: ${activePhaseForExport.notes}`);
+      lines.push(`- Phase: ${activePhaseForExport.name} (started ${activePhaseForExport.startDate})`);
+      const durationLabel = (typeof phaseDurationCounterText === "function") ? phaseDurationCounterText(activePhaseForExport) : "";
+      if(durationLabel) lines.push(`- ${durationLabel}`);
+      if(activePhaseForExport.notes) lines.push(`- Phase notes: ${activePhaseForExport.notes}`);
+    }
+    if(targets) lines.push(`- Daily targets: ${targets.calories} kcal, ${targets.proteinG}g protein, ${targets.carbG}g carbs, ${targets.fatG}g fat`);
+    const aestheticTargetsForExport = (typeof getAestheticTargets === "function") ? getAestheticTargets() : null;
+    if(aestheticTargetsForExport){
+      lines.push(`- Aesthetic target ranges:`);
+      MINI_TREND_METRICS.forEach(m=>{
+        const t = aestheticTargetsForExport[m.key];
+        if(!t) return;
+        const unit = m.unit || "";
+        lines.push(`  - ${m.label}: ${t.min}${unit} - ${t.max}${unit}`);
+      });
     }
     lines.push("");
 
@@ -14164,6 +14184,21 @@ function buildCoachExport(userNotes, attachments, skipped){
     }
     lines.push("");
 
+    // v1.62: previously the export never mentioned the rest-day guardrail at all -- the coach had no
+    // way to know whether "no workout logged" on a given day was a planned rest day under a rule the
+    // user set, or a missed session.
+    lines.push("## Rest-day guardrail");
+    const guardrailForExport = (typeof getRestGuardrailSettings === "function") ? getRestGuardrailSettings() : null;
+    if(guardrailForExport){
+      const rules = [];
+      if(guardrailForExport.streakEnabled) rules.push(`recommend a rest day after ${guardrailForExport.streakDays} consecutive training days`);
+      if(guardrailForExport.weeklyCapEnabled) rules.push(`cap training at ${guardrailForExport.weeklyCap} day(s)/week`);
+      lines.push(rules.length ? `- Active rule(s): ${rules.join("; ")}` : "- No rest-day rules currently enabled.");
+    } else {
+      lines.push("- Not configured.");
+    }
+    lines.push("");
+
     // Every currently-defined split and every exercise in it -- not just whatever happened to be
     // trained most recently -- so the coach can give exercise-specific guidance (section 6) for
     // ALL of them, not only the exercises that make a "most recent 12" cut. Listed outside the
@@ -14215,6 +14250,34 @@ function buildCoachExport(userNotes, attachments, skipped){
         lines.push(`### Other logged exercises (not in any current split)`);
         leftovers.forEach(s => lines.push(describeExercise(s.exercise, s.category)));
       }
+    }
+    lines.push("");
+
+    // v1.62: the daily check-in questions (Good Sleep, Stomach problems, Creatine, Water, Caffeine,
+    // Alcohol) were tracked and shown in-app for a while now but never made it into the export at
+    // all -- the coach was reviewing weight/nutrition/workout trends completely blind to sleep or
+    // stomach patterns that might explain them. Bundled here under the same toggle as the rest of
+    // this section rather than a separate one, since it's part of the same day-to-day picture.
+    lines.push("## Daily check-in (last 90 days)");
+    const dailyQuestionsEnabledForExport = (typeof getDailyQuestionsEnabled === "function") ? getDailyQuestionsEnabled() : {};
+    const activeQuestionsForExport = DAILY_CONDITION_QUESTIONS.filter(q => dailyQuestionsEnabledForExport[q.id]);
+    if(!activeQuestionsForExport.length){
+      lines.push("- No daily check-in questions are turned on.");
+    } else {
+      activeQuestionsForExport.forEach(q=>{
+        let answered=0, yes=0, no=0;
+        last90.forEach(d=>{
+          if(isDailyQuestionAnswered(q.id, d)){
+            answered++;
+            if(getDailyAnswer(q.id, d)) yes++; else no++;
+          }
+        });
+        const goodIsYes = q.goodValue !== false;
+        const goodCount = goodIsYes ? yes : no;
+        const badCount = goodIsYes ? no : yes;
+        const rate = answered ? ` (${Math.round(goodCount/answered*100)}% good)` : "";
+        lines.push(`- ${q.settingLabel}: answered on ${answered}/90 days${answered ? ` -- ${goodCount} good, ${badCount} bad${rate}` : ""}`);
+      });
     }
     lines.push("");
   }
@@ -14278,7 +14341,7 @@ function buildCoachExport(userNotes, attachments, skipped){
 // bare "1. Short Title" line, since that's the exact numbered-section style the export's
 // own instructions ask Claude to reply with) into real HTML instead of showing the raw
 // symbols. Escapes everything else first, so this never introduces new HTML from the text.
-// The six section titles we ask the coach export's prompt for (see buildCoachExport). The AI
+// The seven section titles we ask the coach export's prompt for (see buildCoachExport). The AI
 // reading that prompt doesn't always follow the "1. Title" formatting to the letter -- it may
 // drop the leading number, or bold the title instead of using our numbered-line convention --
 // so besides the generic numbered-heading heuristic below, we also recognize these exact titles
@@ -14291,6 +14354,7 @@ const COACH_SECTION_TITLES = [
   "Data Quality Flags",
   "Answers to My Questions",
   "Exercise Progression Guidance",
+  "Recovery & Consistency",
 ];
 const HEADING_STYLE = "margin:22px 0 8px; padding-top:14px; border-top:1px solid var(--border); font-size:1.05rem; color:var(--accent2);";
 const FIRST_HEADING_STYLE = "margin:0 0 8px; padding-top:0; border-top:none; font-size:1.05rem; color:var(--accent2);";
