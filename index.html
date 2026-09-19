@@ -1900,8 +1900,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.74";
+const APP_VERSION = "1.75";
 const CHANGELOG = [
+  { version: "1.75", date: "2026-09-19", desc: "Weekly split tracker: hovering a Cardio chip on any specific day now shows a tooltip with that day's own calories burned (e.g. \"Cardio — 400 kcal burned\"), not just the weekly total in the new Cardio column." },
   { version: "1.74", date: "2026-09-19", desc: "Weekly split tracker: new \"Cardio\" column, right before the weekly-medal column, showing the total calories burned across every cardio session that week -- a quick weekly total without needing to open Workout Stats and pick Cardio there." },
   { version: "1.73", date: "2026-09-19", desc: "Workout Stats improvements: picking a split (e.g. Upper B) in the Workout Log's Split selector now automatically switches the Workout Stats chart below to that same split too, instead of needing to pick it again separately. Also, Cardio is no longer excluded from Workout Stats -- selecting it now shows a calories-burned-per-session chart (using each session's calculated/entered kcal), since the usual kg-volume chart doesn't apply to cardio." },
   { version: "1.72", date: "2026-09-19", desc: "Removed the \"Today\" tab. Scale Log is once again the tab you land on when it's your default, and it's no longer hideable in Settings -> Visible tabs. The \"Noticed in your data\" auto-insights (sleep vs next-day calories, alcohol vs next-day weight) that used to live on Today now show up at the top of Scale Log instead -- nothing about how those patterns are detected changed, just where they're shown." },
@@ -11178,19 +11179,30 @@ function buildWorkoutHeatmap(weeksCount){
       // is a to-do, not a completed set -- weight/reps are literally "tbd" -- so it must never
       // light up the split's badge here until it's actually been edited with real numbers.
       const seenSplitIds = [];
+      // v1.75: per-day, per-split calories burned from cardio -- lets the Cardio chip's hover
+      // title show "how much did THIS day's cardio actually cost me" at a glance, rather than only
+      // the weekly total (weekCardioKcal above). Pending placeholders are excluded, same guard as
+      // everywhere else cardio totals are computed.
+      const dailySplitKcal = {};
       entries.forEach(e=>{
         if(e.splitId && !e.pending){
           if(!seenSplitIds.includes(e.splitId)) seenSplitIds.push(e.splitId);
           weekSplitIds.add(e.splitId);
         }
+        if(e.splitId && !e.pending && workoutEntryIsCardio(e)){
+          dailySplitKcal[e.splitId] = (dailySplitKcal[e.splitId] || 0) + (e.cardioKcal || 0);
+        }
       });
       const badges = seenSplitIds.map(id=>{
         const split = splitsById.get(id);
+        const label = split ? split.name : "Workout"; // split since deleted -- fall back to generic
+        const kcal = dailySplitKcal[id];
+        const title = kcal > 0 ? `${label} — ${Math.round(kcal).toLocaleString()} kcal burned` : label;
         return split
-          ? {id, color: split.color, label: split.name, icon: splitChipIcon(split)}
-          : {id, color: "#7a8296", label: "Workout", icon: ""}; // split since deleted -- fall back to generic
+          ? {id, color: split.color, label, icon: splitChipIcon(split), title}
+          : {id, color: "#7a8296", label, icon: "", title};
       });
-      if(entries.some(e=>!e.splitId)) badges.push({id:null, color: "#7a8296", label: "Workout", icon: ""});
+      if(entries.some(e=>!e.splitId)) badges.push({id:null, color: "#7a8296", label: "Workout", icon: "", title: "Workout"});
       // Cardio always sorts to the end, regardless of which order things were logged in that day --
       // otherwise a Cardio+Upper A day flips between "Cardio, Upper A" and "Upper A, Cardio" purely
       // based on which one you happened to log first, which reads as inconsistent at a glance.
@@ -11258,7 +11270,7 @@ function renderWorkoutHeatmap(){
       // before "what did I actually log that day". Every chip shares the .workout-chip class (fixed
       // size/shape) with only its color varying inline, so Lower A/Upper A/Cardio/etc. always render
       // as identically-sized boxes instead of auto-sizing to each label's own text length.
-      const chips = specialChips + d.badges.map(b=>`<span class="workout-chip" style="background:${b.color}; color:${darkTextForFill(b.color)};" title="${b.label}">${b.icon||""}${b.label}</span>`).join("");
+      const chips = specialChips + d.badges.map(b=>`<span class="workout-chip" style="background:${b.color}; color:${darkTextForFill(b.color)};" title="${b.title || b.label}">${b.icon||""}${b.label}</span>`).join("");
       return `<td style="text-align:center; vertical-align:middle;" title="${formatShortDate(d.date)}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
     }).join("");
     // Weekly medal: lights up the moment every currently-defined split has been logged at least
