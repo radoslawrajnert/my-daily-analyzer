@@ -467,6 +467,14 @@
   .missing-data-banner{display:flex; align-items:center; gap:12px; background:rgba(241,107,131,.16); border:2px solid var(--danger); border-radius:var(--radius); padding:12px 16px; margin-bottom:16px; box-shadow:0 4px 14px rgba(241,107,131,.18);}
   .missing-data-banner svg{width:24px; height:24px; flex:0 0 auto; color:var(--danger);}
   .missing-data-banner-text{font-weight:800; font-size:.92rem; color:var(--danger); line-height:1.4;}
+
+  /* v1.77: tells the local/test copy of this file apart from the deployed production site --
+     both are the exact same HTML living in three different places, so it's easy to lose track of
+     which one is open. Full-width, edge-to-edge (no border-radius, sits above everything including
+     the login screen) so it's the first thing you see, and it only ever renders on the non-production
+     copy -- the live site shows nothing at all here. */
+  .env-test-banner{display:flex; align-items:center; justify-content:center; gap:8px; background:rgba(255,183,77,.16); border-bottom:2px solid var(--warn); padding:8px 16px; font-size:.82rem; font-weight:700; color:var(--warn); text-align:center;}
+  .env-test-banner svg{width:16px; height:16px; flex:0 0 auto;}
   /* Creatine card icon is a full-color PNG (see CREATINE_ICON_B64), so it needs no dark/light
      theme filter -- it reads fine against both panel colors as-is. */
   .creatine-icon{display:block;}
@@ -732,6 +740,10 @@
 </head>
 <body>
 <div class="wrap">
+  <div class="env-test-banner hidden" id="envTestBanner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+    <span>Test version — local file, not your live data</span>
+  </div>
   <header class="top">
     <div class="topbar">
       <div class="brand">
@@ -1901,8 +1913,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.76";
+const APP_VERSION = "1.77";
 const CHANGELOG = [
+  { version: "1.77", date: "2026-09-19", desc: "New banner so you can always tell the local test copy apart from the real live site: a \"Test version — local file, not your live data\" strip now appears at the very top of the page (above the login screen too) whenever the app isn't running on radoslawrajnert.github.io. Production shows nothing here — it stays exactly as clean as before." },
   { version: "1.76", date: "2026-09-19", desc: "Weekly split tracker: clicking any split/Cardio chip now jumps the whole app to that day and scrolls straight to the Day workout log, instead of needing to change the date manually. Also, the weekly medal now grows the longer your streak of fully-logged weeks runs -- it starts at its usual size, steps up at 3 and 5 weeks in a row, caps out at 8+, and once you're 2+ weeks into a streak it carries a small number badge naming exactly how many. A single skipped week resets the streak back to a fresh start." },
   { version: "1.75", date: "2026-09-19", desc: "Weekly split tracker: hovering a Cardio chip on any specific day now shows a tooltip with that day's own calories burned (e.g. \"Cardio — 400 kcal burned\"), not just the weekly total in the new Cardio column." },
   { version: "1.74", date: "2026-09-19", desc: "Weekly split tracker: new \"Cardio\" column, right before the weekly-medal column, showing the total calories burned across every cardio session that week -- a quick weekly total without needing to open Workout Stats and pick Cardio there." },
@@ -1980,6 +1993,22 @@ const CHANGELOG = [
   { version: "1.01", date: "2026-09-13", desc: "Fixed a confusing rest-day message that could say \"You've trained 0 days in a row\" as the reason to rest -- it now explains the actual reason (streak or weekly training cap)." },
   { version: "1.00", date: "2026-09-13", desc: "Added a Version section to Settings, showing the current version number and this change history." }
 ];
+
+// v1.77: this exact HTML file lives in three places at once -- the deployed production site
+// (radoslawrajnert.github.io) and two local copies used for testing -- so it's easy to lose track
+// of which one is actually open. Detected purely by hostname, no build step or server needed: the
+// GitHub Pages domain is production, everything else (file://, localhost, a different host) counts
+// as the local/test copy.
+function isProductionEnv(){
+  return typeof location !== "undefined" && /(^|\.)github\.io$/i.test(location.hostname || "");
+}
+function renderEnvBanner(){
+  const el = document.getElementById("envTestBanner");
+  if(!el) return;
+  el.classList.toggle("hidden", isProductionEnv());
+}
+window.renderEnvBanner = renderEnvBanner;
+
 function renderVersionInfo(){
   const numEl = document.getElementById("appVersionNumber");
   if(numEl) numEl.textContent = "v" + APP_VERSION;
@@ -15253,6 +15282,7 @@ document.getElementById("coachSaveFeedbackBtn").addEventListener("click", ()=>{
 
 /* init */
 (function init(){
+  renderEnvBanner();
   const savedSession = localStorage.getItem(SESSION_KEY);
   const users = getUsers();
   if(savedSession && users[savedSession]){
