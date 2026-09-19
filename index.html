@@ -1881,8 +1881,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.64";
+const APP_VERSION = "1.65";
 const CHANGELOG = [
+  { version: "1.65", date: "2026-09-19", desc: "The Coach export's assessment (Weight & measurements, Nutrition, Workout, Habits, and every \"last 90 days\" figure) now stops at yesterday instead of today -- today's entries are usually still incomplete when you'd generate this (before dinner's logged, before today's workout, etc.), so they no longer skew averages, day-counts, or the \"started X -> now Y\" weight line. A new line under the export header spells out the cutoff date. The raw CSV attachments (scale/nutrition/workout/daily-checkin) are unaffected -- those stay the complete, literal log, today's entries included." },
   { version: "1.64", date: "2026-09-19", desc: "The Coach export's Daily check-in section is now a proper CSV (\"daily-checkin-log.csv\") attached alongside scale/nutrition/workout data, instead of a 90-day Yes/No stats block in the export text -- the text now just names which questions are tracked and points at the attached file. Also: the phase \"started\" date in the new Target ranges section, and every date in the new CSV, are formatted DD.MM.YYYY." },
   { version: "1.63", date: "2026-09-19", desc: "The Coach export is significantly more complete now. Three new sections: \"Target ranges & current phase\" (your calorie/protein targets, phase notes/day-counter, and -- new -- your full aesthetic target ranges for body fat, muscle, waist, etc.), \"Rest-day guardrail\" (which rules are on, e.g. \"rest after 3 consecutive training days\"), and \"Daily check-in\" (90-day Yes/No stats for Good Sleep, Stomach problems, Creatine, Water, Caffeine, Alcohol -- whichever you have turned on). The AI's reply format also gained a 7th required section, \"Recovery & Consistency\", specifically asking it to comment on rest-day adherence and daily check-in patterns -- and flag anything that lines up with a plateau or a trend elsewhere in the report." },
   { version: "1.62", date: "2026-09-18", desc: "Scale Log page reordered: History now shows first, with the \"+ Add a reading\" card right below it (instead of above), then Photo Timeline stays last. Pure layout change -- nothing about how logging or editing a reading works." },
@@ -14057,9 +14058,17 @@ function buildCoachExport(userNotes, attachments, skipped){
   const lines = [];
   const a = answers || {};
   const targets = getPlanTargets();
+  // v1.65: the assessment (Weight & measurements / Nutrition / Workout / Habits summaries, and the
+  // "last 90 days" windows they use) deliberately stops at YESTERDAY, not today -- today is still in
+  // progress when you'd typically generate this (before dinner's logged, before today's workout, etc.),
+  // so including it was skewing averages/day-counts with a partial day. The raw CSV attachments
+  // (scale/nutrition/workout/daily-checkin) are untouched -- those are meant to be the complete,
+  // literal log, not the assessment, so today's entries (if any) still show up there.
+  const assessmentEndDate = shiftDateStr(todayStr(), -1);
 
   lines.push("# Body & Nutrition Coach Export");
   lines.push(`_Generated ${todayStr()}_`);
+  lines.push(`_Assessment covers data through ${formatDateDisplay(assessmentEndDate)} — today is left out since it's still in progress._`);
   lines.push("");
   lines.push("You are acting as my personal trainer and health coach. Review my tracked data below, plus a roughly weekly front/back progress photo (attached separately, in chronological order) so you can see how my body has actually changed over time, not just a single before/after. Be objective and direct — base your read strictly on the data and photos, not on reassurance. Call out anything concerning, inconsistent, or working against my stated goal, not just what's going well; don't soften a genuine problem to be encouraging. This isn't a request for medical advice; if anything looks like it needs a doctor rather than a guess, say so instead of speculating.");
   lines.push("");
@@ -14097,7 +14106,7 @@ function buildCoachExport(userNotes, attachments, skipped){
   lines.push("");
 
   const last90 = [];
-  for(let i=89;i>=0;i--){ last90.push(shiftDateStr(todayStr(), -i)); }
+  for(let i=90;i>=1;i--){ last90.push(shiftDateStr(todayStr(), -i)); }
   const focus = getCoachFocus();
 
   if(focus.weightNutrition){
@@ -14131,7 +14140,10 @@ function buildCoachExport(userNotes, attachments, skipped){
     lines.push("");
 
     lines.push("## Weight & measurements");
-    const logs = sortedLogs();
+    // Capped to the same yesterday-or-earlier assessment window as everything else in this section --
+    // a same-day weigh-in (if any) is excluded here so it can't skew "started X -> now Y" or the
+    // 30-day delta, even though it still appears in full in scale-log-full.csv.
+    const logs = sortedLogs().filter(l => l.date <= assessmentEndDate);
     if(logs.length){
       const first = logs[0], last = logs[logs.length-1];
       lines.push(`- Logged readings: ${logs.length}, from ${first.date} to ${last.date}`);
