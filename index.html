@@ -1422,7 +1422,7 @@
           <button type="button" class="secondary" id="exportWorkoutCsvBtn">Export CSV</button>
         </div>
         <h3 style="margin:22px 0 4px; font-size:.95rem;">Training volume by session</h3>
-        <div class="step-desc" style="margin-top:0;">Total weight moved (sets × reps × kg), stacked by category, for the last 10 times you did the split picked below — a steadily shrinking or missing color usually means that muscle group is being neglected within it. Only your currently-defined splits are selectable; Cardio isn't included (no comparable kg figure).</div>
+        <div class="step-desc" style="margin-top:0;">For a strength split: total weight moved (sets × reps × kg), stacked by category, for the last 10 times you did it — a steadily shrinking or missing color usually means that muscle group is being neglected within it. For Cardio: calories burned per session instead, since there's no comparable kg figure. Picking a split up in the Workout Log above updates this automatically.</div>
         <div class="field" style="max-width:260px;"><label>Split</label>
           <select id="workoutVolumeTrendSplitSelect"></select>
         </div>
@@ -1900,8 +1900,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.72";
+const APP_VERSION = "1.73";
 const CHANGELOG = [
+  { version: "1.73", date: "2026-09-19", desc: "Workout Stats improvements: picking a split (e.g. Upper B) in the Workout Log's Split selector now automatically switches the Workout Stats chart below to that same split too, instead of needing to pick it again separately. Also, Cardio is no longer excluded from Workout Stats -- selecting it now shows a calories-burned-per-session chart (using each session's calculated/entered kcal), since the usual kg-volume chart doesn't apply to cardio." },
   { version: "1.72", date: "2026-09-19", desc: "Removed the \"Today\" tab. Scale Log is once again the tab you land on when it's your default, and it's no longer hideable in Settings -> Visible tabs. The \"Noticed in your data\" auto-insights (sleep vs next-day calories, alcohol vs next-day weight) that used to live on Today now show up at the top of Scale Log instead -- nothing about how those patterns are detected changed, just where they're shown." },
   { version: "1.71", date: "2026-09-19", desc: "The v1.70 cross-device fix for exercise reference photos didn't actually work for most people -- it relied on a Firebase Storage \"CORS\" setting most Cloud Sync setups never had turned on, so photos still silently failed to reach other devices. Replaced it with a simpler approach that needs no extra setup at all: exercise reference photos are now saved smaller (a quick reference photo, not a progress photo) and travel through the exact same sync that already reliably moves the rest of your account -- your notes, workouts, everything. Whichever device saved an exercise most recently now wins for that exercise, so a photo (or note) added on your computer will show up on your phone next time it syncs, and vice versa, with no CORS step required. Still needs Cloud Sync turned on (Settings -> Cloud Sync) on every device -- that part hasn't changed." },
   { version: "1.70", date: "2026-09-19", desc: "Fixed exercise reference photos (the machine-setup photos you attach per exercise) not showing up on a different device -- they previously stayed stuck on whichever device you added them from, since only your notes ever reached the cloud. They now upload to the same cloud photo storage your scale-log progress photos already use, so a photo added on your computer will actually show up on your phone at the gym (and vice versa). Requires Cloud Sync to be turned on (Settings -> Cloud Sync) on every device you use -- if you haven't set that up yet, see the setup guide linked there. Existing photos already on a device are unaffected and will sync up the next time that device is online." },
@@ -9409,6 +9410,14 @@ document.getElementById("workoutSplitSelect").addEventListener("change", (e)=>{
   autoSetCategoryForSplit(e.target.value);
   populateWorkoutQuickPick(e.target.value, document.getElementById("workoutCategory").value);
   applyWorkoutFormMode();
+  // v1.73: picking a split here (the one you're about to log) also switches the Workout Stats
+  // section below to that same split -- one selection instead of two. Only when a real split was
+  // picked (not "— no split / off-schedule —"); the Stats picker's own last selection is left
+  // alone in that case, same as before this change.
+  if(e.target.value){
+    selectedVolumeTrendSplitId = e.target.value;
+    renderWorkoutVolumeTrendChart();
+  }
 });
 
 // Free typing an exercise name (not just picking it from Quick pick) still gets a progressive
@@ -10526,9 +10535,11 @@ function isWorkoutSplitCardioOnly(split){
 }
 
 // Every currently-defined split (the CURRENT roster from getWorkoutSplits(), never a deleted or
-// renamed-away one still sitting on old log entries) that isn't cardio-only.
+// renamed-away one still sitting on old log entries). v1.73: cardio-only splits used to be excluded
+// entirely here since they have no kg-volume figure -- they're back in the picker now, but
+// renderWorkoutVolumeTrendChart() branches to a kcal-burned chart for them instead of the kg one.
 function eligibleVolumeTrendSplits(){
-  return getWorkoutSplits().filter(s => !isWorkoutSplitCardioOnly(s));
+  return getWorkoutSplits();
 }
 
 // The last `sessionsCount` calendar dates on which this exact split id was actually logged with a
@@ -10561,6 +10572,81 @@ function computeSplitSessionVolumeByCategory(splitId, sessionsCount){
   });
 }
 
+// The cardio counterpart to computeSplitSessionVolumeByCategory() -- cardio entries have no
+// kg-volume figure, but they DO have a calculated/entered calorie burn (cardioKcal), which is the
+// natural "how much did this session cost me" figure for cardio the same way kg-volume is for
+// strength. Same "last N calendar dates this split was actually logged" shape as the strength
+// version, just summing kcal/minutes/km instead of per-category kg.
+function computeSplitSessionCardioKcal(splitId, sessionsCount){
+  const log = getWorkoutLog();
+  const byDate = new Map();
+  Object.keys(log).forEach(date=>{
+    (log[date] || []).forEach(e=>{
+      if(!workoutEntryIsCardio(e) || e.pending) return;
+      if(e.splitId !== splitId) return;
+      if(!byDate.has(date)) byDate.set(date, {kcal:0, minutes:0, km:0});
+      const t = byDate.get(date);
+      t.kcal += (e.cardioKcal || 0);
+      t.minutes += (e.durationMin || 0);
+      t.km += (e.distanceKm || 0);
+    });
+  });
+  const dates = Array.from(byDate.keys()).sort((a,b)=> new Date(a) - new Date(b));
+  const lastDates = dates.slice(-sessionsCount);
+  return lastDates.map(date=>({date, ...byDate.get(date)}));
+}
+
+// Single-color kcal-per-session bar chart for a cardio split -- same visual language/geometry as
+// renderWorkoutVolumeTrendChart's kg chart (same width/height/bar math), just one series (kcal)
+// instead of a category-stacked one, since cardio doesn't have muscle-group categories to break
+// out. Each bar's title/label also notes km + minutes for that session where available.
+function renderWorkoutCardioKcalChart(split, sessions){
+  const wrap = document.getElementById("workoutVolumeTrendWrap");
+  const barCount = sessions.length;
+  const w = 640, h = 220, pad = 34, chartRight = w - 10, plotTop = 16, plotBottom = h - pad;
+  const maxKcal = Math.max(1, ...sessions.map(s=>s.kcal));
+  const barGap = 10;
+  const plotWidth = chartRight - pad;
+  const barW = (plotWidth / WORKOUT_VOLUME_SESSIONS_COUNT) - barGap;
+  const plotHeight = plotBottom - plotTop;
+  const startOffset = WORKOUT_VOLUME_SESSIONS_COUNT - barCount;
+  const cardioColor = "#5ec8d8";
+
+  const bars = sessions.map((s, i)=>{
+    const x = pad + (startOffset + i) * (barW + barGap);
+    const segH = plotHeight * (s.kcal / maxKcal);
+    const y = plotBottom - segH;
+    const detailBits = [];
+    if(s.km > 0) detailBits.push(`${s.km.toLocaleString()} km`);
+    if(s.minutes > 0) detailBits.push(`${Math.round(s.minutes)} min`);
+    const titleDetail = detailBits.length ? ` (${detailBits.join(", ")})` : "";
+    const bar = s.kcal > 0
+      ? `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${segH.toFixed(1)}" fill="${cardioColor}" rx="2"><title>${Math.round(s.kcal).toLocaleString()} kcal${titleDetail}</title></rect>`
+      : "";
+    const totalLabel = s.kcal > 0
+      ? `<text x="${(x+barW/2).toFixed(1)}" y="${(y-4).toFixed(1)}" font-size="9" fill="var(--text)" text-anchor="middle">${Math.round(s.kcal).toLocaleString()}</text>`
+      : "";
+    const dateLabel = `<text x="${(x+barW/2).toFixed(1)}" y="${(h-pad+12).toFixed(1)}" font-size="8" fill="var(--muted)" text-anchor="middle" onclick="jumpToDate('${s.date}')" style="cursor:pointer;"><title>Switch the whole app to ${formatShortDate(s.date)}</title>${formatShortDate(s.date)}</text>`;
+    return bar + totalLabel + dateLabel;
+  }).join("");
+
+  const avgKcal = sessions.reduce((sum,s)=>sum+s.kcal, 0) / sessions.length;
+  const totalKm = sessions.reduce((sum,s)=>sum+s.km, 0);
+  const totalMinutes = sessions.reduce((sum,s)=>sum+s.minutes, 0);
+  const extraBits = [];
+  if(totalKm > 0) extraBits.push(`${totalKm.toLocaleString()} km`);
+  if(totalMinutes > 0) extraBits.push(`${Math.round(totalMinutes)} min`);
+  const extraNote = extraBits.length ? ` · ${extraBits.join(" · ")} total over these sessions` : "";
+
+  wrap.innerHTML = `
+    <div class="trend-label">Average ${Math.round(avgKcal).toLocaleString()} kcal burned over the last ${sessions.length} ${split ? split.name : ""} session${sessions.length===1?"":"s"}${extraNote}</div>
+    <div class="trend-legend"><span class="trend-legend-item"><span class="trend-swatch" style="background:${cardioColor};"></span>Calories burned</span></div>
+    <svg viewBox="0 0 ${w} ${h}" style="width:100%; height:${h}px;">
+      ${bars}
+    </svg>
+  `;
+}
+
 function populateWorkoutVolumeTrendSplitSelect(){
   const sel = document.getElementById("workoutVolumeTrendSplitSelect");
   if(!sel) return;
@@ -10589,11 +10675,24 @@ function renderWorkoutVolumeTrendChart(){
   if(!wrap) return;
   populateWorkoutVolumeTrendSplitSelect();
   if(!selectedVolumeTrendSplitId){
-    wrap.innerHTML = `<div class="empty-note">Define a strength split (Lower A, Upper A, etc.) to see its volume trend here.</div>`;
+    wrap.innerHTML = `<div class="empty-note">Define a split (Lower A, Upper A, Cardio, etc.) to see its trend here.</div>`;
     return;
   }
   const splits = getWorkoutSplits();
   const split = splits.find(s=>s.id === selectedVolumeTrendSplitId);
+
+  // v1.73: a cardio-only split has no comparable kg-volume figure, so it gets its own kcal-burned
+  // chart (computeSplitSessionCardioKcal/renderWorkoutCardioKcalChart) instead of the kg one below.
+  if(split && isWorkoutSplitCardioOnly(split)){
+    const cardioSessions = computeSplitSessionCardioKcal(selectedVolumeTrendSplitId, WORKOUT_VOLUME_SESSIONS_COUNT);
+    if(!cardioSessions.length){
+      wrap.innerHTML = `<div class="empty-note">No cardio sessions logged for ${split.name} yet.</div>`;
+      return;
+    }
+    renderWorkoutCardioKcalChart(split, cardioSessions);
+    return;
+  }
+
   const sessions = computeSplitSessionVolumeByCategory(selectedVolumeTrendSplitId, WORKOUT_VOLUME_SESSIONS_COUNT);
   if(!sessions.length){
     wrap.innerHTML = `<div class="empty-note">No strength sessions logged for ${split ? split.name : "this split"} yet.</div>`;
