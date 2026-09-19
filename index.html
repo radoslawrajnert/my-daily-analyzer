@@ -442,6 +442,15 @@
   .today-dash-sub.warn{color:var(--warn);}
   .today-dash-quicknav{display:flex; gap:10px; flex-wrap:wrap;}
 
+  /* --- Auto-surfaced insights (v1.68) -- small callouts under the Today grid, only rendered when
+     computeAutoInsights() actually finds a pattern worth mentioning. --- */
+  .today-dash-insights{background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px 16px; margin-bottom:18px;}
+  .today-dash-insights-title{font-size:.76rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:10px;}
+  .today-dash-insight-row{display:flex; align-items:flex-start; gap:10px; font-size:.86rem; line-height:1.5;}
+  .today-dash-insight-row + .today-dash-insight-row{margin-top:8px;}
+  .today-dash-insight-icon{flex:0 0 auto; font-size:1.05rem; line-height:1.5;}
+  .today-dash-insight-basis{color:var(--muted); font-size:.78rem;}
+
   .plateau-note{display:flex; gap:12px; align-items:flex-start; background:rgba(124,156,255,.08); border:1px solid rgba(124,156,255,.25); border-radius:var(--radius); padding:14px 16px; margin-top:14px;}
   .plateau-note svg{width:20px; height:20px; flex:0 0 auto; color:var(--accent2); margin-top:2px;}
   .plateau-note-title{font-weight:700; font-size:.88rem; margin-bottom:3px; color:var(--text);}
@@ -1909,8 +1918,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.67";
+const APP_VERSION = "1.68";
 const CHANGELOG = [
+  { version: "1.68", date: "2026-09-19", desc: "The Today dashboard now surfaces simple patterns it notices in your own logged data -- automatically, without asking the Coach or exporting anything. Right now it checks two things: whether your next-day calorie intake tends to run higher after a night you marked as poor sleep, and whether your weight tends to tick up more the day after logging alcohol. Each only appears once you've got at least 4 days on both sides of the comparison and the difference is large enough to plausibly mean something -- otherwise it stays quiet rather than guessing from noise. Needs the relevant daily check-in question (Good Sleep / Alcohol Intake) turned on in Settings." },
   { version: "1.67", date: "2026-09-19", desc: "New \"Today\" dashboard -- the app now opens on a single glanceable screen instead of dropping straight into a log tab: today's kcal/protein vs your targets, your latest weight vs goal, whether training or rest is logged for today, and your current logging streaks, plus quick buttons straight into Scale Log/Nutrition Log/Workout Log. Today is now the tab you land on after logging in (Scale Log is a regular tab now, reachable the same way as Nutrition/Workout -- and, like those, it can be hidden in Settings -> Visible tabs if you don't use it). Also fixed a long-standing bug where the \"Open this tab when I log in\" Settings option had no effect at all." },
   { version: "1.66", date: "2026-09-19", desc: "New \"Ask AI Coach now\" button on the Coach tab -- reviews your data right there using the same free API key already set up for AI Log (Settings -> AI Assistant), and saves the reply straight into Past feedback. No more copying the export out, pasting into ChatGPT/Claude, then pasting the reply back -- one click. This fast path includes your full CSV logs but not progress photos; \"Generate full export + photos\" (previously the only option) is still there for a photo-inclusive review you paste into any AI chat yourself." },
   { version: "1.65", date: "2026-09-19", desc: "The Coach export's assessment (Weight & measurements, Nutrition, Workout, Habits, and every \"last 90 days\" figure) now stops at yesterday instead of today -- today's entries are usually still incomplete when you'd generate this (before dinner's logged, before today's workout, etc.), so they no longer skew averages, day-counts, or the \"started X -> now Y\" weight line. A new line under the export header spells out the cutoff date. The raw CSV attachments (scale/nutrition/workout/daily-checkin) are unaffected -- those stay the complete, literal log, today's entries included." },
@@ -3615,6 +3625,75 @@ function switchPlanTab(tab){
 }
 window.switchPlanTab = switchPlanTab;
 
+// --- Auto-surfaced insights (v1.68) -- looks for simple before/after patterns in data the user has
+// ALREADY logged (a daily check-in answer vs the next day's nutrition/weight) and surfaces anything
+// that looks like a real pattern on the Today dashboard, without the user having to ask the Coach or
+// dig through CSVs themselves. Deliberately conservative: only speaks up once there's a reasonable
+// number of days on both sides of the comparison (>=4 each) AND the average difference clears a
+// minimum threshold, so it doesn't chatter about noise from a couple of one-off days. Each check
+// only runs if the relevant daily check-in question is actually turned on.
+function computeAutoInsights(){
+  const insights = [];
+  const avg = arr => arr.reduce((a,b)=>a+b,0) / arr.length;
+  let enabled;
+  try { enabled = getDailyQuestionsEnabled(); } catch(e){ return insights; }
+
+  // 1) Sleep quality vs next-day calorie intake.
+  if(enabled.sleep){
+    const sleepLog = getDailyQuestionLogRaw("sleep");
+    const goodKcals = [], badKcals = [];
+    Object.keys(sleepLog).forEach(date => {
+      const entries = getEntriesForDate(shiftDateStr(date, 1));
+      if(!entries.length) return;
+      const kcal = entries.reduce((s,e)=>s+(e.kcal||0), 0);
+      (sleepLog[date] ? goodKcals : badKcals).push(kcal);
+    });
+    if(goodKcals.length >= 4 && badKcals.length >= 4){
+      const goodAvg = avg(goodKcals), badAvg = avg(badKcals);
+      const diff = badAvg - goodAvg;
+      if(Math.abs(diff) >= 150){
+        insights.push({
+          icon: "🛌",
+          text: diff > 0
+            ? `On days after poor sleep, you've eaten about ${Math.round(diff)} kcal more on average (${Math.round(badAvg)} vs ${Math.round(goodAvg)} kcal after good sleep).`
+            : `On days after poor sleep, you've actually eaten about ${Math.round(-diff)} kcal less on average than after good sleep.`,
+          basis: `${badKcals.length + goodKcals.length} days with a sleep answer and next-day food logged`
+        });
+      }
+    }
+  }
+
+  // 2) Alcohol vs next-day weight change (the closest reliable proxy to "waist plateaus" this app
+  // can compute -- waist is only measured occasionally, weight is logged far more consistently).
+  if(enabled.alcohol){
+    const alcoholLog = getDailyQuestionLogRaw("alcohol");
+    const weightByDate = {};
+    sortedLogs().forEach(l => { weightByDate[l.date] = l.weightKg; });
+    const withDeltas = [], withoutDeltas = [];
+    Object.keys(alcoholLog).forEach(date => {
+      const w0 = weightByDate[date];
+      const w1 = weightByDate[shiftDateStr(date, 1)];
+      if(w0 == null || w1 == null) return;
+      (alcoholLog[date] ? withDeltas : withoutDeltas).push(w1 - w0);
+    });
+    if(withDeltas.length >= 4 && withoutDeltas.length >= 4){
+      const withAvg = avg(withDeltas), withoutAvg = avg(withoutDeltas);
+      const diff = withAvg - withoutAvg;
+      if(Math.abs(diff) >= 0.15){
+        insights.push({
+          icon: "🍷",
+          text: diff > 0
+            ? `Your weight tends to tick up more the day after logging alcohol -- averaging ${diff >= 0 ? "+" : ""}${diff.toFixed(2)} kg more than after alcohol-free days.`
+            : `Your weight hasn't shown a bump after alcohol -- averaging ${Math.abs(diff).toFixed(2)} kg less than alcohol-free days.`,
+          basis: `${withDeltas.length + withoutDeltas.length} day-pairs with weight logged both days`
+        });
+      }
+    }
+  }
+
+  return insights;
+}
+
 // --- Today dashboard (v1.67) -- a single glanceable landing screen instead of dropping straight
 // into a specific log tab: today's kcal/protein vs target, latest weight vs goal, whether
 // training/rest is logged for today, and current streaks. Deliberately reuses the exact same data
@@ -3718,6 +3797,21 @@ function renderTodayView(){
     <div class="today-dash-sub">${streakParts.length > 1 ? streakParts.slice(1).join(", ") : (streakParts.length ? "" : "Log a few days in a row to start one.")}</div>
   `;
 
+  // Auto-surfaced insights (v1.68) -- only rendered when there's actually something worth saying.
+  let insights = [];
+  try { insights = computeAutoInsights(); } catch(e){ insights = []; }
+  const insightsHtml = insights.length ? `
+    <div class="today-dash-insights">
+      <div class="today-dash-insights-title">Noticed in your data</div>
+      ${insights.map(ins => `
+        <div class="today-dash-insight-row">
+          <span class="today-dash-insight-icon">${ins.icon}</span>
+          <span class="today-dash-insight-text">${ins.text}<span class="today-dash-insight-basis"> (${ins.basis})</span></span>
+        </div>
+      `).join("")}
+    </div>
+  ` : "";
+
   wrap.innerHTML = `
     <div class="today-dash-greeting">Today</div>
     <div class="today-dash-subgreeting">${formatDateDisplay(today)}</div>
@@ -3727,6 +3821,7 @@ function renderTodayView(){
       <div class="today-dash-card ${workoutTone}">${workoutHtml}</div>
       <div class="today-dash-card">${streaksHtml}</div>
     </div>
+    ${insightsHtml}
     <div class="today-dash-quicknav">
       <button type="button" class="secondary" onclick="switchView('log')">Log weight →</button>
       <button type="button" class="secondary" onclick="switchView('food')">Log food →</button>
