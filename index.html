@@ -426,6 +426,22 @@
   .mini-trend-target-label.ok{color:var(--accent);}
   .mini-trend-target-label.warn{color:var(--warn);}
 
+  /* --- Today dashboard (v1.67) -- same visual language as the mini-trend cards above, its own
+     class names since this grid's cards carry a status color (ok/warn/neutral) the mini-trend
+     cards don't. --- */
+  .today-dash-greeting{font-size:1.3rem; font-weight:800; margin-bottom:2px;}
+  .today-dash-subgreeting{color:var(--muted); font-size:.88rem; margin-bottom:18px;}
+  .today-dash-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:14px; margin-bottom:18px;}
+  .today-dash-card{background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:16px 18px;}
+  .today-dash-card.ok{border-color:rgba(78,225,163,.35);}
+  .today-dash-card.warn{border-color:rgba(240,184,84,.4);}
+  .today-dash-label{font-size:.76rem; font-weight:700; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:8px;}
+  .today-dash-value{font-size:1.35rem; font-weight:800; margin-bottom:4px;}
+  .today-dash-sub{font-size:.82rem; color:var(--muted); line-height:1.5;}
+  .today-dash-sub.ok{color:var(--accent);}
+  .today-dash-sub.warn{color:var(--warn);}
+  .today-dash-quicknav{display:flex; gap:10px; flex-wrap:wrap;}
+
   .plateau-note{display:flex; gap:12px; align-items:flex-start; background:rgba(124,156,255,.08); border:1px solid rgba(124,156,255,.25); border-radius:var(--radius); padding:14px 16px; margin-top:14px;}
   .plateau-note svg{width:20px; height:20px; flex:0 0 auto; color:var(--accent2); margin-top:2px;}
   .plateau-note-title{font-weight:700; font-size:.88rem; margin-bottom:3px; color:var(--text);}
@@ -763,7 +779,8 @@
 
   <div id="appWrap" class="hidden">
     <div class="view-tabs">
-      <button type="button" id="viewTabLog" class="active"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="12" cy="13" r="4"/><path d="M12 13l2.3-2.3"/><path d="M9.5 3v2.5"/></svg>Scale Log</button>
+      <button type="button" id="viewTabToday" class="active"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="3" x2="8" y2="9"/><line x1="16" y1="3" x2="16" y2="9"/></svg>Today</button>
+      <button type="button" id="viewTabLog"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="12" cy="13" r="4"/><path d="M12 13l2.3-2.3"/><path d="M9.5 3v2.5"/></svg>Scale Log</button>
       <button type="button" id="viewTabFood"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v8a2 2 0 0 0 2 2v10"/><path d="M4 2v8"/><path d="M7 2v8"/><path d="M20 2c-2 0-3.5 2.3-3.5 6s1.5 6 3.5 6"/><path d="M20 2v20"/></svg>Nutrition Log</button>
       <button type="button" id="viewTabWorkout"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11"/><path d="M17.5 6.5v11"/><path d="M2 9.5v5"/><path d="M22 9.5v5"/><path d="M6.5 12h11"/></svg>Workout Log</button>
       <button type="button" id="viewTabHabits"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.5 2.5L16 9.3"/></svg>Good Habits Log</button>
@@ -788,10 +805,11 @@
       <div id="planGroupGeneral">
         <div class="card" id="tabVisibilityCard">
           <h2>Visible tabs</h2>
-          <div class="step-desc" style="margin-top:0;">Hide any tabs you don't use so the nav bar only shows what matters to you. Scale Log always stays visible since it's the home view.</div>
+          <div class="step-desc" style="margin-top:0;">Hide any tabs you don't use so the nav bar only shows what matters to you. Today always stays visible since it's the home view.</div>
           <div class="field">
             <label>Open this tab when I log in (or reopen the app while already logged in)</label>
             <select id="defaultLandingViewSelect">
+              <option value="today">Today</option>
               <option value="plan">My Plan</option>
               <option value="log">Scale Log</option>
               <option value="food">Nutrition Log</option>
@@ -803,6 +821,7 @@
             </select>
           </div>
           <div class="field" style="display:flex; flex-direction:column; gap:10px;">
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabLog" style="width:auto;" checked> Scale Log</label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabFood" style="width:auto;" checked> Nutrition Log</label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabWorkout" style="width:auto;" checked> Workout Log</label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabHabits" style="width:auto;" checked> Good Habits Log</label>
@@ -1125,6 +1144,12 @@
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="coachFocusCommitments" style="width:auto;" checked> Commitments</label>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div id="todayView" class="hidden">
+      <div class="card">
+        <div id="todayDashWrap"></div>
       </div>
     </div>
 
@@ -1884,8 +1909,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.66";
+const APP_VERSION = "1.67";
 const CHANGELOG = [
+  { version: "1.67", date: "2026-09-19", desc: "New \"Today\" dashboard -- the app now opens on a single glanceable screen instead of dropping straight into a log tab: today's kcal/protein vs your targets, your latest weight vs goal, whether training or rest is logged for today, and your current logging streaks, plus quick buttons straight into Scale Log/Nutrition Log/Workout Log. Today is now the tab you land on after logging in (Scale Log is a regular tab now, reachable the same way as Nutrition/Workout -- and, like those, it can be hidden in Settings -> Visible tabs if you don't use it). Also fixed a long-standing bug where the \"Open this tab when I log in\" Settings option had no effect at all." },
   { version: "1.66", date: "2026-09-19", desc: "New \"Ask AI Coach now\" button on the Coach tab -- reviews your data right there using the same free API key already set up for AI Log (Settings -> AI Assistant), and saves the reply straight into Past feedback. No more copying the export out, pasting into ChatGPT/Claude, then pasting the reply back -- one click. This fast path includes your full CSV logs but not progress photos; \"Generate full export + photos\" (previously the only option) is still there for a photo-inclusive review you paste into any AI chat yourself." },
   { version: "1.65", date: "2026-09-19", desc: "The Coach export's assessment (Weight & measurements, Nutrition, Workout, Habits, and every \"last 90 days\" figure) now stops at yesterday instead of today -- today's entries are usually still incomplete when you'd generate this (before dinner's logged, before today's workout, etc.), so they no longer skew averages, day-counts, or the \"started X -> now Y\" weight line. A new line under the export header spells out the cutoff date. The raw CSV attachments (scale/nutrition/workout/daily-checkin) are unaffected -- those stay the complete, literal log, today's entries included." },
   { version: "1.64", date: "2026-09-19", desc: "The Coach export's Daily check-in section is now a proper CSV (\"daily-checkin-log.csv\") attached alongside scale/nutrition/workout data, instead of a 90-day Yes/No stats block in the export text -- the text now just names which questions are tracked and points at the attached file. Also: the phase \"started\" date in the new Target ranges section, and every date in the new CSV, are formatted DD.MM.YYYY." },
@@ -2951,9 +2977,11 @@ function showWelcomeBackPopup(name){
 }
 function closeWelcomeBackPopup(){
   document.getElementById("welcomeBackOverlay").classList.add("hidden");
-  // Dismissing the welcome-back greeting takes you straight into Nutrition Log, rather than
-  // leaving you on My Plan -- that's the tab actually worth opening the app for most days.
-  switchView("food");
+  // v1.67: dismissing the welcome-back greeting now takes you to whichever view resolveLandingView()
+  // resolves to (Today by default) -- rather than leaving you on My Plan, or the previously
+  // hardcoded "food" this actually never respected the Visible-tabs/default-landing-view settings
+  // above (those existed in Settings but nothing ever called resolveLandingView() to use them).
+  switchView(resolveLandingView());
 }
 document.getElementById("welcomeBackCloseBtn").addEventListener("click", closeWelcomeBackPopup);
 document.getElementById("welcomeBackCloseX").addEventListener("click", closeWelcomeBackPopup);
@@ -3507,6 +3535,7 @@ document.getElementById("helpOverlay").addEventListener("click", (e)=>{
 --------------------------------------------------------- */
 function switchView(view){
   renderMissingDataWarningBanner();
+  document.getElementById("viewTabToday").classList.toggle("active", view==="today");
   document.getElementById("viewTabLog").classList.toggle("active", view==="log");
   document.getElementById("viewTabFood").classList.toggle("active", view==="food");
   document.getElementById("viewTabWorkout").classList.toggle("active", view==="workout");
@@ -3515,6 +3544,7 @@ function switchView(view){
   document.getElementById("viewTabAiLog").classList.toggle("active", view==="ailog");
   document.getElementById("viewTabCoach").classList.toggle("active", view==="coach");
   document.getElementById("planView").classList.toggle("hidden", view!=="plan");
+  document.getElementById("todayView").classList.toggle("hidden", view!=="today");
   document.getElementById("logView").classList.toggle("hidden", view!=="log");
   document.getElementById("foodView").classList.toggle("hidden", view!=="food");
   document.getElementById("workoutView").classList.toggle("hidden", view!=="workout");
@@ -3522,6 +3552,7 @@ function switchView(view){
   document.getElementById("commitmentsView").classList.toggle("hidden", view!=="commitments");
   document.getElementById("aiLogView").classList.toggle("hidden", view!=="ailog");
   document.getElementById("coachView").classList.toggle("hidden", view!=="coach");
+  if(view==="today") renderTodayView();
   if(view==="log") renderLogView();
   if(view==="food"){ renderFoodView(); }
   if(view==="workout") renderWorkoutsView();
@@ -3538,7 +3569,7 @@ function switchView(view){
     document.getElementById("aiApiKeyInput").value = getAiApiKey();
     renderVersionInfo();
     refreshCloudSyncSettingsUI();
-    syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI(); syncDailyQuestionsSettingsUI(); renderTargetRangesTab();
+    syncCoachFocusUI(); syncVisibleTabsUI(); syncDefaultLandingViewUI(); syncRestGuardrailUI(); syncDailyQuestionsSettingsUI(); renderTargetRangesTab();
     // "My splits" and "My exercises" (moved here from the Workout Log tab, reachable now only by
     // clicking your name) need their own refresh on open -- renderWorkoutsView() also keeps them
     // current whenever the Workout Log tab itself is visited, but My Plan can be opened without
@@ -3583,6 +3614,128 @@ function switchPlanTab(tab){
   });
 }
 window.switchPlanTab = switchPlanTab;
+
+// --- Today dashboard (v1.67) -- a single glanceable landing screen instead of dropping straight
+// into a specific log tab: today's kcal/protein vs target, latest weight vs goal, whether
+// training/rest is logged for today, and current streaks. Deliberately reuses the exact same data
+// functions the individual tabs already use (getPlanTargets/getEntriesForDate for nutrition,
+// sortedLogs for weight, isRestDay/shouldRestFromStrength/getWorkoutSessions for training,
+// computeLoggingStreak/computeFoodLoggingStreak for streaks) rather than recomputing any of it a
+// second way, so this can never quietly drift out of sync with what those tabs show.
+function renderTodayView(){
+  renderMissingDataWarningBanner();
+  const wrap = document.getElementById("todayDashWrap");
+  if(!wrap) return;
+  const today = todayStr();
+  const a = answers || {};
+  const targets = getPlanTargets();
+
+  // Nutrition card
+  const todayEntries = getEntriesForDate(today);
+  const eatenKcal = todayEntries.reduce((s,e)=>s+(e.kcal||0), 0);
+  const eatenProtein = todayEntries.reduce((s,e)=>s+(e.proteinG||0), 0);
+  let nutritionTone = "", nutritionHtml;
+  if(!targets){
+    nutritionHtml = `
+      <div class="today-dash-label">Nutrition today</div>
+      <div class="today-dash-value">--</div>
+      <div class="today-dash-sub">Finish Body Profile + Initial Statistics (My Plan) to see targets here.</div>
+    `;
+  } else {
+    const kcalOver = eatenKcal > targets.calories;
+    const proteinShort = eatenProtein < targets.proteinG;
+    nutritionTone = !todayEntries.length ? "" : (kcalOver || proteinShort ? "warn" : "ok");
+    nutritionHtml = `
+      <div class="today-dash-label">Nutrition today</div>
+      <div class="today-dash-value">${Math.round(eatenKcal)} / ${targets.calories} kcal</div>
+      <div class="today-dash-sub ${nutritionTone}">${Math.round(eatenProtein)}g / ${targets.proteinG}g protein${todayEntries.length ? "" : " — nothing logged yet"}</div>
+    `;
+  }
+
+  // Latest weight card
+  const logs = sortedLogs();
+  const latest = logs.length ? logs[logs.length-1] : null;
+  let weightTone = "", weightHtml;
+  if(!latest){
+    weightHtml = `
+      <div class="today-dash-label">Latest weight</div>
+      <div class="today-dash-value">--</div>
+      <div class="today-dash-sub">No scale readings logged yet.</div>
+    `;
+  } else {
+    const daysAgo = Math.round((new Date(today+"T00:00:00") - new Date(latest.date+"T00:00:00")) / 86400000);
+    const whenLabel = daysAgo <= 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
+    let deltaLine = "";
+    if(a.targetWeightKg != null){
+      const delta = latest.weightKg - a.targetWeightKg;
+      deltaLine = ` — ${Math.abs(delta).toFixed(1)} kg ${delta > 0 ? "above" : delta < 0 ? "below" : "at"} target`;
+    }
+    weightTone = daysAgo >= 5 ? "warn" : "";
+    weightHtml = `
+      <div class="today-dash-label">Latest weight</div>
+      <div class="today-dash-value">${latest.weightKg} kg</div>
+      <div class="today-dash-sub ${weightTone}">Logged ${whenLabel}${deltaLine}</div>
+    `;
+  }
+
+  // Training / rest-day status card
+  const booked = getWorkoutSessions()[today];
+  const manualRest = (typeof isRestDay === "function") && isRestDay(today);
+  const trainedToday = (typeof isStrengthTrainedDate === "function") && isStrengthTrainedDate(today);
+  const guardrailRest = !trainedToday && typeof shouldRestFromStrength === "function" && shouldRestFromStrength(today);
+  let workoutTone = "", workoutHtml;
+  if(booked){
+    workoutTone = "ok";
+    workoutHtml = `
+      <div class="today-dash-label">Training</div>
+      <div class="today-dash-value">Logged</div>
+      <div class="today-dash-sub ok">${formatClockTime(booked.startTime)}–${formatClockTime(booked.endTime)} (${booked.durationMin} min)</div>
+    `;
+  } else if(manualRest || guardrailRest){
+    workoutHtml = `
+      <div class="today-dash-label">Training</div>
+      <div class="today-dash-value">${ICON_BATTERY}Rest day</div>
+      <div class="today-dash-sub">${manualRest ? "Marked as a rest day." : restGuardrailReasonText(today)}</div>
+    `;
+  } else {
+    workoutTone = "warn";
+    workoutHtml = `
+      <div class="today-dash-label">Training</div>
+      <div class="today-dash-value">Not logged</div>
+      <div class="today-dash-sub warn">Nothing booked for today yet.</div>
+    `;
+  }
+
+  // Streaks card
+  const scaleStreak = computeLoggingStreak(logs);
+  const foodStreak = computeFoodLoggingStreak();
+  const streakParts = [];
+  if(scaleStreak.streak >= 2) streakParts.push(`${scaleStreak.streak}-day weigh-in streak`);
+  if(foodStreak.streak >= 2) streakParts.push(`${foodStreak.streak}-day food-logging streak`);
+  const streaksHtml = `
+    <div class="today-dash-label">Streaks</div>
+    <div class="today-dash-value">${streakParts.length ? streakParts[0] : "--"}</div>
+    <div class="today-dash-sub">${streakParts.length > 1 ? streakParts.slice(1).join(", ") : (streakParts.length ? "" : "Log a few days in a row to start one.")}</div>
+  `;
+
+  wrap.innerHTML = `
+    <div class="today-dash-greeting">Today</div>
+    <div class="today-dash-subgreeting">${formatDateDisplay(today)}</div>
+    <div class="today-dash-grid">
+      <div class="today-dash-card ${nutritionTone}">${nutritionHtml}</div>
+      <div class="today-dash-card ${weightTone}">${weightHtml}</div>
+      <div class="today-dash-card ${workoutTone}">${workoutHtml}</div>
+      <div class="today-dash-card">${streaksHtml}</div>
+    </div>
+    <div class="today-dash-quicknav">
+      <button type="button" class="secondary" onclick="switchView('log')">Log weight →</button>
+      <button type="button" class="secondary" onclick="switchView('food')">Log food →</button>
+      <button type="button" class="secondary" onclick="switchView('workout')">Log workout →</button>
+    </div>
+  `;
+}
+
+document.getElementById("viewTabToday").addEventListener("click", ()=>switchView("today"));
 document.getElementById("viewTabLog").addEventListener("click", ()=>switchView("log"));
 document.getElementById("viewTabFood").addEventListener("click", ()=>switchView("food"));
 document.getElementById("viewTabWorkout").addEventListener("click", ()=>switchView("workout"));
@@ -13466,11 +13619,12 @@ function genCoachId(){
 // keys default to true so existing users who never touch this see no change in behavior.
 // Lets a person hide tabs they don't personally use (e.g. AI Log) from the nav bar, without
 // touching or losing any data in that tab -- it's purely a display preference, toggled from "My
-// Plan" (opened by clicking their name). Scale Log is intentionally not included here: it's the
-// home view you land on after logging in, so it's always shown.
-const HIDEABLE_TABS = ["food", "workout", "habits", "commitments", "ailog", "coach"];
-const TAB_BUTTON_ID = {food: "viewTabFood", workout: "viewTabWorkout", habits: "viewTabHabits", commitments: "viewTabCommitments", ailog: "viewTabAiLog", coach: "viewTabCoach"};
-const TAB_CHECKBOX_ID = {food: "visTabFood", workout: "visTabWorkout", habits: "visTabHabits", commitments: "visTabCommitments", ailog: "visTabAiLog", coach: "visTabCoach"};
+// Plan" (opened by clicking their name). v1.67: Scale Log moved INTO this hideable list -- Today
+// is the one tab that's always shown now (the home view you land on after logging in), so Scale
+// Log is just a regular tab like Nutrition/Workout Log.
+const HIDEABLE_TABS = ["log", "food", "workout", "habits", "commitments", "ailog", "coach"];
+const TAB_BUTTON_ID = {log: "viewTabLog", food: "viewTabFood", workout: "viewTabWorkout", habits: "viewTabHabits", commitments: "viewTabCommitments", ailog: "viewTabAiLog", coach: "viewTabCoach"};
+const TAB_CHECKBOX_ID = {log: "visTabLog", food: "visTabFood", workout: "visTabWorkout", habits: "visTabHabits", commitments: "visTabCommitments", ailog: "visTabAiLog", coach: "visTabCoach"};
 
 function getVisibleTabs(){
   const users = getUsers();
@@ -13487,8 +13641,8 @@ function saveVisibleTabs(tabs){
   saveUsers(users);
 }
 // Applies the saved preference to the actual nav buttons. Called on login and whenever a
-// checkbox changes -- if the tab you're currently looking at gets hidden, drops back to Scale
-// Log (the one tab that's never hideable) rather than leaving you stranded on a hidden view.
+// checkbox changes -- if the tab you're currently looking at gets hidden, drops back to Today
+// (the one tab that's never hideable) rather than leaving you stranded on a hidden view.
 function applyVisibleTabsToNav(){
   const v = getVisibleTabs();
   let currentTabHidden = false;
@@ -13498,7 +13652,7 @@ function applyVisibleTabsToNav(){
     btn.classList.toggle("hidden", !v[key]);
     if(!v[key] && btn.classList.contains("active")) currentTabHidden = true;
   });
-  if(currentTabHidden) switchView("log");
+  if(currentTabHidden) switchView("today");
 }
 function syncVisibleTabsUI(){
   const v = getVisibleTabs();
@@ -13987,13 +14141,14 @@ document.getElementById("completePhaseForm").addEventListener("submit", (e)=>{
 });
 
 // Which view to land on right after logging in -- or when reopening the app while a session is
-// already saved (see the init() IIFE at the bottom, which also calls enterApp()). Defaults to
-// "plan" (My Plan / the intake form), matching the app's original behavior for anyone who's
-// never touched this setting.
+// already saved (see the init() IIFE at the bottom, which also calls enterApp()). v1.67: defaults
+// to "today" (the new dashboard) instead of "plan" -- matches Today's status as the one tab that's
+// always visible, same reasoning HIDEABLE_TABS uses. Anyone who already set an explicit preference
+// keeps it unchanged; this only changes the fallback for accounts that never touched this setting.
 function getDefaultLandingView(){
   const users = getUsers();
   const u = users[currentUserEmail];
-  return (u && u.defaultLandingView) || "plan";
+  return (u && u.defaultLandingView) || "today";
 }
 function saveDefaultLandingView(view){
   const users = getUsers();
@@ -14001,14 +14156,15 @@ function saveDefaultLandingView(view){
   users[currentUserEmail].defaultLandingView = view;
   saveUsers(users);
 }
-// "plan" and "log" (Scale Log) are always available; anything else could have been hidden via
-// the Visible tabs checkboxes above, in which case landing there would show content with no way
-// to navigate back to it from the nav bar -- fall back to "plan" rather than risk that.
+// "plan" and "today" are always available; anything else (including "log"/Scale Log, now that
+// it's hideable too -- see HIDEABLE_TABS) could have been hidden via the Visible tabs checkboxes
+// above, in which case landing there would show content with no way to navigate back to it from
+// the nav bar -- fall back to "today" rather than risk that.
 function resolveLandingView(){
   const view = getDefaultLandingView();
-  if(view === "plan" || view === "log") return view;
+  if(view === "plan" || view === "today") return view;
   const visible = getVisibleTabs();
-  if(HIDEABLE_TABS.includes(view) && visible[view] === false) return "plan";
+  if(HIDEABLE_TABS.includes(view) && visible[view] === false) return "today";
   return view;
 }
 function syncDefaultLandingViewUI(){
