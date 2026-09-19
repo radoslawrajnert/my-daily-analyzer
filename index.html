@@ -1881,8 +1881,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.63";
+const APP_VERSION = "1.64";
 const CHANGELOG = [
+  { version: "1.64", date: "2026-09-19", desc: "The Coach export's Daily check-in section is now a proper CSV (\"daily-checkin-log.csv\") attached alongside scale/nutrition/workout data, instead of a 90-day Yes/No stats block in the export text -- the text now just names which questions are tracked and points at the attached file. Also: the phase \"started\" date in the new Target ranges section, and every date in the new CSV, are formatted DD.MM.YYYY." },
   { version: "1.63", date: "2026-09-19", desc: "The Coach export is significantly more complete now. Three new sections: \"Target ranges & current phase\" (your calorie/protein targets, phase notes/day-counter, and -- new -- your full aesthetic target ranges for body fat, muscle, waist, etc.), \"Rest-day guardrail\" (which rules are on, e.g. \"rest after 3 consecutive training days\"), and \"Daily check-in\" (90-day Yes/No stats for Good Sleep, Stomach problems, Creatine, Water, Caffeine, Alcohol -- whichever you have turned on). The AI's reply format also gained a 7th required section, \"Recovery & Consistency\", specifically asking it to comment on rest-day adherence and daily check-in patterns -- and flag anything that lines up with a plateau or a trend elsewhere in the report." },
   { version: "1.62", date: "2026-09-18", desc: "Scale Log page reordered: History now shows first, with the \"+ Add a reading\" card right below it (instead of above), then Photo Timeline stays last. Pure layout change -- nothing about how logging or editing a reading works." },
   { version: "1.61", date: "2026-09-18", desc: "Stomach problems is now asked once via the automatic login/first-log popup, same as Good Sleep -- it no longer shows up as a row on the Nutrition Log card. Turn it on in Settings -> Nutrition Log Settings as before; it still builds into the same heatmap, and you can still answer late or change an answer from any heatmap cell." },
@@ -12464,6 +12465,31 @@ function buildFoodCsv(){
   return [headers, ...rows].map(r=>r.map(csvEscapeVal).join(",")).join("\r\n");
 }
 
+// v1.64: full history of daily check-in answers (Good Sleep, Stomach problems, Creatine, Water,
+// Caffeine, Alcohol -- whichever are turned on), one row per date, one column per question. Same
+// build-a-CSV-and-attach-it pattern as buildScaleCsv/buildFoodCsv/buildWorkoutCsv above -- this
+// replaced a much wordier in-text 90-day Yes/No/answered-rate summary in the Coach export (v1.63)
+// per the user's preference for a proper CSV over export-text prose, same as nutrition/scale/
+// workout already get. Not capped to 90 days, to match those three. Dates are DD.MM.YYYY (house
+// style for anything printed as a human-readable date), not the raw YYYY-MM-DD storage key.
+function buildDailyCheckinCsv(){
+  const activeQuestions = DAILY_CONDITION_QUESTIONS.filter(q => getDailyQuestionsEnabled()[q.id]);
+  if(!activeQuestions.length) return null;
+  const dates = new Set();
+  activeQuestions.forEach(q => Object.keys(getDailyQuestionLogRaw(q.id)).forEach(d => dates.add(d)));
+  if(!dates.size) return null;
+  const sortedDates = Array.from(dates).sort();
+  const headers = ["Date", ...activeQuestions.map(q=>q.settingLabel)];
+  const rows = sortedDates.map(date=>{
+    const cells = activeQuestions.map(q=>{
+      const ans = getDailyAnswer(q.id, date);
+      return ans === undefined ? "" : (ans ? "Yes" : "No");
+    });
+    return [formatDateDisplay(date), ...cells];
+  });
+  return [headers, ...rows].map(r=>r.map(csvEscapeVal).join(",")).join("\r\n");
+}
+
 document.getElementById("exportScaleCsvBtn").addEventListener("click", ()=>{
   const csv = buildScaleCsv();
   if(!csv){ showToast("No readings yet to export"); return; }
@@ -14086,7 +14112,7 @@ function buildCoachExport(userNotes, attachments, skipped){
     // AI review too, not just the raw numbers.
     const activePhaseForExport = (typeof getActivePhase === "function") ? getActivePhase() : null;
     if(activePhaseForExport){
-      lines.push(`- Phase: ${activePhaseForExport.name} (started ${activePhaseForExport.startDate})`);
+      lines.push(`- Phase: ${activePhaseForExport.name} (started ${formatDateDisplay(activePhaseForExport.startDate)})`);
       const durationLabel = (typeof phaseDurationCounterText === "function") ? phaseDurationCounterText(activePhaseForExport) : "";
       if(durationLabel) lines.push(`- ${durationLabel}`);
       if(activePhaseForExport.notes) lines.push(`- Phase notes: ${activePhaseForExport.notes}`);
@@ -14253,31 +14279,17 @@ function buildCoachExport(userNotes, attachments, skipped){
     }
     lines.push("");
 
-    // v1.62: the daily check-in questions (Good Sleep, Stomach problems, Creatine, Water, Caffeine,
-    // Alcohol) were tracked and shown in-app for a while now but never made it into the export at
-    // all -- the coach was reviewing weight/nutrition/workout trends completely blind to sleep or
-    // stomach patterns that might explain them. Bundled here under the same toggle as the rest of
-    // this section rather than a separate one, since it's part of the same day-to-day picture.
-    lines.push("## Daily check-in (last 90 days)");
+    // v1.62 added a wordy 90-day Yes/No/answered-rate summary here; v1.64 replaced it with a full
+    // history attached as its own CSV (daily-checkin-log.csv, see buildDailyCheckinCsv), same as
+    // scale/nutrition/workout data already get -- this just names what's tracked and points at it,
+    // rather than re-deriving stats in export text.
+    lines.push("## Daily check-in");
     const dailyQuestionsEnabledForExport = (typeof getDailyQuestionsEnabled === "function") ? getDailyQuestionsEnabled() : {};
     const activeQuestionsForExport = DAILY_CONDITION_QUESTIONS.filter(q => dailyQuestionsEnabledForExport[q.id]);
     if(!activeQuestionsForExport.length){
       lines.push("- No daily check-in questions are turned on.");
     } else {
-      activeQuestionsForExport.forEach(q=>{
-        let answered=0, yes=0, no=0;
-        last90.forEach(d=>{
-          if(isDailyQuestionAnswered(q.id, d)){
-            answered++;
-            if(getDailyAnswer(q.id, d)) yes++; else no++;
-          }
-        });
-        const goodIsYes = q.goodValue !== false;
-        const goodCount = goodIsYes ? yes : no;
-        const badCount = goodIsYes ? no : yes;
-        const rate = answered ? ` (${Math.round(goodCount/answered*100)}% good)` : "";
-        lines.push(`- ${q.settingLabel}: answered on ${answered}/90 days${answered ? ` -- ${goodCount} good, ${badCount} bad${rate}` : ""}`);
-      });
+      lines.push(`- Tracking: ${activeQuestionsForExport.map(q=>q.settingLabel).join(", ")} -- full day-by-day history attached separately as daily-checkin-log.csv.`);
     }
     lines.push("");
   }
@@ -14781,6 +14793,8 @@ document.getElementById("coachGenerateBtn").addEventListener("click", async ()=>
     if(foodCsv) rawAttachments.push({name: "nutrition-log-full.csv", text: foodCsv, description: "every food entry I've ever logged, not just the summary above"});
     const workoutCsv = buildWorkoutCsv();
     if(workoutCsv) rawAttachments.push({name: "workout-log-full.csv", text: workoutCsv, description: "every set I've ever logged, not just the summary above"});
+    const checkinCsv = buildDailyCheckinCsv();
+    if(checkinCsv) rawAttachments.push({name: "daily-checkin-log.csv", text: checkinCsv, description: "every daily check-in answer I've ever logged (Good Sleep, Stomach problems, etc.)"});
   }
 
   // Check what's actually downloadable *before* writing the export text or naming files in it --
