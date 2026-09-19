@@ -1900,8 +1900,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.73";
+const APP_VERSION = "1.74";
 const CHANGELOG = [
+  { version: "1.74", date: "2026-09-19", desc: "Weekly split tracker: new \"Cardio\" column, right before the weekly-medal column, showing the total calories burned across every cardio session that week -- a quick weekly total without needing to open Workout Stats and pick Cardio there." },
   { version: "1.73", date: "2026-09-19", desc: "Workout Stats improvements: picking a split (e.g. Upper B) in the Workout Log's Split selector now automatically switches the Workout Stats chart below to that same split too, instead of needing to pick it again separately. Also, Cardio is no longer excluded from Workout Stats -- selecting it now shows a calories-burned-per-session chart (using each session's calculated/entered kcal), since the usual kg-volume chart doesn't apply to cardio." },
   { version: "1.72", date: "2026-09-19", desc: "Removed the \"Today\" tab. Scale Log is once again the tab you land on when it's your default, and it's no longer hideable in Settings -> Visible tabs. The \"Noticed in your data\" auto-insights (sleep vs next-day calories, alcohol vs next-day weight) that used to live on Today now show up at the top of Scale Log instead -- nothing about how those patterns are detected changed, just where they're shown." },
   { version: "1.71", date: "2026-09-19", desc: "The v1.70 cross-device fix for exercise reference photos didn't actually work for most people -- it relied on a Firebase Storage \"CORS\" setting most Cloud Sync setups never had turned on, so photos still silently failed to reach other devices. Replaced it with a simpler approach that needs no extra setup at all: exercise reference photos are now saved smaller (a quick reference photo, not a progress photo) and travel through the exact same sync that already reliably moves the rest of your account -- your notes, workouts, everything. Whichever device saved an exercise most recently now wins for that exercise, so a photo (or note) added on your computer will show up on your phone next time it syncs, and vice versa, with no CORS step required. Still needs Cloud Sync turned on (Settings -> Cloud Sync) on every device -- that part hasn't changed." },
@@ -11163,9 +11164,14 @@ function buildWorkoutHeatmap(weeksCount){
     // tell afterward whether the person completed their FULL current split roster that week -- the
     // "weekly medal" -- regardless of which day of the week each split happened to land on.
     const weekSplitIds = new Set();
+    // v1.74: running total of calories burned across every cardio entry this week, for the new
+    // "Cardio" summary column -- non-pending only (a pending placeholder has no real kcal figure
+    // yet, same guard used everywhere else cardio totals are computed).
+    let weekCardioKcal = 0;
     for(let d=0; d<7; d++){
       const dateStr = shiftDateStr(weekMonday, d);
       const entries = log[dateStr] || [];
+      entries.forEach(e=>{ if(workoutEntryIsCardio(e) && !e.pending) weekCardioKcal += (e.cardioKcal || 0); });
       // A day can carry more than one badge -- e.g. a Cardio session AND an Upper B session
       // logged the same day both show up, rather than only whichever entry happened to be first.
       // A "pending" entry (Copy last exercises' checklist fallback, see the click handler above)
@@ -11211,7 +11217,7 @@ function buildWorkoutHeatmap(weeksCount){
     // a medal (.every() on an empty array is true, so that's guarded explicitly).
     const currentSplitIds = Array.from(splitsById.keys());
     const allSplitsLogged = currentSplitIds.length > 0 && currentSplitIds.every(id=>weekSplitIds.has(id));
-    weeks.push({weekStart: weekMonday, weekEnd: shiftDateStr(weekMonday, 6), days, hasLog: weekHasLog, allSplitsLogged});
+    weeks.push({weekStart: weekMonday, weekEnd: shiftDateStr(weekMonday, 6), days, hasLog: weekHasLog, allSplitsLogged, cardioKcal: weekCardioKcal});
   }
   return weeks; // oldest week first, current week last
 }
@@ -11260,18 +11266,24 @@ function renderWorkoutHeatmap(){
     const medalCell = week.allSplitsLogged
       ? `<td style="text-align:center; vertical-align:middle;" title="All your splits logged this week!"><span class="week-medal-icon">${celebrationIconSvg}</span></td>`
       : `<td style="text-align:center; vertical-align:middle; color:var(--border);">·</td>`;
+    // v1.74: weekly cardio calories-burned summary -- straight sum of every cardio entry's kcal
+    // that week (see weekCardioKcal in buildWorkoutHeatmap), so the total is visible at a glance
+    // without having to open Workout Stats and pick Cardio there.
+    const cardioKcalCell = week.cardioKcal > 0
+      ? `<td style="text-align:center; vertical-align:middle; white-space:nowrap; color:var(--text); font-size:.82rem;" title="Total calories burned across every cardio session this week">${Math.round(week.cardioKcal).toLocaleString()} kcal</td>`
+      : `<td style="text-align:center; vertical-align:middle; color:var(--border);">·</td>`;
     // vertical-align:middle throughout the row (week label included) so a day with just one chip
     // (or the Don't-train chip, or the empty-day dot) sits centered in the row's full height
     // instead of hugging the top next to a taller two-chip neighbor -- reads as one aligned row
     // rather than a ragged top edge.
-    return `<tr><td style="white-space:nowrap; color:var(--muted); font-size:.78rem; vertical-align:middle;">${shortDate(week.weekStart)}–${shortDate(week.weekEnd)}</td>${cells}${medalCell}</tr>`;
+    return `<tr><td style="white-space:nowrap; color:var(--muted); font-size:.78rem; vertical-align:middle;">${shortDate(week.weekStart)}–${shortDate(week.weekEnd)}</td>${cells}${cardioKcalCell}${medalCell}</tr>`;
   }).join("");
   const splits = getWorkoutSplits();
   const legend = splits.map(s=>`<span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted); margin-right:14px;"><span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:${s.color};"></span>${splitChipIcon(s)}${s.name}</span>`).join("");
   wrap.innerHTML = `
     <div class="table-scroll">
-      <table class="log-table" style="table-layout:fixed; width:100%; min-width:700px;">
-        <thead><tr><th style="width:12%;">Week</th>${dayHeaders.map(h=>`<th style="width:11.14%; text-align:center;">${h}</th>`).join("")}<th style="width:9%; text-align:center;" title="All splits logged this week">${celebrationIconSvg.replace('width="52" height="52"', 'width="16" height="16"')}</th></tr></thead>
+      <table class="log-table" style="table-layout:fixed; width:100%; min-width:760px;">
+        <thead><tr><th style="width:11%;">Week</th>${dayHeaders.map(h=>`<th style="width:10.3%; text-align:center;">${h}</th>`).join("")}<th style="width:11%; text-align:center;" title="Total calories burned from cardio this week">Cardio</th><th style="width:8%; text-align:center;" title="All splits logged this week">${celebrationIconSvg.replace('width="52" height="52"', 'width="16" height="16"')}</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
