@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AI Body & Nutrition Analyzer</title>
+<!-- v1.68: installable PWA -- manifest + icons let mobile/desktop browsers offer "Install app";
+     sw.js (registered near the bottom of the main script) makes that install actually work by
+     giving the browser something to run when launched standalone / offline. -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0c11">
+<link rel="icon" href="icon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1918,8 +1925,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.68";
+const APP_VERSION = "1.69";
 const CHANGELOG = [
+  { version: "1.69", date: "2026-09-19", desc: "The app is now installable -- on Android/desktop Chrome/Edge you'll see an \"Install\" option (address bar icon or browser menu) that adds it to your home screen/app list with its own icon and no browser chrome, and iOS Safari can do the same via Share -> \"Add to Home Screen\". Once installed, it also keeps working if you briefly lose signal, since the app itself (not your logged data, which already lived in localStorage/Cloud Sync) is now cached on-device too." },
   { version: "1.68", date: "2026-09-19", desc: "The Today dashboard now surfaces simple patterns it notices in your own logged data -- automatically, without asking the Coach or exporting anything. Right now it checks two things: whether your next-day calorie intake tends to run higher after a night you marked as poor sleep, and whether your weight tends to tick up more the day after logging alcohol. Each only appears once you've got at least 4 days on both sides of the comparison and the difference is large enough to plausibly mean something -- otherwise it stays quiet rather than guessing from noise. Needs the relevant daily check-in question (Good Sleep / Alcohol Intake) turned on in Settings." },
   { version: "1.67", date: "2026-09-19", desc: "New \"Today\" dashboard -- the app now opens on a single glanceable screen instead of dropping straight into a log tab: today's kcal/protein vs your targets, your latest weight vs goal, whether training or rest is logged for today, and your current logging streaks, plus quick buttons straight into Scale Log/Nutrition Log/Workout Log. Today is now the tab you land on after logging in (Scale Log is a regular tab now, reachable the same way as Nutrition/Workout -- and, like those, it can be hidden in Settings -> Visible tabs if you don't use it). Also fixed a long-standing bug where the \"Open this tab when I log in\" Settings option had no effect at all." },
   { version: "1.66", date: "2026-09-19", desc: "New \"Ask AI Coach now\" button on the Coach tab -- reviews your data right there using the same free API key already set up for AI Log (Settings -> AI Assistant), and saves the reply straight into Past feedback. No more copying the export out, pasting into ChatGPT/Claude, then pasting the reply back -- one click. This fast path includes your full CSV logs but not progress photos; \"Generate full export + photos\" (previously the only option) is still there for a photo-inclusive review you paste into any AI chat yourself." },
@@ -15218,6 +15226,20 @@ document.getElementById("coachSaveFeedbackBtn").addEventListener("click", ()=>{
     });
   }
 })();
+
+// v1.68: register the service worker so the app is installable (Add to Home Screen / desktop
+// install prompt) and keeps working offline once installed. Guarded for browsers that don't
+// support it (older Safari, some in-app webviews) and wrapped so a registration failure never
+// blocks the rest of the app from loading.
+if("serviceWorker" in navigator){
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {
+      // Installability is a nice-to-have, not a requirement -- the app is fully usable without
+      // it (this is also expected to fail harmlessly on file:// or when opened from a path other
+      // than the GitHub Pages deploy, since sw.js/manifest.json only exist there).
+    });
+  });
+}
 </script>
 </body>
 </html>
