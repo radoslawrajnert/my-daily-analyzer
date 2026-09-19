@@ -481,7 +481,8 @@
   .workout-timer-body{font-size:.8rem; color:var(--muted); line-height:1.4;}
   .workout-timer-dot{display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent); margin-right:6px; animation:workoutTimerPulse 1.6s ease-in-out infinite;}
   @keyframes workoutTimerPulse{0%,100%{opacity:1;} 50%{opacity:.3;}}
-  .week-medal-icon{display:inline-flex; color:var(--accent); filter:drop-shadow(0 0 4px rgba(78,225,163,.4));}
+  .week-medal-icon{display:inline-flex; position:relative; color:var(--accent); filter:drop-shadow(0 0 4px rgba(78,225,163,.4));}
+  .week-medal-streak-badge{position:absolute; bottom:-2px; right:-6px; font-size:.68rem; font-weight:800; line-height:1; border-radius:8px; padding:2px 5px; min-width:14px; text-align:center;}
 
   .workout-rest-banner{background:rgba(241,107,131,.1); border:1px solid rgba(241,107,131,.4); border-radius:var(--radius); padding:14px 18px; margin-bottom:18px;}
   .workout-rest-banner-title{font-weight:700; font-size:.92rem; color:var(--danger); margin-bottom:3px;}
@@ -1410,7 +1411,7 @@
         </div>
       </div>
 
-      <div class="card">
+      <div class="card" id="workoutDayLogCard">
         <h2>Day workout log</h2>
         <div id="workoutSummaryWrap"></div>
         <div id="workoutTableWrap"></div>
@@ -1900,8 +1901,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.75";
+const APP_VERSION = "1.76";
 const CHANGELOG = [
+  { version: "1.76", date: "2026-09-19", desc: "Weekly split tracker: clicking any split/Cardio chip now jumps the whole app to that day and scrolls straight to the Day workout log, instead of needing to change the date manually. Also, the weekly medal now grows the longer your streak of fully-logged weeks runs -- it starts at its usual size, steps up at 3 and 5 weeks in a row, caps out at 8+, and once you're 2+ weeks into a streak it carries a small number badge naming exactly how many. A single skipped week resets the streak back to a fresh start." },
   { version: "1.75", date: "2026-09-19", desc: "Weekly split tracker: hovering a Cardio chip on any specific day now shows a tooltip with that day's own calories burned (e.g. \"Cardio — 400 kcal burned\"), not just the weekly total in the new Cardio column." },
   { version: "1.74", date: "2026-09-19", desc: "Weekly split tracker: new \"Cardio\" column, right before the weekly-medal column, showing the total calories burned across every cardio session that week -- a quick weekly total without needing to open Workout Stats and pick Cardio there." },
   { version: "1.73", date: "2026-09-19", desc: "Workout Stats improvements: picking a split (e.g. Upper B) in the Workout Log's Split selector now automatically switches the Workout Stats chart below to that same split too, instead of needing to pick it again separately. Also, Cardio is no longer excluded from Workout Stats -- selecting it now shows a calories-burned-per-session chart (using each session's calculated/entered kcal), since the usual kg-volume chart doesn't apply to cardio." },
@@ -7346,10 +7348,18 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
 // Nutrition Log, Workout Log, Habits, AI Log) to that date, so you land straight on that day's
 // details no matter which tab you check next. Goes through the same syncDateNavFields path as the
 // day-nav arrows/calendar popup, so both ways of changing the date behave identically.
-function jumpToDate(dateStr){
+// v1.76: an optional second argument scrolls a target section into view after the jump -- used by
+// the Weekly split tracker, where the day you clicked can be far below the Day workout log card
+// its data actually lands in, so "switching the date" alone would leave you looking at the wrong
+// part of the page.
+function jumpToDate(dateStr, scrollTargetId){
   if(!dateStr) return;
   syncDateNavFields(dateStr);
   showToast(`Switched the whole app to ${formatShortDate(dateStr)}`);
+  if(scrollTargetId){
+    const el = document.getElementById(scrollTargetId);
+    if(el && typeof el.scrollIntoView === "function") el.scrollIntoView({behavior:"smooth", block:"start"});
+  }
 }
 
 function renderProteinTrendChart(){
@@ -11157,6 +11167,12 @@ function buildWorkoutHeatmap(weeksCount){
   const thisMonday = shiftDateStr(today, -daysSinceMonday);
 
   const weeks = [];
+  // v1.76: running count of CONSECUTIVE weeks (ending at, and including, this one) that earned the
+  // weekly medal -- powers the medal's grow-with-streak sizing in renderWorkoutHeatmap. Computed in
+  // the same oldest-to-newest pass the loop already runs in, so it's a simple running tally: any
+  // non-medal week resets it to 0. Scoped to this weeksCount-wide window (same "last N weeks" scope
+  // everything else here already uses), not a true all-time lookback.
+  let runningMedalStreak = 0;
   for(let w = weeksCount - 1; w >= 0; w--){
     const weekMonday = shiftDateStr(thisMonday, -7 * w);
     const days = [];
@@ -11229,9 +11245,21 @@ function buildWorkoutHeatmap(weeksCount){
     // a medal (.every() on an empty array is true, so that's guarded explicitly).
     const currentSplitIds = Array.from(splitsById.keys());
     const allSplitsLogged = currentSplitIds.length > 0 && currentSplitIds.every(id=>weekSplitIds.has(id));
-    weeks.push({weekStart: weekMonday, weekEnd: shiftDateStr(weekMonday, 6), days, hasLog: weekHasLog, allSplitsLogged, cardioKcal: weekCardioKcal});
+    runningMedalStreak = allSplitsLogged ? runningMedalStreak + 1 : 0;
+    weeks.push({weekStart: weekMonday, weekEnd: shiftDateStr(weekMonday, 6), days, hasLog: weekHasLog, allSplitsLogged, cardioKcal: weekCardioKcal, medalStreak: runningMedalStreak});
   }
   return weeks; // oldest week first, current week last
+}
+
+// v1.76: the weekly medal grows with a consecutive-week streak (week.medalStreak from
+// buildWorkoutHeatmap) instead of staying a fixed size every time -- a single medal week keeps the
+// original 52px baseline, and it steps up from there the longer the streak runs, capped at 72px so
+// it never overwhelms the row.
+function weeklyMedalSizeForStreak(streak){
+  if(streak >= 8) return 72;
+  if(streak >= 5) return 64;
+  if(streak >= 3) return 56;
+  return 52;
 }
 
 function renderWorkoutHeatmap(){
@@ -11246,7 +11274,7 @@ function renderWorkoutHeatmap(){
   }
   const dayHeaders = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   const shortDate = (d)=>{ const [,mm,dd] = d.split("-"); return `${dd}.${mm}`; };
-  const celebrationIconSvg = smileyPhotoImg(52, "Week complete");
+  const celebrationIconSvg = smileyPhotoImg(52, "Week complete"); // fixed size, header icon only
   const rows = weeks.map(week=>{
     const cells = week.days.map(d=>{
       // The rest-day chip is deliberately allowed to show even on a FUTURE date -- that's the
@@ -11270,13 +11298,27 @@ function renderWorkoutHeatmap(){
       // before "what did I actually log that day". Every chip shares the .workout-chip class (fixed
       // size/shape) with only its color varying inline, so Lower A/Upper A/Cardio/etc. always render
       // as identically-sized boxes instead of auto-sizing to each label's own text length.
-      const chips = specialChips + d.badges.map(b=>`<span class="workout-chip" style="background:${b.color}; color:${darkTextForFill(b.color)};" title="${b.title || b.label}">${b.icon||""}${b.label}</span>`).join("");
+      // v1.76: each split/Cardio chip jumps the whole app to that day and scrolls the Day workout
+      // log card into view -- clicking "Cardio" or "Upper B" on a past date now actually takes you
+      // to that day's logged exercises, instead of only being able to see which split it was.
+      const chips = specialChips + d.badges.map(b=>`<span class="workout-chip" style="background:${b.color}; color:${darkTextForFill(b.color)}; cursor:pointer;" title="${b.title || b.label}" onclick="jumpToDate('${d.date}', 'workoutDayLogCard')">${b.icon||""}${b.label}</span>`).join("");
       return `<td style="text-align:center; vertical-align:middle;" title="${formatShortDate(d.date)}"><div style="display:flex; flex-wrap:wrap; gap:4px; justify-content:center;">${chips}</div></td>`;
     }).join("");
     // Weekly medal: lights up the moment every currently-defined split has been logged at least
     // once that week -- doesn't wait for the week to finish, so a Tuesday sweep still earns it.
+    // v1.76: grows with week.medalStreak (consecutive medal weeks ending here), and once the
+    // streak reaches 2+ carries a small number badge in the corner naming it -- the size alone can
+    // be hard to read precisely at a glance, the badge makes it exact.
     const medalCell = week.allSplitsLogged
-      ? `<td style="text-align:center; vertical-align:middle;" title="All your splits logged this week!"><span class="week-medal-icon">${celebrationIconSvg}</span></td>`
+      ? (()=>{
+          const size = weeklyMedalSizeForStreak(week.medalStreak);
+          const icon = smileyPhotoImg(size, "Week complete");
+          const streakTitle = week.medalStreak >= 2 ? `${week.medalStreak} weeks in a row with every split logged!` : "All your splits logged this week!";
+          const streakBadge = week.medalStreak >= 2
+            ? `<span class="week-medal-streak-badge" style="background:var(--warn); color:${darkTextForFill("#f0b854")};">${week.medalStreak}</span>`
+            : "";
+          return `<td style="text-align:center; vertical-align:middle;" title="${streakTitle}"><span class="week-medal-icon">${icon}${streakBadge}</span></td>`;
+        })()
       : `<td style="text-align:center; vertical-align:middle; color:var(--border);">·</td>`;
     // v1.74: weekly cardio calories-burned summary -- straight sum of every cardio entry's kcal
     // that week (see weekCardioKcal in buildWorkoutHeatmap), so the total is visible at a glance
