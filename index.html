@@ -1913,8 +1913,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.77";
+const APP_VERSION = "1.78";
 const CHANGELOG = [
+  { version: "1.78", date: "2026-09-21", desc: "Fixed a real data-loss bug in Cloud Sync: pulling your data from the cloud used to replace your nutrition log, workout log, habits log, day notes, daily check-in answers, commitments and coach feedback entirely with whatever the cloud happened to have -- so if a push from another device (or an earlier session) hadn't finished yet, that older cloud copy could silently overwrite newer entries already on your device. Pulling now merges day-by-day and entry-by-entry instead of overwriting, the same careful approach progress photos already used -- nothing on either side gets dropped just because the other side hasn't caught up yet." },
   { version: "1.77", date: "2026-09-19", desc: "New banner so you can always tell the local test copy apart from the real live site: a \"Test version — local file, not your live data\" strip now appears at the very top of the page (above the login screen too) whenever the app isn't running on radoslawrajnert.github.io. Production shows nothing here — it stays exactly as clean as before." },
   { version: "1.76", date: "2026-09-19", desc: "Weekly split tracker: clicking any split/Cardio chip now jumps the whole app to that day and scrolls straight to the Day workout log, instead of needing to change the date manually. Also, the weekly medal now grows the longer your streak of fully-logged weeks runs -- it starts at its usual size, steps up at 3 and 5 weeks in a row, caps out at 8+, and once you're 2+ weeks into a streak it carries a small number badge naming exactly how many. A single skipped week resets the streak back to a fresh start." },
   { version: "1.75", date: "2026-09-19", desc: "Weekly split tracker: hovering a Cardio chip on any specific day now shows a tooltip with that day's own calories burned (e.g. \"Cardio — 400 kcal burned\"), not just the weekly total in the new Cardio column." },
@@ -2908,6 +2909,66 @@ function mergeScaleLogPhotos(cloudArr, localArr){
   return merged;
 }
 
+// v1.78: pullFromCloud() below used to overwrite foodLog/workoutLog/habitLog/foodDayNotes/
+// dailyQuestionsLog/commitments/coachNotes wholesale with whatever the cloud snapshot happened to
+// contain -- exactly the kind of blind overwrite mergeScaleLogPhotos above exists to avoid for
+// scale-log photos. If a push from one device hadn't landed yet (tab closed early, connection
+// dropped) when another device (or that same device, on its next load) pulled, that stale cloud
+// snapshot would silently replace perfectly good local entries -- a real report of yesterday's
+// logged nutrition/workout data vanishing traced back to exactly this. These helpers apply the
+// same "never silently drop data" rule to every other per-day/per-item log.
+
+// For logs shaped {date: [entries with an id]} -- foodLog, workoutLog, habitLog. Unions the date
+// keys from both sides; for a date present on both sides, unions entries by id (a genuine edit of
+// the very same id on two devices before either synced is rare enough that preferring the local
+// copy is a reasonable default -- the same precedent as preferring the local photo above).
+function mergeDateKeyedEntryLog(cloudObj, localObj){
+  const cloud = (cloudObj && typeof cloudObj === "object") ? cloudObj : {};
+  const local = (localObj && typeof localObj === "object") ? localObj : {};
+  const dates = new Set([...Object.keys(cloud), ...Object.keys(local)]);
+  const merged = {};
+  dates.forEach(date=>{
+    const cloudEntries = Array.isArray(cloud[date]) ? cloud[date] : [];
+    const localEntries = Array.isArray(local[date]) ? local[date] : [];
+    if(!cloudEntries.length){ merged[date] = localEntries; return; }
+    if(!localEntries.length){ merged[date] = cloudEntries; return; }
+    const byId = new Map(cloudEntries.map(e=>[e.id, e]));
+    localEntries.forEach(e=>byId.set(e.id, e)); // local wins on a matching id, both sides kept otherwise
+    merged[date] = Array.from(byId.values());
+  });
+  return merged;
+}
+
+// For flat {date: value} maps -- foodDayNotes, and each question's own slice of dailyQuestionsLog.
+// Local wins whenever both sides recorded something for the same date; nothing present on only one
+// side is ever dropped.
+function mergeDateKeyedValues(cloudObj, localObj){
+  return Object.assign({}, (cloudObj && typeof cloudObj === "object") ? cloudObj : {}, (localObj && typeof localObj === "object") ? localObj : {});
+}
+
+// dailyQuestionsLog is one level deeper than the above -- {questionId: {date: value}} -- so each
+// question gets its own mergeDateKeyedValues pass.
+function mergeDailyQuestionsLog(cloudObj, localObj){
+  const cloud = (cloudObj && typeof cloudObj === "object") ? cloudObj : {};
+  const local = (localObj && typeof localObj === "object") ? localObj : {};
+  const qids = new Set([...Object.keys(cloud), ...Object.keys(local)]);
+  const merged = {};
+  qids.forEach(qid=>{ merged[qid] = mergeDateKeyedValues(cloud[qid], local[qid]); });
+  return merged;
+}
+
+// For flat arrays of id-keyed items -- commitments, coachNotes. Same union-by-id approach as
+// mergeDateKeyedEntryLog, just without the date grouping.
+function mergeIdKeyedArray(cloudArr, localArr){
+  const cloud = Array.isArray(cloudArr) ? cloudArr : [];
+  const local = Array.isArray(localArr) ? localArr : [];
+  if(!cloud.length) return local;
+  if(!local.length) return cloud;
+  const byId = new Map(cloud.map(item=>[item.id, item]));
+  local.forEach(item=>byId.set(item.id, item));
+  return Array.from(byId.values());
+}
+
 function updateCloudSyncStatus(text){
   const el = document.getElementById("cloudSyncStatus");
   if(el) el.textContent = text;
@@ -2941,6 +3002,13 @@ async function pullFromCloud(email){
       email,
       scaleLogs: mergeScaleLogPhotos(cloudData.scaleLogs, local.scaleLogs),
       exerciseReferences: mergeExerciseReferences(cloudData.exerciseReferences, local.exerciseReferences),
+      foodLog: mergeDateKeyedEntryLog(cloudData.foodLog, local.foodLog),
+      workoutLog: mergeDateKeyedEntryLog(cloudData.workoutLog, local.workoutLog),
+      habitLog: mergeDateKeyedEntryLog(cloudData.habitLog, local.habitLog),
+      foodDayNotes: mergeDateKeyedValues(cloudData.foodDayNotes, local.foodDayNotes),
+      dailyQuestionsLog: mergeDailyQuestionsLog(cloudData.dailyQuestionsLog, local.dailyQuestionsLog),
+      commitments: mergeIdKeyedArray(cloudData.commitments, local.commitments),
+      coachNotes: mergeIdKeyedArray(cloudData.coachNotes, local.coachNotes),
     });
     localStorage.setItem(USERS_KEY, JSON.stringify(users)); // direct write — avoids re-triggering a push of what we just pulled
     return true;
