@@ -1902,8 +1902,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.83";
+const APP_VERSION = "1.84";
 const CHANGELOG = [
+  { version: "1.84", date: "2026-09-21", desc: "Logging a set through \"+ Log a set manually\" no longer starts or reports a training session time. It used to silently start the live session clock as a fallback, so a purely manual entry could end up showing a \"Trained (strength) HH:MM-HH:MM\" line on the Day workout log summary that you never asked for. Only \"Start Training\" and \"Copy last exercises\" book a session time now." },
   { version: "1.83", date: "2026-09-21", desc: "The v1.82 landing-view fix turned out not to be enough -- the underlying \"Open this tab when I log in\" setting itself could silently fail to save (a stale background cloud sync could overwrite it right back to whatever it was before). Rather than chase that down, removed the setting entirely: you now always land on Nutrition Log after logging in or reopening the app, full stop -- no dropdown, nothing to configure, nothing that can silently revert." },
   { version: "1.82", date: "2026-09-21", desc: "Three small fixes/additions: (1) Added Flax seeds (siemię lniane) to the Nutrition Log quick-pick, with a 1 small tsp (5g) serving hint. (2) After the welcome-back greeting, you're now always taken straight to your configured landing view (Nutrition Log by default) -- this no longer depends on the greeting's own close button/X actually being clicked to trigger it. (3) Confirmed your JSON backup export already includes full copies of your progress photos and exercise-reference (machine setting) photos, uncapped -- no change needed there, just verified and locked in with a test." },
   { version: "1.81", date: "2026-09-21", desc: "Found the real reason another device's data could still seem missing even after v1.78/v1.80: when the app quietly re-syncs with the cloud in the background (which happens every time you simply open the site again, not just when you log in), it was correctly pulling in the latest data behind the scenes but never refreshing what was on your screen -- so it looked like nothing arrived unless you happened to switch tabs afterward. It now refreshes the screen you're looking at automatically the moment a background sync finishes." },
@@ -10258,10 +10259,13 @@ document.getElementById("workoutForm").addEventListener("submit", (e)=>{
 
   const log = getWorkoutLog();
   const wasEditing = !!editingWorkoutId;
-  // Fallback for days you don't use "Copy last exercises" first -- logging your first brand-new
-  // set of the day still starts the session timer if it isn't already running. Editing an existing
-  // entry (e.g. filling in a pending/tbd row, or correcting a past day) never counts as "starting."
-  if(!wasEditing) startWorkoutSession();
+  // v1.84: this used to also call startWorkoutSession() here as a fallback for days you don't use
+  // "Copy last exercises"/"Start Training" first -- logging your first brand-new set of the day via
+  // this manual form would silently start the session timer, and that start/end time would later
+  // show up as a "Trained (strength) HH:MM-HH:MM" line on the Day workout log summary even though
+  // you never actually used the live timer. Per explicit request, logging a set through this manual
+  // form never starts or reports a session time at all -- only "Copy last exercises" and "Start
+  // Training" (autoBookOneHourStrengthSession) book one.
   if(wasEditing && log[editingWorkoutDate]){
     log[editingWorkoutDate] = log[editingWorkoutDate].filter(en=>en.id!==editingWorkoutId);
     if(log[editingWorkoutDate].length === 0) delete log[editingWorkoutDate];
