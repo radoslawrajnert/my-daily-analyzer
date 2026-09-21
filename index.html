@@ -9374,14 +9374,21 @@ function renderExerciseProgressChart(wrapId, exerciseName){
   const isWeightBased = history.some(h => h.top.type === "kg" && h.top.weight != null);
   const values = history.map(h => isWeightBased ? (h.top.weight != null ? h.top.weight : 0) : (h.top.reps != null ? h.top.reps : 0));
   const maxVal = Math.max(...values, 1) * 1.15;
-  const w = 320, h = 92, pad = 6, padBottom = 30, barGap = 6;
+  // v1.85.1: padTop (top headroom for the value label) was only 6px -- barely enough for the tallest
+  // bar's label, and since .exercise-chart-value ALSO shifts itself up by its own full height
+  // (transform:translate(-50%,-100%), same pattern as renderDailyBarChart's .bar-value-label), that
+  // pushed the label up out of the chart box entirely: it ended up floating disconnected near the
+  // caption line above, nowhere near its own bar/column. Now mirrors renderDailyBarChart's proven
+  // geometry -- generous top headroom, labelY only 4px above the bar (not 14), floored so it can
+  // never leave the box -- so the value sits directly over its column like every other chart here.
+  const w = 320, h = 108, padX = 6, padTop = 20, padBottom = 30, barGap = 6;
   const n = history.length;
-  const barW = Math.max((w - pad*2 - (n-1)*barGap) / n, 4);
-  const yFor = v => (h - padBottom) - (v/maxVal)*(h - padBottom - pad);
+  const barW = Math.max((w - padX*2 - (n-1)*barGap) / n, 4);
+  const yFor = v => (h - padBottom) - (v/maxVal)*(h - padBottom - padTop);
 
   let bars = "", valueLabels = "", dateLabels = "";
   history.forEach((pt,i)=>{
-    const x = pad + i*(barW+barGap);
+    const x = padX + i*(barW+barGap);
     const v = values[i];
     const y = yFor(v);
     const barH = Math.max((h - padBottom) - y, 1);
@@ -9395,7 +9402,7 @@ function renderExerciseProgressChart(wrapId, exerciseName){
     const repsLabel = pt.top.reps != null ? `${pt.top.reps}` : "—";
     bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${formatShortDate(pt.date)}: ${weightLabel} × ${repsLabel}</title></rect>`;
     const centerPct = ((x + barW/2) / w * 100).toFixed(2);
-    const labelTop = Math.max(y - 14, 0).toFixed(1);
+    const labelTop = Math.max(y - 4, 9).toFixed(1);
     valueLabels += `<div class="exercise-chart-value" style="left:${centerPct}%; top:${labelTop}px;">${isWeightBased ? weightLabel : repsLabel + " reps"}</div>`;
     dateLabels += `<div class="exercise-chart-date" style="left:${centerPct}%; top:${(h-padBottom+6).toFixed(1)}px;">${formatShortDate(pt.date)}</div>`;
   });
