@@ -818,18 +818,6 @@
         <div class="card" id="tabVisibilityCard">
           <h2>Visible tabs</h2>
           <div class="step-desc" style="margin-top:0;">Hide any tabs you don't use so the nav bar only shows what matters to you. Scale Log always stays visible since it's the home view.</div>
-          <div class="field">
-            <label>Open this tab when I log in (or reopen the app while already logged in)</label>
-            <select id="defaultLandingViewSelect">
-              <option value="plan">My Plan</option>
-              <option value="food">Nutrition Log</option>
-              <option value="workout">Workout Log</option>
-              <option value="habits">Good Habits Log</option>
-              <option value="commitments">Commitment Log</option>
-              <option value="ailog">AI Log</option>
-              <option value="coach">Coach</option>
-            </select>
-          </div>
           <div class="field" style="display:flex; flex-direction:column; gap:10px;">
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabFood" style="width:auto;" checked> Nutrition Log</label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabWorkout" style="width:auto;" checked> Workout Log</label>
@@ -1914,8 +1902,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.82";
+const APP_VERSION = "1.83";
 const CHANGELOG = [
+  { version: "1.83", date: "2026-09-21", desc: "The v1.82 landing-view fix turned out not to be enough -- the underlying \"Open this tab when I log in\" setting itself could silently fail to save (a stale background cloud sync could overwrite it right back to whatever it was before). Rather than chase that down, removed the setting entirely: you now always land on Nutrition Log after logging in or reopening the app, full stop -- no dropdown, nothing to configure, nothing that can silently revert." },
   { version: "1.82", date: "2026-09-21", desc: "Three small fixes/additions: (1) Added Flax seeds (siemię lniane) to the Nutrition Log quick-pick, with a 1 small tsp (5g) serving hint. (2) After the welcome-back greeting, you're now always taken straight to your configured landing view (Nutrition Log by default) -- this no longer depends on the greeting's own close button/X actually being clicked to trigger it. (3) Confirmed your JSON backup export already includes full copies of your progress photos and exercise-reference (machine setting) photos, uncapped -- no change needed there, just verified and locked in with a test." },
   { version: "1.81", date: "2026-09-21", desc: "Found the real reason another device's data could still seem missing even after v1.78/v1.80: when the app quietly re-syncs with the cloud in the background (which happens every time you simply open the site again, not just when you log in), it was correctly pulling in the latest data behind the scenes but never refreshing what was on your screen -- so it looked like nothing arrived unless you happened to switch tabs afterward. It now refreshes the screen you're looking at automatically the moment a background sync finishes." },
   { version: "1.80", date: "2026-09-21", desc: "Two more Cloud Sync reliability fixes, on top of v1.78's fix for pulls: (1) a pending sync push no longer gets silently dropped when the app is backgrounded or closed within its ~1.5s debounce window (very normal on a phone -- log a set, lock the screen) -- it now flushes immediately the moment the tab hides or closes, instead of possibly never firing at all. (2) Added a safety net that refuses to push if your local nutrition/workout data suddenly collapsed to near-nothing compared to what was last successfully synced -- it pauses and tells you, rather than ever overwriting real cloud data with something that looks like an accidental wipe. New \"Sync now\" button in Settings -> Cloud Sync for an immediate manual sync (also the way to push through the new safety net if a big deletion really was intentional)." },
@@ -3801,7 +3790,7 @@ function switchView(view){
     document.getElementById("aiApiKeyInput").value = getAiApiKey();
     renderVersionInfo();
     refreshCloudSyncSettingsUI();
-    syncCoachFocusUI(); syncVisibleTabsUI(); syncDefaultLandingViewUI(); syncRestGuardrailUI(); syncDailyQuestionsSettingsUI(); renderTargetRangesTab();
+    syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI(); syncDailyQuestionsSettingsUI(); renderTargetRangesTab();
     // "My splits" and "My exercises" (moved here from the Workout Log tab, reachable now only by
     // clicking your name) need their own refresh on open -- renderWorkoutsView() also keeps them
     // current whenever the Workout Log tab itself is visited, but My Plan can be opened without
@@ -14517,40 +14506,26 @@ document.getElementById("completePhaseForm").addEventListener("submit", (e)=>{
 });
 
 // Which view to land on right after logging in -- or when reopening the app while a session is
-// already saved (see the init() IIFE at the bottom, which also calls enterApp()). Defaults to
-// "food" (Nutrition Log), matching the app's long-standing behavior. Anyone who already set an
-// explicit preference keeps it unchanged; this only changes the fallback for accounts that never
-// touched this setting.
-function getDefaultLandingView(){
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  return (u && u.defaultLandingView) || "food";
-}
-function saveDefaultLandingView(view){
-  const users = getUsers();
-  if(!users[currentUserEmail]) return;
-  users[currentUserEmail].defaultLandingView = view;
-  saveUsers(users);
-}
-// "plan" and "log"/Scale Log are always available (Scale Log is never hideable -- see
-// HIDEABLE_TABS); anything else could have been hidden via the Visible tabs checkboxes above, in
-// which case landing there would show content with no way to navigate back to it from the nav bar
-// -- fall back to "plan" rather than risk that.
+// already saved (see the init() IIFE at the bottom, which also calls enterApp()).
+//
+// v1.83: this used to be a per-account Settings dropdown (defaultLandingView), but that had two
+// problems: (1) explicit request -- always land on Nutrition Log, no choice to manage; (2) a real
+// bug behind "the setting doesn't save" -- pullFromCloud()'s plain-field merge (see the comment
+// above mergeDateKeyedEntryLog further up) lets a stale cloud snapshot silently overwrite any plain
+// settings field, including this one, if a background pull landed before a just-made local change
+// had finished pushing. Hardcoding this to "food" sidesteps both at once. (The underlying overwrite
+// risk for OTHER plain settings fields -- theme, visible tabs, etc. -- is a separate, deeper fix,
+// not addressed here.)
 function resolveLandingView(){
-  const view = getDefaultLandingView();
-  if(view === "plan") return view;
+  const view = "food";
+  // "plan"/My Plan and "log"/Scale Log are always available (Scale Log is never hideable -- see
+  // HIDEABLE_TABS); Nutrition Log itself could in principle be hidden via the Visible tabs
+  // checkboxes, in which case landing there would show content with no way to navigate back to it
+  // from the nav bar -- fall back to "plan" rather than risk that.
   const visible = getVisibleTabs();
   if(HIDEABLE_TABS.includes(view) && visible[view] === false) return "plan";
   return view;
 }
-function syncDefaultLandingViewUI(){
-  const sel = document.getElementById("defaultLandingViewSelect");
-  if(sel) sel.value = getDefaultLandingView();
-}
-document.getElementById("defaultLandingViewSelect").addEventListener("change", (e)=>{
-  saveDefaultLandingView(e.target.value);
-  showToast("Default tab updated");
-});
 
 function getCoachFocus(){
   const users = getUsers();
