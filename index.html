@@ -1913,8 +1913,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.78";
+const APP_VERSION = "1.79";
 const CHANGELOG = [
+  { version: "1.79", date: "2026-09-21", desc: "Nutrition Log quick-pick: added Milk (whole 3.5% and semi-skimmed 1.5%) and Buckwheat groats (uncooked/dry and cooked) to the food database, so they show up when searching/logging a meal." },
   { version: "1.78", date: "2026-09-21", desc: "Fixed a real data-loss bug in Cloud Sync: pulling your data from the cloud used to replace your nutrition log, workout log, habits log, day notes, daily check-in answers, commitments and coach feedback entirely with whatever the cloud happened to have -- so if a push from another device (or an earlier session) hadn't finished yet, that older cloud copy could silently overwrite newer entries already on your device. Pulling now merges day-by-day and entry-by-entry instead of overwriting, the same careful approach progress photos already used -- nothing on either side gets dropped just because the other side hasn't caught up yet." },
   { version: "1.77", date: "2026-09-19", desc: "New banner so you can always tell the local test copy apart from the real live site: a \"Test version — local file, not your live data\" strip now appears at the very top of the page (above the login screen too) whenever the app isn't running on radoslawrajnert.github.io. Production shows nothing here — it stays exactly as clean as before." },
   { version: "1.76", date: "2026-09-19", desc: "Weekly split tracker: clicking any split/Cardio chip now jumps the whole app to that day and scrolls straight to the Day workout log, instead of needing to change the date manually. Also, the weekly medal now grows the longer your streak of fully-logged weeks runs -- it starts at its usual size, steps up at 3 and 5 weeks in a row, caps out at 8+, and once you're 2+ weeks into a streak it carries a small number badge naming exactly how many. A single skipped week resets the streak back to a fresh start." },
@@ -5536,6 +5537,8 @@ const COMMON_FOODS = [
   {label:"Natural yogurt", emoji:"🥛", kcal:61, protein:3.5, carb:4.7, fat:3.3},
   {label:"Greek yogurt", emoji:"🥛", kcal:97, protein:9, carb:4, fat:5},
   {label:"High-protein yogurt", emoji:"🥛", kcal:70, protein:12, carb:4, fat:0.5},
+  {label:"Milk, whole (3.5% fat) — 1 glass ≈200ml", emoji:"🥛", kcal:64, protein:3.3, carb:4.8, fat:3.6, units:[{label:"glass (200ml)", grams:200}]},
+  {label:"Milk, semi-skimmed (1.5% fat) — 1 glass ≈200ml", emoji:"🥛", kcal:47, protein:3.4, carb:4.9, fat:1.5, units:[{label:"glass (200ml)", grams:200}]},
   {label:"Whey protein powder — 1 scoop ≈56g", emoji:"🥤", kcal:384, protein:76.8, carb:7.1, fat:5.4, units:[{label:"scoop (56g)", grams:56}]},
   {label:"Oatmeal / porridge (cooked)", emoji:"🥣", kcal:71, protein:2.5, carb:12, fat:1.5},
   {label:"Oats (dry)", emoji:"🌾", kcal:389, protein:17, carb:66, fat:7},
@@ -5578,6 +5581,8 @@ const COMMON_FOODS = [
   {label:"Pasta (cooked)", emoji:"🍝", kcal:131, protein:5, carb:25, fat:1.1},
   {label:"Pasta (uncooked/dry)", emoji:"🍝", kcal:371, protein:13, carb:75, fat:1.5},
   {label:"Whole-grain (Vollkorn) pasta, uncooked/dry", emoji:"🍝", kcal:348, protein:13, carb:66, fat:2.5},
+  {label:"Buckwheat groats (uncooked/dry)", emoji:"🌾", kcal:343, protein:13.2, carb:71.5, fat:3.4},
+  {label:"Buckwheat groats (cooked)", emoji:"🌾", kcal:92, protein:3.4, carb:19.9, fat:0.6},
   {label:"Olive oil", emoji:"🫒", kcal:884, protein:0, carb:0, fat:100, units:[{label:"1 tbsp (14g)", grams:14}, {label:"1 tsp (5g)", grams:5}]},
   {label:"Beer, non-alcoholic — 1 bottle/can ≈330ml", emoji:"🍺", kcal:25, protein:0.3, carb:5.5, fat:0, units:[{label:"can (330ml)", grams:330}]},
   {label:"Reiswaffel (rice cake), Penny — 1 waffle ≈9g", emoji:"🍘", kcal:380, protein:9.5, carb:83, fat:3.3, units:[{label:"waffle (9g)", grams:9}]},
