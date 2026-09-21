@@ -1914,8 +1914,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.81";
+const APP_VERSION = "1.82";
 const CHANGELOG = [
+  { version: "1.82", date: "2026-09-21", desc: "Three small fixes/additions: (1) Added Flax seeds (siemię lniane) to the Nutrition Log quick-pick, with a 1 small tsp (5g) serving hint. (2) After the welcome-back greeting, you're now always taken straight to your configured landing view (Nutrition Log by default) -- this no longer depends on the greeting's own close button/X actually being clicked to trigger it. (3) Confirmed your JSON backup export already includes full copies of your progress photos and exercise-reference (machine setting) photos, uncapped -- no change needed there, just verified and locked in with a test." },
   { version: "1.81", date: "2026-09-21", desc: "Found the real reason another device's data could still seem missing even after v1.78/v1.80: when the app quietly re-syncs with the cloud in the background (which happens every time you simply open the site again, not just when you log in), it was correctly pulling in the latest data behind the scenes but never refreshing what was on your screen -- so it looked like nothing arrived unless you happened to switch tabs afterward. It now refreshes the screen you're looking at automatically the moment a background sync finishes." },
   { version: "1.80", date: "2026-09-21", desc: "Two more Cloud Sync reliability fixes, on top of v1.78's fix for pulls: (1) a pending sync push no longer gets silently dropped when the app is backgrounded or closed within its ~1.5s debounce window (very normal on a phone -- log a set, lock the screen) -- it now flushes immediately the moment the tab hides or closes, instead of possibly never firing at all. (2) Added a safety net that refuses to push if your local nutrition/workout data suddenly collapsed to near-nothing compared to what was last successfully synced -- it pauses and tells you, rather than ever overwriting real cloud data with something that looks like an accidental wipe. New \"Sync now\" button in Settings -> Cloud Sync for an immediate manual sync (also the way to push through the new safety net if a big deletion really was intentional)." },
   { version: "1.79", date: "2026-09-21", desc: "Nutrition Log quick-pick: added Milk (whole 3.5% and semi-skimmed 1.5%) and Buckwheat groats (uncooked/dry and cooked) to the food database, so they show up when searching/logging a meal." },
@@ -3181,7 +3182,15 @@ function enterApp(email, forceMigration){
   renderStep();
   renderBackupReminderBanner();
   renderMissingDataWarningBanner();
-  if(isReturningUser) showWelcomeBackPopup(u.name);
+  if(isReturningUser){
+    showWelcomeBackPopup(u.name);
+    // v1.82: previously the redirect to your configured landing view (resolveLandingView(),
+    // Nutrition Log by default) only happened when the welcome-back popup was dismissed via its
+    // own close button/X -- so it relied on that click actually happening. Doing it here too, right
+    // away, means you land on the right view immediately regardless of whether/how the popup gets
+    // dismissed; closeWelcomeBackPopup()'s own call to the same thing is now just a harmless re-run.
+    switchView(resolveLandingView());
+  }
 }
 
 // A friendly "welcome back" popup shown every time an existing account enters the app -- an
@@ -5679,6 +5688,7 @@ const COMMON_FOODS = [
   {label:"Buckwheat groats (uncooked/dry)", emoji:"🌾", kcal:343, protein:13.2, carb:71.5, fat:3.4},
   {label:"Buckwheat groats (cooked)", emoji:"🌾", kcal:92, protein:3.4, carb:19.9, fat:0.6},
   {label:"Olive oil", emoji:"🫒", kcal:884, protein:0, carb:0, fat:100, units:[{label:"1 tbsp (14g)", grams:14}, {label:"1 tsp (5g)", grams:5}]},
+  {label:"Flax seeds (siemię lniane)", emoji:"🌱", kcal:534, protein:18.3, carb:28.9, fat:42.2, units:[{label:"1 small tsp (5g)", grams:5}]},
   {label:"Beer, non-alcoholic — 1 bottle/can ≈330ml", emoji:"🍺", kcal:25, protein:0.3, carb:5.5, fat:0, units:[{label:"can (330ml)", grams:330}]},
   {label:"Reiswaffel (rice cake), Penny — 1 waffle ≈9g", emoji:"🍘", kcal:380, protein:9.5, carb:83, fat:3.3, units:[{label:"waffle (9g)", grams:9}]},
   {label:"Almonds", emoji:"🥜", kcal:579, protein:21, carb:22, fat:50},
