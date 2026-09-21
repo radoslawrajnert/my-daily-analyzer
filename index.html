@@ -1909,8 +1909,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.88";
+const APP_VERSION = "1.89";
 const CHANGELOG = [
+  { version: "1.89", date: "2026-09-21", desc: "Redesigned the exercise progress chart after three rounds of bar-chart tweaks still didn't look right -- mocked up 10 different chart styles side by side and picked one directly instead of guessing further. It's now a line-and-dot chart: one dot per session connected by a thin line, colored green when you beat the session before it and orange when you didn't, with the weight (or reps) shown right above its own dot. No bars, no connector lines -- each value only ever has to line up with a single point." },
   { version: "1.88", date: "2026-09-21", desc: "Simplified the exercise progress chart after the v1.87 colored-number/connector-line treatment looked cluttered in practice. Back to plain: gray value labels (like every other chart), no connector lines -- only the bars themselves carry the green/orange meaning. The v1.86 positioning fix (each label sitting directly above its own bar) is unchanged." },
   { version: "1.87", date: "2026-09-21", desc: "The exercise progress chart's value label still didn't read as clearly tied to its own bar after the v1.86 fix. Each number is now colored to match its bar (green/orange) and sits at the end of a thin colored line running straight down into the column, so which number belongs to which session is unmistakable at a glance -- no more guessing by position alone. Also widened the chart's left/right margin a bit." },
   { version: "1.86", date: "2026-09-21", desc: "Fixed the new exercise progress chart (v1.85): the value label above each bar (e.g. \"44kg\") had almost no headroom above the tallest bar, so it got pushed up out of the chart box entirely -- floating disconnected from its own bar/column, up near the caption text. It now sits directly above its column with a small, consistent gap, matching how every other chart in the app already positions its labels." },
@@ -9390,33 +9391,37 @@ function renderExerciseProgressChart(wrapId, exerciseName){
   // position bug -- but that read as cluttered/inconsistent in practice (the wick only appears when
   // there's a gap to fill, so it's missing above the tallest bar; three orange numbers in a row next
   // to the already-orange warning note below is a lot of repeated color for a small chart). v1.88
-  // reverts to plain: no wick, and the value label goes back to the same neutral muted color every
-  // other chart's value label already uses -- only the bars themselves carry the color meaning. The
-  // v1.86 geometry fix (generous top/side padding, label 4px above its bar) is unchanged and correct.
-  const w = 320, h = 108, padX = 16, padTop = 22, padBottom = 30, barGap = 6;
+  // reverted to plain bars with a neutral-gray label above each one -- still didn't read as clearly
+  // connected once seen live, so v1.89 mocked up 10 different chart styles for a direct pick instead
+  // of continuing to guess: a line-and-dots sparkline (option 4) is what was chosen. No bars at all
+  // now -- a thin connecting line through one dot per session, colored accent/warn the same way the
+  // bars used to be, with the value directly above its own dot. There's no separate "column" to
+  // misjudge position against anymore -- the label only ever has to line up with a single point.
+  const w = 320, h = 108, padX = 16, padTop = 22, padBottom = 30;
   const n = history.length;
-  const barW = Math.max((w - padX*2 - (n-1)*barGap) / n, 4);
+  const xFor = i => n > 1 ? padX + i * (w - padX*2) / (n - 1) : w/2;
   const yFor = v => (h - padBottom) - (v/maxVal)*(h - padBottom - padTop);
 
-  let bars = "", valueLabels = "", dateLabels = "";
-  history.forEach((pt,i)=>{
-    const x = padX + i*(barW+barGap);
+  const points = history.map((pt,i)=>{
     const v = values[i];
-    const y = yFor(v);
-    const barH = Math.max((h - padBottom) - y, 1);
-    // A bar that's no higher than the one right before it (no new weight/reps this session) is
+    // A session that's no higher than the one right before it (no new weight/reps this session) is
     // colored the same warning tone the app already uses for a missed target elsewhere, so a run of
     // "stuck" sessions stands out visually at a glance -- exactly the thing this chart exists for.
     const prevV = i > 0 ? values[i-1] : null;
     const stalled = prevV != null && v <= prevV;
-    const color = stalled ? "var(--warn)" : "var(--accent)";
-    const weightLabel = pt.top.type === "kg" && pt.top.weight != null ? `${pt.top.weight}kg` : (pt.top.type === "level" ? `Lvl ${pt.top.weight}` : "BW");
-    const repsLabel = pt.top.reps != null ? `${pt.top.reps}` : "—";
-    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${formatShortDate(pt.date)}: ${weightLabel} × ${repsLabel}</title></rect>`;
-    const centerPct = ((x + barW/2) / w * 100).toFixed(2);
-    const labelTop = Math.max(y - 4, 9).toFixed(1);
+    return { pt, v, x: xFor(i), y: yFor(v), stalled, color: stalled ? "var(--warn)" : "var(--accent)" };
+  });
+
+  const linePath = points.map((p,i)=> `${i===0?"M":"L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  let dots = "", valueLabels = "", dateLabels = "";
+  points.forEach(p=>{
+    const weightLabel = p.pt.top.type === "kg" && p.pt.top.weight != null ? `${p.pt.top.weight}kg` : (p.pt.top.type === "level" ? `Lvl ${p.pt.top.weight}` : "BW");
+    const repsLabel = p.pt.top.reps != null ? `${p.pt.top.reps}` : "—";
+    dots += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="${p.color}"><title>${formatShortDate(p.pt.date)}: ${weightLabel} × ${repsLabel}</title></circle>`;
+    const centerPct = (p.x / w * 100).toFixed(2);
+    const labelTop = Math.max(p.y - 8, 9).toFixed(1);
     valueLabels += `<div class="exercise-chart-value" style="left:${centerPct}%; top:${labelTop}px;">${isWeightBased ? weightLabel : repsLabel + " reps"}</div>`;
-    dateLabels += `<div class="exercise-chart-date" style="left:${centerPct}%; top:${(h-padBottom+6).toFixed(1)}px;">${formatShortDate(pt.date)}</div>`;
+    dateLabels += `<div class="exercise-chart-date" style="left:${centerPct}%; top:${(h-padBottom+6).toFixed(1)}px;">${formatShortDate(p.pt.date)}</div>`;
   });
 
   // How many sessions in a row, counting back from the most recent, never beat the one before it --
@@ -9431,7 +9436,8 @@ function renderExerciseProgressChart(wrapId, exerciseName){
     <div class="exercise-chart-label">${isWeightBased ? "Top-set weight" : "Top-set reps"} — last ${n} sessions</div>
     <div style="position:relative; height:${h}px;">
       <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%; height:${h}px; display:block;">
-        ${bars}
+        <path d="${linePath}" fill="none" stroke="var(--muted)" stroke-width="1.5" opacity=".5"></path>
+        ${dots}
       </svg>
       ${valueLabels}
       ${dateLabels}
