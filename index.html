@@ -888,6 +888,7 @@
           <div class="nav" style="justify-content:space-between; align-items:center;">
             <span id="cloudSyncStatus" style="font-size:.85rem; color:var(--muted);">Not configured — this device only</span>
             <span style="display:flex; gap:8px;">
+              <button type="button" class="secondary hidden" id="cloudSyncForceBtn">Sync now</button>
               <button type="button" class="secondary hidden" id="cloudSyncClearBtn">Remove</button>
               <button type="button" id="cloudSyncSaveBtn">Save & connect</button>
             </span>
@@ -1913,8 +1914,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.79";
+const APP_VERSION = "1.80";
 const CHANGELOG = [
+  { version: "1.80", date: "2026-09-21", desc: "Two more Cloud Sync reliability fixes, on top of v1.78's fix for pulls: (1) a pending sync push no longer gets silently dropped when the app is backgrounded or closed within its ~1.5s debounce window (very normal on a phone -- log a set, lock the screen) -- it now flushes immediately the moment the tab hides or closes, instead of possibly never firing at all. (2) Added a safety net that refuses to push if your local nutrition/workout data suddenly collapsed to near-nothing compared to what was last successfully synced -- it pauses and tells you, rather than ever overwriting real cloud data with something that looks like an accidental wipe. New \"Sync now\" button in Settings -> Cloud Sync for an immediate manual sync (also the way to push through the new safety net if a big deletion really was intentional)." },
   { version: "1.79", date: "2026-09-21", desc: "Nutrition Log quick-pick: added Milk (whole 3.5% and semi-skimmed 1.5%) and Buckwheat groats (uncooked/dry and cooked) to the food database, so they show up when searching/logging a meal." },
   { version: "1.78", date: "2026-09-21", desc: "Fixed a real data-loss bug in Cloud Sync: pulling your data from the cloud used to replace your nutrition log, workout log, habits log, day notes, daily check-in answers, commitments and coach feedback entirely with whatever the cloud happened to have -- so if a push from another device (or an earlier session) hadn't finished yet, that older cloud copy could silently overwrite newer entries already on your device. Pulling now merges day-by-day and entry-by-entry instead of overwriting, the same careful approach progress photos already used -- nothing on either side gets dropped just because the other side hasn't caught up yet." },
   { version: "1.77", date: "2026-09-19", desc: "New banner so you can always tell the local test copy apart from the real live site: a \"Test version — local file, not your live data\" strip now appears at the very top of the page (above the login screen too) whenever the app isn't running on radoslawrajnert.github.io. Production shows nothing here — it stays exactly as clean as before." },
@@ -2975,20 +2977,103 @@ function updateCloudSyncStatus(text){
   if(el) el.textContent = text;
 }
 
+// v1.80: a "never let sync erase real data" safety net, per a live report -- data logged on one
+// device (safely sitting in ITS OWN localStorage) still wasn't reaching another device even after
+// the pull-side fix in v1.78. The remaining hole was on the PUSH side: pushToCloud() debounces
+// every save by 1.5s via setTimeout, with nothing to flush it early -- so if the app is backgrounded
+// or closed within that window (extremely normal on a phone: log a set, lock the screen), the timer
+// can be silently dropped before it ever fires, and that session's data never reaches the cloud at
+// all, even though it's perfectly safe on-device. Two independent fixes below close that gap:
+// flushing any pending push immediately on visibilitychange/pagehide, and refusing to ever push a
+// snapshot that looks like an accidental near-total wipe over real previously-synced data.
+const LAST_PUSH_ENTRY_COUNT_KEY = "bodyAnalyzer.lastPushEntryCount.v1";
+function countLoggableEntries(u){
+  const foodCount = Object.values((u && u.foodLog) || {}).reduce((n, arr)=> n + (Array.isArray(arr) ? arr.length : 0), 0);
+  const workoutCount = Object.values((u && u.workoutLog) || {}).reduce((n, arr)=> n + (Array.isArray(arr) ? arr.length : 0), 0);
+  return foodCount + workoutCount;
+}
+function getLastPushEntryCount(email){
+  try{ return JSON.parse(localStorage.getItem(LAST_PUSH_ENTRY_COUNT_KEY) || "{}")[email] || 0; }
+  catch(e){ return 0; }
+}
+function saveLastPushEntryCount(email, count){
+  try{
+    const map = JSON.parse(localStorage.getItem(LAST_PUSH_ENTRY_COUNT_KEY) || "{}");
+    map[email] = count;
+    localStorage.setItem(LAST_PUSH_ENTRY_COUNT_KEY, JSON.stringify(map));
+  } catch(e){}
+}
+// Only trips on a near-total wipe relative to what was last confirmed pushed (new count collapses
+// to 10% or less of it), and only when there was something meaningful to lose in the first place
+// (5+ entries) -- deleting a handful of old entries, or a brand-new account with nothing pushed
+// yet, never trips this.
+function looksLikeCatastrophicWipe(previousCount, newCount){
+  if(previousCount < 5) return false;
+  return newCount <= Math.max(1, Math.floor(previousCount * 0.1));
+}
+
 function pushToCloud(){
   if(!fbUser || !fbDb || !currentUserEmail) return;
   clearTimeout(cloudSyncTimer);
-  cloudSyncTimer = setTimeout(async ()=>{
+  cloudSyncTimer = setTimeout(()=>{
+    cloudSyncTimer = null;
+    performCloudPush();
+  }, 1500);
+}
+
+// Flushes any pending debounced push immediately, skipping the wait entirely -- called right
+// before the tab is about to background/close (see the visibilitychange/pagehide listeners below)
+// so a pending push actually lands instead of being silently lost to the debounce window, and by
+// the manual "Sync now" button in Settings.
+function flushPendingCloudPush(){
+  if(cloudSyncTimer == null) return;
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = null;
+  performCloudPush();
+}
+
+// The actual push, run either after the debounce or immediately via a flush. Wrapped in try/catch
+// end to end (previously only the final .set() call had error handling -- an earlier throw, e.g.
+// from the photo sync step, would silently abort the whole push with no visible error at all) so a
+// failure here is always surfaced via updateCloudSyncStatus rather than becoming an invisible
+// unhandled rejection. `force` bypasses the catastrophic-wipe guard, for the rare case someone
+// really did mean to clear everything and wants that reflected in the cloud too.
+async function performCloudPush(force){
+  if(!fbUser || !fbDb || !currentUserEmail) return;
+  try{
     const users = getUsers();
     const u = users[currentUserEmail];
     if(!u) return;
     const urlsByDate = await syncScaleLogPhotosToCloud(currentUserEmail, u.scaleLogs);
     const clean = sanitizeForCloud(u);
     attachPhotoUrls(clean, urlsByDate);
-    fbDb.collection("users").doc(fbUser.uid).set(clean)
-      .then(()=> updateCloudSyncStatus("Synced " + new Date().toLocaleTimeString()))
-      .catch(err=> updateCloudSyncStatus("Sync error: " + err.message));
-  }, 1500);
+    const newCount = countLoggableEntries(u);
+    const previousCount = getLastPushEntryCount(currentUserEmail);
+    if(!force && looksLikeCatastrophicWipe(previousCount, newCount)){
+      updateCloudSyncStatus(`Sync paused — your nutrition/workout entries dropped from ${previousCount} to ${newCount}, which looks like an accidental wipe. Nothing in the cloud was overwritten. If this was intentional, use "Sync now" to push it anyway.`);
+      showToast("Sync paused to protect your cloud data — see Settings → Cloud Sync");
+      return;
+    }
+    await fbDb.collection("users").doc(fbUser.uid).set(clean);
+    saveLastPushEntryCount(currentUserEmail, newCount);
+    updateCloudSyncStatus("Synced " + new Date().toLocaleTimeString());
+  } catch(err){
+    updateCloudSyncStatus("Sync error: " + err.message);
+  }
+}
+
+// iOS Safari (and mobile browsers generally) can suspend or kill a backgrounded tab's pending
+// timers before they ever run -- exactly the scenario that let phone-logged data silently never
+// reach the cloud. Flushing on both events maximizes the chance of catching the moment before
+// teardown: visibilitychange fires reliably when switching apps/locking the screen, pagehide covers
+// an actual tab/app close that visibilitychange sometimes misses.
+if(typeof document !== "undefined" && typeof document.addEventListener === "function"){
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.visibilityState === "hidden") flushPendingCloudPush();
+  });
+}
+if(typeof window !== "undefined" && typeof window.addEventListener === "function"){
+  window.addEventListener("pagehide", flushPendingCloudPush);
 }
 
 async function pullFromCloud(email){
@@ -3165,6 +3250,7 @@ function refreshCloudSyncSettingsUI(){
   const cfg = getFirebaseConfig();
   document.getElementById("cloudConfigInput").value = cfg ? JSON.stringify(cfg, null, 2) : "";
   document.getElementById("cloudSyncClearBtn").classList.toggle("hidden", !cfg);
+  document.getElementById("cloudSyncForceBtn").classList.toggle("hidden", !(cfg && fbUser));
   if(!cfg){
     updateCloudSyncStatus("Cloud sync turned off — this device only");
   } else if(fbUser){
@@ -3230,6 +3316,14 @@ document.getElementById("cloudSyncClearBtn").addEventListener("click", ()=>{
   document.getElementById("cloudConfigInput").value = "";
   refreshCloudSyncSettingsUI();
   showToast("Cloud sync removed — this device is local-only again");
+});
+document.getElementById("cloudSyncForceBtn").addEventListener("click", async ()=>{
+  if(!fbUser || !fbDb || !currentUserEmail){ showToast("Not connected yet"); return; }
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = null;
+  updateCloudSyncStatus("Syncing…");
+  await performCloudPush(true);
+  showToast("Sync finished — check the status above");
 });
 
 /* ---------------------------------------------------------
