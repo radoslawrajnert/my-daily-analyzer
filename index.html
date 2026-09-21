@@ -451,6 +451,11 @@
   .overload-hint b{color:var(--accent2);}
   .lift-plateau-note{font-size:.72rem; color:var(--warn); margin-top:2px;}
 
+  .exercise-chart-label{font-size:.7rem; color:var(--muted); margin-bottom:4px; text-align:left;}
+  .exercise-chart-value{position:absolute; transform:translate(-50%,-100%); font-size:.64rem; color:var(--muted); white-space:nowrap; pointer-events:none;}
+  .exercise-chart-date{position:absolute; transform:translateX(-50%); font-size:.62rem; color:var(--muted); white-space:nowrap; pointer-events:none;}
+  .exercise-chart-note{font-size:.72rem; color:var(--warn); margin-top:6px; text-align:left;}
+
   .streak-banner{display:flex; gap:12px; align-items:center; background:var(--panel2); border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px; margin-bottom:16px;}
   .streak-banner.due{background:rgba(255,183,77,.08); border-color:rgba(255,183,77,.3);}
   .streak-banner.ok{background:rgba(76,201,141,.08); border-color:rgba(76,201,141,.28);}
@@ -1403,6 +1408,7 @@
             </div>
             <div class="step-desc hidden" id="workoutCardioHint" style="margin-top:-6px;">Fill in Distance + Speed to auto-calculate Duration/Calories (jogging, treadmill), or just Duration for a MET-based pick like Swimming.</div>
             <div id="workoutOverloadHintWrap"></div>
+            <div id="workoutProgressChartWrap"></div>
             <div class="nav" style="justify-content:flex-end;">
               <button type="button" class="secondary" id="copyLastExercisesBtn" title="Pick a Split above first, then click to add every exercise from that split's own list, each filled in with your last sets/reps/weight for it -- or marked tbd if you've never logged it before">Copy last exercises →</button>
               <button type="button" class="secondary hidden" id="workoutCancelBtn">Cancel edit</button>
@@ -1668,6 +1674,7 @@
       <div class="hidden" id="guidedWorkoutCoachAdviceWrap" style="margin-top:10px; padding:10px 12px; border-radius:8px; background:var(--panel2); border:1px solid var(--border); text-align:left; font-size:.85rem;">
         <strong style="color:var(--accent2);">Coach note:</strong> <span id="guidedWorkoutCoachAdviceText"></span>
       </div>
+      <div id="guidedWorkoutProgressChartWrap" style="margin-top:12px;"></div>
     </div>
 
     <div class="row-inline">
@@ -1902,8 +1909,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.84";
+const APP_VERSION = "1.85";
 const CHANGELOG = [
+  { version: "1.85", date: "2026-09-21", desc: "Exercises now show a small progress chart -- your top-set weight (or reps, for machine-level/bodyweight moves) across your last 6 logged sessions, right in the Guided Workout card and next to the \"Last time... Try X today\" hint on the manual \"Log a set\" form. Bars for a session that didn't beat the one before it are highlighted, and if you've gone 2+ sessions in a row with no increase, a note spells out exactly how many -- so a plateau is something you can see at a glance, not just something the Coach note mentions in passing." },
   { version: "1.84", date: "2026-09-21", desc: "Logging a set through \"+ Log a set manually\" no longer starts or reports a training session time. It used to silently start the live session clock as a fallback, so a purely manual entry could end up showing a \"Trained (strength) HH:MM-HH:MM\" line on the Day workout log summary that you never asked for. Only \"Start Training\" and \"Copy last exercises\" book a session time now." },
   { version: "1.83", date: "2026-09-21", desc: "The v1.82 landing-view fix turned out not to be enough -- the underlying \"Open this tab when I log in\" setting itself could silently fail to save (a stale background cloud sync could overwrite it right back to whatever it was before). Rather than chase that down, removed the setting entirely: you now always land on Nutrition Log after logging in or reopening the app, full stop -- no dropdown, nothing to configure, nothing that can silently revert." },
   { version: "1.82", date: "2026-09-21", desc: "Three small fixes/additions: (1) Added Flax seeds (siemię lniane) to the Nutrition Log quick-pick, with a 1 small tsp (5g) serving hint. (2) After the welcome-back greeting, you're now always taken straight to your configured landing view (Nutrition Log by default) -- this no longer depends on the greeting's own close button/X actually being clicked to trigger it. (3) Confirmed your JSON backup export already includes full copies of your progress photos and exercise-reference (machine setting) photos, uncapped -- no change needed there, just verified and locked in with a test." },
@@ -9345,6 +9353,74 @@ function describeOverloadSet(s){
   return `${s.reps != null ? s.reps : "—"} reps (bodyweight)`;
 }
 
+// v1.85: a compact inline chart of an exercise's recent top-set history, so you can actually SEE
+// whether you've been adding weight/reps over time or have been stuck at the same numbers for a
+// while -- rather than only reading about it in a Coach note or the "Last time" line above. Shown
+// both in the guided workout card (Start Training) and next to the manual "Log a set" form's
+// overload hint, wherever an exercise is selected. Plots weight for a kg-based exercise; reps for
+// Level (machine) or bodyweight exercises, which have no comparable continuous weight scale.
+const EXERCISE_PROGRESS_CHART_SESSIONS = 6;
+function renderExerciseProgressChart(wrapId, exerciseName){
+  const wrap = document.getElementById(wrapId);
+  if(!wrap) return;
+  if(!exerciseName || !exerciseName.trim()){ wrap.innerHTML = ""; return; }
+  const history = workoutHistoryForExercise(exerciseName)
+    .slice(0, EXERCISE_PROGRESS_CHART_SESSIONS)
+    .map(e => ({date: e.date, top: workoutEntryTopSetForOverload(e)}))
+    .filter(h => h.top)
+    .reverse(); // oldest -> newest, left to right, matching every other trend chart in the app
+  if(history.length < 2){ wrap.innerHTML = ""; return; } // nothing meaningful to chart with 0-1 points
+
+  const isWeightBased = history.some(h => h.top.type === "kg" && h.top.weight != null);
+  const values = history.map(h => isWeightBased ? (h.top.weight != null ? h.top.weight : 0) : (h.top.reps != null ? h.top.reps : 0));
+  const maxVal = Math.max(...values, 1) * 1.15;
+  const w = 320, h = 92, pad = 6, padBottom = 30, barGap = 6;
+  const n = history.length;
+  const barW = Math.max((w - pad*2 - (n-1)*barGap) / n, 4);
+  const yFor = v => (h - padBottom) - (v/maxVal)*(h - padBottom - pad);
+
+  let bars = "", valueLabels = "", dateLabels = "";
+  history.forEach((pt,i)=>{
+    const x = pad + i*(barW+barGap);
+    const v = values[i];
+    const y = yFor(v);
+    const barH = Math.max((h - padBottom) - y, 1);
+    // A bar that's no higher than the one right before it (no new weight/reps this session) is
+    // colored the same warning tone the app already uses for a missed target elsewhere, so a run of
+    // "stuck" sessions stands out visually at a glance -- exactly the thing this chart exists for.
+    const prevV = i > 0 ? values[i-1] : null;
+    const stalled = prevV != null && v <= prevV;
+    const color = stalled ? "var(--warn)" : "var(--accent)";
+    const weightLabel = pt.top.type === "kg" && pt.top.weight != null ? `${pt.top.weight}kg` : (pt.top.type === "level" ? `Lvl ${pt.top.weight}` : "BW");
+    const repsLabel = pt.top.reps != null ? `${pt.top.reps}` : "—";
+    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${formatShortDate(pt.date)}: ${weightLabel} × ${repsLabel}</title></rect>`;
+    const centerPct = ((x + barW/2) / w * 100).toFixed(2);
+    const labelTop = Math.max(y - 14, 0).toFixed(1);
+    valueLabels += `<div class="exercise-chart-value" style="left:${centerPct}%; top:${labelTop}px;">${isWeightBased ? weightLabel : repsLabel + " reps"}</div>`;
+    dateLabels += `<div class="exercise-chart-date" style="left:${centerPct}%; top:${(h-padBottom+6).toFixed(1)}px;">${formatShortDate(pt.date)}</div>`;
+  });
+
+  // How many sessions in a row, counting back from the most recent, never beat the one before it --
+  // the same "last N times you didn't add anything" the user asked to see directly.
+  let flatStreak = 0;
+  for(let i=values.length-1; i>0; i--){ if(values[i] <= values[i-1]) flatStreak++; else break; }
+  const flatNote = flatStreak >= 2
+    ? `<div class="exercise-chart-note">No increase in ${isWeightBased ? "weight" : "reps"} for your last ${flatStreak+1} sessions</div>`
+    : "";
+
+  wrap.innerHTML = `
+    <div class="exercise-chart-label">${isWeightBased ? "Top-set weight" : "Top-set reps"} — last ${n} sessions</div>
+    <div style="position:relative; height:${h}px;">
+      <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%; height:${h}px; display:block;">
+        ${bars}
+      </svg>
+      ${valueLabels}
+      ${dateLabels}
+    </div>
+    ${flatNote}
+  `;
+}
+
 // --- Plateau detection for individual lifts -- mirrors the Scale Log weight-plateau detector's
 // "compare a recent window against what came before it" approach, but per exercise and based on
 // top-set weight instead of bodyweight. Flags a stall when the best weight hit across the most
@@ -9412,14 +9488,17 @@ function applyWorkoutFormMode(){
 // duration/distance-based cardio the same way).
 function renderWorkoutOverloadHint(exerciseName){
   const wrap = document.getElementById("workoutOverloadHintWrap");
+  const chartWrap = document.getElementById("workoutProgressChartWrap");
   if(!wrap) return;
   if(editingWorkoutId || workoutFormIsCardioMode() || !exerciseName || !exerciseName.trim()){
     wrap.innerHTML = "";
+    if(chartWrap) chartWrap.innerHTML = "";
     return;
   }
   const info = suggestNextLoad(exerciseName);
-  if(!info){ wrap.innerHTML = ""; return; }
+  if(!info){ wrap.innerHTML = ""; if(chartWrap) chartWrap.innerHTML = ""; return; }
   wrap.innerHTML = `<div class="overload-hint">Last time (${formatShortDate(info.date)}): ${describeOverloadSet(info.last)}. Try <b>${describeOverloadSet(info.suggestion)}</b> today.</div>`;
+  if(chartWrap) renderExerciseProgressChart("workoutProgressChartWrap", exerciseName);
 }
 
 let selectedWorkoutCardioMet = null;
@@ -10022,6 +10101,8 @@ function renderGuidedWorkoutCard(){
   } else {
     adviceWrap.classList.add("hidden");
   }
+
+  renderExerciseProgressChart("guidedWorkoutProgressChartWrap", current.name);
 
   document.getElementById("guidedWorkoutPrevBtn").disabled = (st.completedCount === 0);
 }
