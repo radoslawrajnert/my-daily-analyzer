@@ -1914,8 +1914,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.80";
+const APP_VERSION = "1.81";
 const CHANGELOG = [
+  { version: "1.81", date: "2026-09-21", desc: "Found the real reason another device's data could still seem missing even after v1.78/v1.80: when the app quietly re-syncs with the cloud in the background (which happens every time you simply open the site again, not just when you log in), it was correctly pulling in the latest data behind the scenes but never refreshing what was on your screen -- so it looked like nothing arrived unless you happened to switch tabs afterward. It now refreshes the screen you're looking at automatically the moment a background sync finishes." },
   { version: "1.80", date: "2026-09-21", desc: "Two more Cloud Sync reliability fixes, on top of v1.78's fix for pulls: (1) a pending sync push no longer gets silently dropped when the app is backgrounded or closed within its ~1.5s debounce window (very normal on a phone -- log a set, lock the screen) -- it now flushes immediately the moment the tab hides or closes, instead of possibly never firing at all. (2) Added a safety net that refuses to push if your local nutrition/workout data suddenly collapsed to near-nothing compared to what was last successfully synced -- it pauses and tells you, rather than ever overwriting real cloud data with something that looks like an accidental wipe. New \"Sync now\" button in Settings -> Cloud Sync for an immediate manual sync (also the way to push through the new safety net if a big deletion really was intentional)." },
   { version: "1.79", date: "2026-09-21", desc: "Nutrition Log quick-pick: added Milk (whole 3.5% and semi-skimmed 1.5%) and Buckwheat groats (uncooked/dry and cooked) to the food database, so they show up when searching/logging a meal." },
   { version: "1.78", date: "2026-09-21", desc: "Fixed a real data-loss bug in Cloud Sync: pulling your data from the cloud used to replace your nutrition log, workout log, habits log, day notes, daily check-in answers, commitments and coach feedback entirely with whatever the cloud happened to have -- so if a push from another device (or an earlier session) hadn't finished yet, that older cloud copy could silently overwrite newer entries already on your device. Pulling now merges day-by-day and entry-by-entry instead of overwriting, the same careful approach progress photos already used -- nothing on either side gets dropped just because the other side hasn't caught up yet." },
@@ -15448,6 +15449,24 @@ document.getElementById("coachSaveFeedbackBtn").addEventListener("click", ()=>{
 });
 
 /* init */
+// v1.81: the background cloud pull below (fired from onAuthStateChanged on every page load once
+// Firebase restores a persisted session) correctly merged newly-synced data into localStorage, but
+// never refreshed whatever view was already on screen -- it only showed a toast asking the user to
+// manually switch tabs to see it. In practice almost nobody does that, so opening the site again on
+// a second device could look exactly like the sync silently failed even though it had already
+// succeeded. getActiveView() finds whichever view is currently visible (by DOM, not a separate
+// tracked variable, so it can never drift out of sync with switchView's own toggling) so it can be
+// re-rendered in place immediately after a successful pull.
+function getActiveView(){
+  const views = [["plan","planView"], ["log","logView"], ["food","foodView"], ["workout","workoutView"],
+    ["habits","habitsView"], ["commitments","commitmentsView"], ["ailog","aiLogView"], ["coach","coachView"]];
+  for(const [name, id] of views){
+    const el = document.getElementById(id);
+    if(el && !el.classList.contains("hidden")) return name;
+  }
+  return null;
+}
+
 (function init(){
   renderEnvBanner();
   const savedSession = localStorage.getItem(SESSION_KEY);
@@ -15482,7 +15501,13 @@ document.getElementById("coachSaveFeedbackBtn").addEventListener("click", ()=>{
             // sync would undo a preset you'd deliberately deleted since the last time it ran.
             applyPresetAdjustmentsV2();
             seedDefaultSplitExercisePatterns();
-            showToast("Synced latest data from the cloud — switch tabs to see it");
+            // Refresh whatever's currently on screen in place -- previously this only showed a
+            // toast telling the user to switch tabs themselves, so newly-synced data (e.g. a
+            // workout logged on another device) could sit merged in localStorage but invisible
+            // until the user happened to navigate away and back.
+            const activeView = getActiveView();
+            if(activeView) switchView(activeView);
+            showToast("Synced latest data from the cloud");
           }
         }
       });
