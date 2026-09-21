@@ -1909,8 +1909,10 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.85";
+const APP_VERSION = "1.87";
 const CHANGELOG = [
+  { version: "1.87", date: "2026-09-21", desc: "The exercise progress chart's value label still didn't read as clearly tied to its own bar after the v1.86 fix. Each number is now colored to match its bar (green/orange) and sits at the end of a thin colored line running straight down into the column, so which number belongs to which session is unmistakable at a glance -- no more guessing by position alone. Also widened the chart's left/right margin a bit." },
+  { version: "1.86", date: "2026-09-21", desc: "Fixed the new exercise progress chart (v1.85): the value label above each bar (e.g. \"44kg\") had almost no headroom above the tallest bar, so it got pushed up out of the chart box entirely -- floating disconnected from its own bar/column, up near the caption text. It now sits directly above its column with a small, consistent gap, matching how every other chart in the app already positions its labels." },
   { version: "1.85", date: "2026-09-21", desc: "Exercises now show a small progress chart -- your top-set weight (or reps, for machine-level/bodyweight moves) across your last 6 logged sessions, right in the Guided Workout card and next to the \"Last time... Try X today\" hint on the manual \"Log a set\" form. Bars for a session that didn't beat the one before it are highlighted, and if you've gone 2+ sessions in a row with no increase, a note spells out exactly how many -- so a plateau is something you can see at a glance, not just something the Coach note mentions in passing." },
   { version: "1.84", date: "2026-09-21", desc: "Logging a set through \"+ Log a set manually\" no longer starts or reports a training session time. It used to silently start the live session clock as a fallback, so a purely manual entry could end up showing a \"Trained (strength) HH:MM-HH:MM\" line on the Day workout log summary that you never asked for. Only \"Start Training\" and \"Copy last exercises\" book a session time now." },
   { version: "1.83", date: "2026-09-21", desc: "The v1.82 landing-view fix turned out not to be enough -- the underlying \"Open this tab when I log in\" setting itself could silently fail to save (a stale background cloud sync could overwrite it right back to whatever it was before). Rather than chase that down, removed the setting entirely: you now always land on Nutrition Log after logging in or reopening the app, full stop -- no dropdown, nothing to configure, nothing that can silently revert." },
@@ -9374,19 +9376,30 @@ function renderExerciseProgressChart(wrapId, exerciseName){
   const isWeightBased = history.some(h => h.top.type === "kg" && h.top.weight != null);
   const values = history.map(h => isWeightBased ? (h.top.weight != null ? h.top.weight : 0) : (h.top.reps != null ? h.top.reps : 0));
   const maxVal = Math.max(...values, 1) * 1.15;
-  // v1.85.1: padTop (top headroom for the value label) was only 6px -- barely enough for the tallest
+  // v1.86: padTop (top headroom for the value label) was only 6px -- barely enough for the tallest
   // bar's label, and since .exercise-chart-value ALSO shifts itself up by its own full height
   // (transform:translate(-50%,-100%), same pattern as renderDailyBarChart's .bar-value-label), that
   // pushed the label up out of the chart box entirely: it ended up floating disconnected near the
   // caption line above, nowhere near its own bar/column. Now mirrors renderDailyBarChart's proven
   // geometry -- generous top headroom, labelY only 4px above the bar (not 14), floored so it can
   // never leave the box -- so the value sits directly over its column like every other chart here.
-  const w = 320, h = 108, padX = 6, padTop = 20, padBottom = 30, barGap = 6;
+  //
+  // v1.87: even with that geometry fixed, a live screenshot still showed the value looking
+  // disconnected from its own bar (worst on the leftmost/rightmost columns, where there's the least
+  // surrounding whitespace to visually forgive a few px of drift). Verified with the exact same
+  // numbers through the real render pipeline that the label's left% and its bar's own center-x are
+  // computed identically (see the shared centerPct below) -- so rather than keep chasing a sub-pixel
+  // position bug that isn't there, this makes the pairing unmistakable regardless of any drift: each
+  // value is now colored to match its own bar (not neutral gray) and sits at the end of a thin
+  // vertical "wick" of that same color running down to the bar's top -- so your eye follows a solid
+  // line from the number straight into its column instead of having to judge x-position by itself.
+  // Also widened the left/right edge margin (padX) so the outermost bars' labels have breathing room.
+  const w = 320, h = 108, padX = 16, padTop = 22, padBottom = 30, barGap = 6;
   const n = history.length;
   const barW = Math.max((w - padX*2 - (n-1)*barGap) / n, 4);
   const yFor = v => (h - padBottom) - (v/maxVal)*(h - padBottom - padTop);
 
-  let bars = "", valueLabels = "", dateLabels = "";
+  let bars = "", valueLabels = "", dateLabels = "", wicks = "";
   history.forEach((pt,i)=>{
     const x = padX + i*(barW+barGap);
     const v = values[i];
@@ -9402,8 +9415,15 @@ function renderExerciseProgressChart(wrapId, exerciseName){
     const repsLabel = pt.top.reps != null ? `${pt.top.reps}` : "—";
     bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${formatShortDate(pt.date)}: ${weightLabel} × ${repsLabel}</title></rect>`;
     const centerPct = ((x + barW/2) / w * 100).toFixed(2);
-    const labelTop = Math.max(y - 4, 9).toFixed(1);
-    valueLabels += `<div class="exercise-chart-value" style="left:${centerPct}%; top:${labelTop}px;">${isWeightBased ? weightLabel : repsLabel + " reps"}</div>`;
+    const labelBottom = Math.max(y - 10, 9);
+    valueLabels += `<div class="exercise-chart-value" style="left:${centerPct}%; top:${labelBottom.toFixed(1)}px; color:${color};">${isWeightBased ? weightLabel : repsLabel + " reps"}</div>`;
+    // The wick: a thin vertical bar, same color as the column it belongs to, running from just under
+    // the label down to the bar's own top edge -- a solid visual thread instead of relying on
+    // horizontal position alone to show which number goes with which column.
+    const wickH = Math.max(y - labelBottom, 0);
+    if(wickH > 1){
+      wicks += `<div style="position:absolute; left:${centerPct}%; top:${labelBottom.toFixed(1)}px; width:2px; height:${wickH.toFixed(1)}px; background:${color}; transform:translateX(-50%); opacity:.55;"></div>`;
+    }
     dateLabels += `<div class="exercise-chart-date" style="left:${centerPct}%; top:${(h-padBottom+6).toFixed(1)}px;">${formatShortDate(pt.date)}</div>`;
   });
 
@@ -9421,6 +9441,7 @@ function renderExerciseProgressChart(wrapId, exerciseName){
       <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%; height:${h}px; display:block;">
         ${bars}
       </svg>
+      ${wicks}
       ${valueLabels}
       ${dateLabels}
     </div>
