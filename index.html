@@ -1909,8 +1909,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.90";
+const APP_VERSION = "1.91";
 const CHANGELOG = [
+  { version: "1.91", date: "2026-09-22", desc: "Fixed seeing different nutrition/workout numbers for the same day on two devices at once (e.g. iPhone vs PC). The cause: a browser tab only ever pulled the latest cloud data once, right when it was first opened -- a tab left open for a while (very normal on a PC) just kept showing that one snapshot forever, even as new entries kept arriving in the cloud from another device throughout the day. Coming back to an already-open tab or app now automatically re-checks the cloud (at most once every 20 seconds) and refreshes the screen if anything new arrived, so switching back to it behaves the same as reopening it fresh." },
   { version: "1.90", date: "2026-09-22", desc: "Added a safety net for a serious report: workout data logged, then gone about 10 minutes later. A full audit of every place that saves nutrition/workout entries (the manual form, guided workout Next/Previous, cloud push/pull) found the pull-side merge logic is already designed so a cloud sync can only ever ADD entries, never remove any that are already on your device -- but as a last resort, pullFromCloud() now explicitly refuses to apply any sync that would somehow still result in fewer logged entries than what's already saved locally, keeping your on-device data exactly as-is and showing a clear message instead of silently losing anything. If you can reproduce this again, please note: which device/browser, whether you left the app running or switched away, and whether Cloud Sync is turned on -- that detail is what's still needed to pin down the root cause for certain." },
   { version: "1.89", date: "2026-09-21", desc: "Redesigned the exercise progress chart after three rounds of bar-chart tweaks still didn't look right -- mocked up 10 different chart styles side by side and picked one directly instead of guessing further. It's now a line-and-dot chart: one dot per session connected by a thin line, colored green when you beat the session before it and orange when you didn't, with the weight (or reps) shown right above its own dot. No bars, no connector lines -- each value only ever has to line up with a single point." },
   { version: "1.88", date: "2026-09-21", desc: "Simplified the exercise progress chart after the v1.87 colored-number/connector-line treatment looked cluttered in practice. Back to plain: gray value labels (like every other chart), no connector lines -- only the bars themselves carry the green/orange meaning. The v1.86 positioning fix (each label sitting directly above its own bar) is unchanged." },
@@ -15580,6 +15581,45 @@ function getActiveView(){
   return null;
 }
 
+// v1.91: pullFromCloud() used to only ever be called (a) on explicit login, and (b) once from
+// onAuthStateChanged when the page first loads and Firebase restores a persisted session. That
+// meant a browser tab left open for a while -- extremely normal on a PC, where people don't close
+// tabs -- would just keep showing whatever was on screen from that one pull, forever, even as
+// entries kept landing in the cloud from a phone used throughout the day. Reported live: "I see
+// right now on iPhone and my PC different values for yesterday nutrition" -- exactly this. The PC
+// tab wasn't wrong or corrupted, it just had never been told to check again.
+//
+// syncFromCloudAndRefresh() pulls it out of the onAuthStateChanged callback so it can also be called
+// from the new visibilitychange listener below: any time this tab regains focus (switching back to
+// it, unlocking the phone) after having been hidden, it re-pulls and refreshes the screen in place --
+// so coming back to an already-open tab behaves the same as reopening it fresh. Throttled to at most
+// once every 20s so rapidly tabbing away and back doesn't hammer Firestore with reads.
+let lastVisibilityPullAt = 0;
+async function syncFromCloudAndRefresh(){
+  if(!fbUser || !currentUserEmail) return;
+  const pulled = await pullFromCloud(currentUserEmail);
+  if(pulled){
+    // Same reasoning as the login-flow pull: an older cloud snapshot can silently
+    // reintroduce un-migrated Activity Log rows, so re-run the migration right after.
+    migrateLegacyActivityEntriesToWorkout(true);
+    cleanupDuplicateWorkoutPresets(true);
+    // Same reasoning again: an older cloud snapshot can silently reintroduce a split's
+    // pre-migration default color, so force this migration to re-check every time too.
+    migrateLegacyDefaultSplitColorsOnce(true);
+    // Not forced here (see the comment on its call in enterApp) -- forcing it on every
+    // sync would undo a preset you'd deliberately deleted since the last time it ran.
+    applyPresetAdjustmentsV2();
+    seedDefaultSplitExercisePatterns();
+    // Refresh whatever's currently on screen in place -- previously this only showed a
+    // toast telling the user to switch tabs themselves, so newly-synced data (e.g. a
+    // workout logged on another device) could sit merged in localStorage but invisible
+    // until the user happened to navigate away and back.
+    const activeView = getActiveView();
+    if(activeView) switchView(activeView);
+    showToast("Synced latest data from the cloud");
+  }
+}
+
 (function init(){
   renderEnvBanner();
   const savedSession = localStorage.getItem(SESSION_KEY);
@@ -15593,7 +15633,6 @@ function getActiveView(){
   // If cloud sync is configured, restore the Firebase session in the background and
   // refresh this device's copy from the cloud. Never blocks first paint or offline use —
   // the app is already usable with whatever's on the device by the time this resolves.
-  // Switch tabs (or log back in) after it finishes to see anything synced from another device.
   if(isCloudSyncConfigured()){
     loadFirebaseSdk().then(ok=>{
       if(!ok || !initFirebaseIfConfigured()) return;
@@ -15601,32 +15640,26 @@ function getActiveView(){
         fbUser = user;
         refreshCloudSyncSettingsUI();
         if(user && currentUserEmail && normEmail(user.email) === currentUserEmail){
-          const pulled = await pullFromCloud(currentUserEmail);
-          if(pulled){
-            // Same reasoning as the login-flow pull: an older cloud snapshot can silently
-            // reintroduce un-migrated Activity Log rows, so re-run the migration right after.
-            migrateLegacyActivityEntriesToWorkout(true);
-            cleanupDuplicateWorkoutPresets(true);
-            // Same reasoning again: an older cloud snapshot can silently reintroduce a split's
-            // pre-migration default color, so force this migration to re-check every time too.
-            migrateLegacyDefaultSplitColorsOnce(true);
-            // Not forced here (see the comment on its call in enterApp) -- forcing it on every
-            // sync would undo a preset you'd deliberately deleted since the last time it ran.
-            applyPresetAdjustmentsV2();
-            seedDefaultSplitExercisePatterns();
-            // Refresh whatever's currently on screen in place -- previously this only showed a
-            // toast telling the user to switch tabs themselves, so newly-synced data (e.g. a
-            // workout logged on another device) could sit merged in localStorage but invisible
-            // until the user happened to navigate away and back.
-            const activeView = getActiveView();
-            if(activeView) switchView(activeView);
-            showToast("Synced latest data from the cloud");
-          }
+          lastVisibilityPullAt = Date.now();
+          await syncFromCloudAndRefresh();
         }
       });
     });
   }
 })();
+
+// See syncFromCloudAndRefresh() above -- re-pulls on regaining focus, not just on first load, so a
+// browser tab left open all day doesn't silently drift out of sync with entries logged elsewhere.
+if(typeof document !== "undefined" && typeof document.addEventListener === "function"){
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.visibilityState !== "visible") return;
+    if(!fbUser || !currentUserEmail) return; // not signed into cloud sync -- nothing to pull
+    const now = Date.now();
+    if(now - lastVisibilityPullAt < 20000) return; // throttle: at most once every 20s
+    lastVisibilityPullAt = now;
+    syncFromCloudAndRefresh();
+  });
+}
 
 // v1.68: register the service worker so the app is installable (Add to Home Screen / desktop
 // install prompt) and keeps working offline once installed. Guarded for browsers that don't
