@@ -1909,8 +1909,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.92";
+const APP_VERSION = "1.93";
 const CHANGELOG = [
+  { version: "1.93", date: "2026-09-22", desc: "Two more cloud sync fixes: (1) Found and fixed the real cause of an edited Scale Log reading silently reverting after being saved -- the function that merges scale-log entries from the cloud was, despite its name, replacing the WHOLE entry (weight, body fat %, measurements -- not just the photo) with whatever the cloud happened to have, so any sync that ran shortly after an edit (including v1.91's new \"re-check on regaining focus\") could revert it back to the old value. A local edit is now never overwritten by a sync, the same rule already used everywhere else in the app. (2) \"Sync now\" could fail outright once an account's logging history grew large enough, even after v1.92's photo trimming. Cross-device sync now only needs to upload the last 120 days of food/workout/habit/check-in entries -- older entries stay exactly as they are on every device, nothing is deleted, and your full uncapped history is always available via the JSON backup export." },
   { version: "1.92", date: "2026-09-22", desc: "Fixed \"Sync now\" failing with a cloud size-limit error (\"size exceeds allowed size of 1048576\"). Exercise-reference photos were budgeted against a fixed 700KB assumption about how much room your food/workout/habit history would leave under the cloud's 1MB-per-account limit -- after months of daily logging, that assumption no longer held for some accounts, so photos could still push the total over the limit. The photo budget is now calculated from your account's actual data size each time you sync, so it always fits -- and if your logging history alone is ever too large even with photos trimmed to nothing, you'll get a specific, readable message instead of the raw cloud error." },
   { version: "1.91", date: "2026-09-22", desc: "Fixed seeing different nutrition/workout numbers for the same day on two devices at once (e.g. iPhone vs PC). The cause: a browser tab only ever pulled the latest cloud data once, right when it was first opened -- a tab left open for a while (very normal on a PC) just kept showing that one snapshot forever, even as new entries kept arriving in the cloud from another device throughout the day. Coming back to an already-open tab or app now automatically re-checks the cloud (at most once every 20 seconds) and refreshes the screen if anything new arrived, so switching back to it behaves the same as reopening it fresh." },
   { version: "1.90", date: "2026-09-22", desc: "Added a safety net for a serious report: workout data logged, then gone about 10 minutes later. A full audit of every place that saves nutrition/workout entries (the manual form, guided workout Next/Previous, cloud push/pull) found the pull-side merge logic is already designed so a cloud sync can only ever ADD entries, never remove any that are already on your device -- but as a last resort, pullFromCloud() now explicitly refuses to apply any sync that would somehow still result in fewer logged entries than what's already saved locally, keeping your on-device data exactly as-is and showing a clear message instead of silently losing anything. If you can reproduce this again, please note: which device/browser, whether you left the app running or switched away, and whether Cloud Sync is turned on -- that detail is what's still needed to pin down the root cause for certain." },
@@ -2723,6 +2724,43 @@ function byteLengthOfString(str){
 function sanitizeForCloud(u){
   const clone = JSON.parse(JSON.stringify(u || {}));
   delete clone.password;
+
+  // v1.93: cross-device sync only ever needs a reasonably RECENT window of your day-by-day logs --
+  // your full history always stays safe on every device it was ever entered on (this app is
+  // offline-first; localStorage is the real source of truth, and this trim only affects what gets
+  // UPLOADED, never what's kept locally). Without a window, months of accumulated food/workout/
+  // habit/daily-check-in entries can, on their own, grow past Firestore's 1,048,576-byte document
+  // limit -- reported live as "Sync now" failing outright ("your account's data (1063KB) no longer
+  // fits... even with exercise-reference photos trimmed to nothing") even after the v1.92 dynamic
+  // photo budget had already trimmed every exercise photo down to zero. Anything within the window
+  // keeps syncing cross-device exactly as before; anything older simply stops being RE-uploaded on
+  // future pushes (it already reached every device that was online while it was still in-window) --
+  // for a full, uncapped copy of your entire history at any age, the JSON backup export already
+  // exists and was never subject to this or any other cloud size limit.
+  const LOG_SYNC_WINDOW_DAYS = 120;
+  const syncCutoffDate = shiftDateStr(todayStr(), -LOG_SYNC_WINDOW_DAYS);
+  ["foodLog","workoutLog","habitLog"].forEach(field=>{
+    if(clone[field] && typeof clone[field] === "object"){
+      const trimmed = {};
+      Object.keys(clone[field]).forEach(date=>{ if(date >= syncCutoffDate) trimmed[date] = clone[field][date]; });
+      clone[field] = trimmed;
+    }
+  });
+  // dailyQuestionsLog is one level deeper -- {questionId: {date: value}} -- so the same date cutoff
+  // applies per-question rather than at the top level.
+  if(clone.dailyQuestionsLog && typeof clone.dailyQuestionsLog === "object"){
+    const trimmedQ = {};
+    Object.keys(clone.dailyQuestionsLog).forEach(qid=>{
+      const perDate = clone.dailyQuestionsLog[qid];
+      const trimmedDates = {};
+      if(perDate && typeof perDate === "object"){
+        Object.keys(perDate).forEach(date=>{ if(date >= syncCutoffDate) trimmedDates[date] = perDate[date]; });
+      }
+      trimmedQ[qid] = trimmedDates;
+    });
+    clone.dailyQuestionsLog = trimmedQ;
+  }
+
   if(Array.isArray(clone.scaleLogs)){
     clone.scaleLogs = clone.scaleLogs.map(l=>{
       const rest = Object.assign({}, l);
@@ -2926,7 +2964,19 @@ function mergeScaleLogPhotos(cloudArr, localArr){
   const fields = ["photoFront","photoBack","photo"];
   const merged = cloudArr.map(item=>{
     const localMatch = localByDate.get(item.date);
-    const out = Object.assign({}, item);
+    // v1.93: despite the name, this merges the WHOLE scale-log entry for a date, not just its
+    // photos -- but it used to start from Object.assign({}, item) (the CLOUD entry) and only
+    // special-cased the photo fields below to prefer local. Every OTHER field -- weightKg,
+    // bodyFatPct, musclePct, visceralFat, chest/waist/hip/thigh/calf -- came straight from
+    // whatever the cloud snapshot happened to hold. Reported live: editing a reading, saving it,
+    // then having it silently revert back. Root cause: any pull that ran before that edit's own
+    // debounced push reached the cloud (including the v1.91 "pull when the tab regains focus"
+    // trigger) would merge in the still-stale cloud value and overwrite the just-made edit. Start
+    // from the LOCAL entry instead when one exists for this date -- the same "local wins on
+    // conflict" rule already used below for foodLog/workoutLog/habitLog id collisions -- so a
+    // local edit is never clobbered by a pull. A date that exists in the cloud but was never
+    // touched on this device at all is still taken from the cloud wholesale, unchanged.
+    const out = Object.assign({}, localMatch || item);
     fields.forEach(f=>{
       const localValue = localMatch && localMatch[f];
       if(isLocalPhotoDataUrl(localValue)) out[f] = localValue;
