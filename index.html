@@ -1907,8 +1907,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.95";
+const APP_VERSION = "1.96";
 const CHANGELOG = [
+  { version: "1.96", date: "2026-09-22", desc: "Real fix for the cloud sync size limit, not just a trim: your account is now stored as two separate documents in the cloud instead of one -- your day-by-day logs (nutrition, workouts, habits, daily check-ins, AI Coach history) in one, everything else (profile, settings, scale log, exercise references, target ranges) in the other. Each now gets its own full 1MB budget instead of all of it sharing one, so the v1.93 120-day log window is no longer needed and has been removed -- full history syncs across devices again. This needed a one-time update to the cloud security rules to allow it, which is now in place. If your data still somehow doesn't fit in one of the two documents, the sync error will now say exactly which one and what's largest inside it." },
   { version: "1.95", date: "2026-09-22", desc: "The \"account data too large to sync\" error message now names the actual largest parts of your data instead of just guessing it's from a long logging history -- that guess turned out to be wrong for at least one account (the size barely changed after v1.93's 120-day log window shipped), so the message wasn't actually useful for pinning down the real cause. If you see this error now, please pass along exactly what it lists as the largest parts -- that's what's needed to fix it for good." },
   { version: "1.94", date: "2026-09-22", desc: "\"Add a reading\" form: Chest, Waist, Hip, Thigh and Calf now each get their own full-width row, stacked top to bottom in that order (matching how they run down the body), instead of the previous layout with four side by side and Calf alone underneath." },
   { version: "1.93", date: "2026-09-22", desc: "Two more cloud sync fixes: (1) Found and fixed the real cause of an edited Scale Log reading silently reverting after being saved -- the function that merges scale-log entries from the cloud was, despite its name, replacing the WHOLE entry (weight, body fat %, measurements -- not just the photo) with whatever the cloud happened to have, so any sync that ran shortly after an edit (including v1.91's new \"re-check on regaining focus\") could revert it back to the old value. A local edit is now never overwritten by a sync, the same rule already used everywhere else in the app. (2) \"Sync now\" could fail outright once an account's logging history grew large enough, even after v1.92's photo trimming. Cross-device sync now only needs to upload the last 120 days of food/workout/habit/check-in entries -- older entries stay exactly as they are on every device, nothing is deleted, and your full uncapped history is always available via the JSON backup export." },
@@ -2736,46 +2737,12 @@ function sizeBreakdownByField(obj){
 // Strips fields that shouldn't be embedded in the Firestore document (password, raw photo data)
 // before writing. Photos themselves go to Firebase Storage separately (see
 // syncScaleLogPhotosToCloud/attachPhotoUrls below) -- only their small download URLs end up here.
+// v1.96: no longer windows/trims the day-by-day logs itself -- see splitCloudPayload() below, which
+// now gives them their own document with their own 1MB budget instead of sharing one with
+// everything else, so trimming them down here is no longer the only option.
 function sanitizeForCloud(u){
   const clone = JSON.parse(JSON.stringify(u || {}));
   delete clone.password;
-
-  // v1.93: cross-device sync only ever needs a reasonably RECENT window of your day-by-day logs --
-  // your full history always stays safe on every device it was ever entered on (this app is
-  // offline-first; localStorage is the real source of truth, and this trim only affects what gets
-  // UPLOADED, never what's kept locally). Without a window, months of accumulated food/workout/
-  // habit/daily-check-in entries can, on their own, grow past Firestore's 1,048,576-byte document
-  // limit -- reported live as "Sync now" failing outright ("your account's data (1063KB) no longer
-  // fits... even with exercise-reference photos trimmed to nothing") even after the v1.92 dynamic
-  // photo budget had already trimmed every exercise photo down to zero. Anything within the window
-  // keeps syncing cross-device exactly as before; anything older simply stops being RE-uploaded on
-  // future pushes (it already reached every device that was online while it was still in-window) --
-  // for a full, uncapped copy of your entire history at any age, the JSON backup export already
-  // exists and was never subject to this or any other cloud size limit.
-  const LOG_SYNC_WINDOW_DAYS = 120;
-  const syncCutoffDate = shiftDateStr(todayStr(), -LOG_SYNC_WINDOW_DAYS);
-  ["foodLog","workoutLog","habitLog"].forEach(field=>{
-    if(clone[field] && typeof clone[field] === "object"){
-      const trimmed = {};
-      Object.keys(clone[field]).forEach(date=>{ if(date >= syncCutoffDate) trimmed[date] = clone[field][date]; });
-      clone[field] = trimmed;
-    }
-  });
-  // dailyQuestionsLog is one level deeper -- {questionId: {date: value}} -- so the same date cutoff
-  // applies per-question rather than at the top level.
-  if(clone.dailyQuestionsLog && typeof clone.dailyQuestionsLog === "object"){
-    const trimmedQ = {};
-    Object.keys(clone.dailyQuestionsLog).forEach(qid=>{
-      const perDate = clone.dailyQuestionsLog[qid];
-      const trimmedDates = {};
-      if(perDate && typeof perDate === "object"){
-        Object.keys(perDate).forEach(date=>{ if(date >= syncCutoffDate) trimmedDates[date] = perDate[date]; });
-      }
-      trimmedQ[qid] = trimmedDates;
-    });
-    clone.dailyQuestionsLog = trimmedQ;
-  }
-
   if(Array.isArray(clone.scaleLogs)){
     clone.scaleLogs = clone.scaleLogs.map(l=>{
       const rest = Object.assign({}, l);
@@ -2792,38 +2759,64 @@ function sanitizeForCloud(u){
       return rest;
     });
   }
+  return clone;
+}
+
+// v1.96: which fields move into the separate "logs" document (see splitCloudPayload below) --
+// the ones that grow indefinitely over time with actual daily use, as opposed to profile/settings/
+// targets/exercise references, which stay roughly constant in size regardless of how long the
+// account has been used.
+const CLOUD_LOG_DOC_FIELDS = ["foodLog", "workoutLog", "habitLog", "dailyQuestionsLog", "coachNotes"];
+
+// Splits a sanitizeForCloud() payload into the two documents that get written to Firestore:
+// `main` (users/{uid} -- profile, settings, scale logs, exercise references, target ranges, etc.)
+// and `logs` (users/{uid}/logs/main -- the day-by-day history that grows without bound the longer
+// the app is used). Reported live: "Sync now" failing outright with the account's data (1063KB, then
+// still 1064KB after the v1.93 120-day window shipped) not fitting under Firestore's 1,048,576-byte
+// PER-DOCUMENT limit -- the whole account sharing one document meant every part of it was competing
+// for the same shrinking 1MB, and no amount of trimming any single part alone could keep up with an
+// account that keeps growing in more than one direction at once (logs, AI Coach history, etc.).
+// Splitting into two documents gives each its own full 1MB budget instead, which is why the v1.93
+// log window is no longer needed and has been removed -- full history syncs again.
+//
+// Firestore security rules had to be extended to allow this (a subcollection under a user's own
+// document isn't covered by a rule scoped to just that exact document) -- see the "Rules" tab in the
+// Firebase console; this only works once `match /users/{userId}/{document=**}` (or equivalent) has
+// been added there.
+function splitCloudPayload(clean){
+  const main = Object.assign({}, clean);
+  const logs = {};
+  CLOUD_LOG_DOC_FIELDS.forEach(f=>{
+    logs[f] = (clean[f] !== undefined) ? clean[f] : (f === "coachNotes" ? [] : {});
+    delete main[f];
+  });
+
   // Per-exercise reference photos (v1.71): unlike scale-log photos, these go straight into the
   // Firestore document rather than a separate Storage upload. v1.70 tried the Storage route (like
   // scale photos), but that depends on the user's Firebase Storage bucket having a working CORS
   // policy -- a one-time setup step most people never do -- so it silently failed to actually
   // deliver photos cross-device for anyone who hadn't done that. Embedding instead rides on the
-  // exact same Firestore sync that's already proven to work for the rest of the account (notes,
-  // workouts, etc.), no extra setup required.
+  // exact same Firestore sync that's already proven to work for the rest of the account, no extra
+  // setup required.
   //
-  // v1.71 kept photos smallest-first up to a FIXED 700KB budget, on the assumption that everything
-  // else in the document (food/workout/habit history) would always leave comfortable headroom under
-  // Firestore's 1,048,576-byte document limit. Reported live: "Sync now" started failing with a
-  // size-exceeded error -- after months of daily logging, the non-photo data alone can eat well into
-  // that assumed headroom, so a fixed budget can still leave the total document over the real limit.
-  // Budget dynamically instead: measure the actual size of everything else in the document FIRST,
-  // then only spend whatever room is genuinely left (still capped, so a light account doesn't try to
-  // cram in every photo it has) on exercise photos, smallest first. Same "drop what doesn't fit
-  // rather than fail the whole document" approach as before, just sized to this account's real data
-  // instead of a one-size-fits-all guess.
-  if(clone.exerciseReferences && typeof clone.exerciseReferences === "object"){
+  // v1.71 kept photos smallest-first up to a FIXED 700KB budget, then v1.92 made that budget
+  // dynamic -- measuring the actual size of everything else in the document first, so a light
+  // account isn't stuck with the same tiny margin as a heavy one. v1.96 changes only WHAT "everything
+  // else" means: now that the day-by-day logs live in their own document, the budget is sized
+  // against `main` alone (which is usually much smaller now), so exercise photos typically get
+  // noticeably more room than before the split.
+  if(main.exerciseReferences && typeof main.exerciseReferences === "object"){
     const FIRESTORE_DOC_LIMIT_BYTES = 1048576;
     const SAFETY_MARGIN_BYTES = 60000; // headroom for Firestore's own per-document/field overhead
     const MAX_PHOTO_BUDGET_BYTES = 700000; // don't go overboard just because the rest of the doc is tiny
 
-    const entries = Object.keys(clone.exerciseReferences).map(k=>{
-      const r = clone.exerciseReferences[k] || {};
+    const entries = Object.keys(main.exerciseReferences).map(k=>{
+      const r = main.exerciseReferences[k] || {};
       return {k, note: r.note || "", updatedAt: r.updatedAt || 0, photo: r.photo || null, bytes: dataUrlByteLength(r.photo)};
     });
-    // Size everything else in the document with every exercise photo stripped out first, so the
-    // budget below reflects this account's actual food/workout/habit history, not a guess.
-    clone.exerciseReferences = {};
-    entries.forEach(({k, note, updatedAt})=>{ clone.exerciseReferences[k] = {note, updatedAt, photo: null}; });
-    const baseSize = byteLengthOfString(JSON.stringify(clone));
+    main.exerciseReferences = {};
+    entries.forEach(({k, note, updatedAt})=>{ main.exerciseReferences[k] = {note, updatedAt, photo: null}; });
+    const baseSize = byteLengthOfString(JSON.stringify(main));
     const photoBudget = Math.max(0, Math.min(MAX_PHOTO_BUDGET_BYTES, FIRESTORE_DOC_LIMIT_BYTES - SAFETY_MARGIN_BYTES - baseSize));
 
     entries.sort((a,b)=> a.bytes - b.bytes);
@@ -2834,9 +2827,10 @@ function sanitizeForCloud(u){
       if(keepPhoto) used += bytes;
       refs[k] = { note, updatedAt, photo: keepPhoto ? photo : null };
     });
-    clone.exerciseReferences = refs;
+    main.exerciseReferences = refs;
   }
-  return clone;
+
+  return {main, logs};
 }
 
 // v1.71: exercise reference photos are embedded directly in the synced document now (see
@@ -3153,28 +3147,37 @@ async function performCloudPush(force){
       showToast("Sync paused to protect your cloud data — see Settings → Cloud Sync");
       return;
     }
-    // v1.92: sanitizeForCloud() now trims exercise-reference photos dynamically to fit under
-    // Firestore's 1,048,576-byte document limit -- but if the account's own food/workout/habit
-    // history has gotten large enough that it alone doesn't fit (even with zero exercise photos),
-    // that trimming has nothing left to cut. Catch that case here with a clear, specific message
-    // instead of letting Firestore's own opaque "size exceeds allowed size" error surface.
-    const cleanSizeBytes = byteLengthOfString(JSON.stringify(clean));
-    if(cleanSizeBytes > 1048576){
-      // v1.95: name the actual largest fields instead of guessing "long logging history" -- the
-      // v1.93 120-day log window didn't meaningfully shrink this for at least one real account, so
-      // the bulk of the data evidently lives somewhere the window doesn't cover.
-      const breakdown = sizeBreakdownByField(clean);
+    // v1.96: the account is now split into two documents (see splitCloudPayload) so the day-by-day
+    // logs and everything else no longer compete for the same shrinking 1MB budget. Check each
+    // document's size independently -- if either is still too big even after exercise-photo
+    // trimming, name the actual largest fields inside THAT document rather than guessing.
+    const {main, logs} = splitCloudPayload(clean);
+    const mainSizeBytes = byteLengthOfString(JSON.stringify(main));
+    const logsSizeBytes = byteLengthOfString(JSON.stringify(logs));
+    const oversized = mainSizeBytes > 1048576
+      ? {label: "profile/settings data", bytes: mainSizeBytes, obj: main}
+      : (logsSizeBytes > 1048576 ? {label: "day-by-day logging history", bytes: logsSizeBytes, obj: logs} : null);
+    if(oversized){
+      const breakdown = sizeBreakdownByField(oversized.obj);
       const topFields = Object.keys(breakdown)
         .filter(k => breakdown[k] >= 1024)
         .sort((a,b) => breakdown[b] - breakdown[a])
         .slice(0, 4)
         .map(k => `${k} ${Math.round(breakdown[k]/1024)}KB`)
         .join(", ");
-      updateCloudSyncStatus(`Sync error: your account's data (${Math.round(cleanSizeBytes/1024)}KB) no longer fits under the cloud's 1MB-per-account limit, even with exercise-reference photos trimmed to nothing and only the last 120 days of logs included. Largest parts: ${topFields || "(none over 1KB individually)"}. This is not something you did wrong -- please tell the developer these numbers.`);
+      const photoNote = oversized.label === "profile/settings data" ? ", even with exercise-reference photos trimmed to nothing" : "";
+      updateCloudSyncStatus(`Sync error: your ${oversized.label} (${Math.round(oversized.bytes/1024)}KB) no longer fits under the cloud's 1MB-per-document limit${photoNote}. Largest parts: ${topFields || "(none over 1KB individually)"}. This is not something you did wrong -- please tell the developer these numbers.`);
       showToast("Cloud sync couldn't fit your data under the 1MB limit — see Settings → Cloud Sync");
       return;
     }
-    await fbDb.collection("users").doc(fbUser.uid).set(clean);
+    // Both documents are written as a single atomic batch -- either both land or neither does, so a
+    // mid-sync failure (dropped connection, tab closed) never leaves them out of sync with each other.
+    const userDocRef = fbDb.collection("users").doc(fbUser.uid);
+    const logsDocRef = userDocRef.collection("logs").doc("main");
+    const batch = fbDb.batch();
+    batch.set(userDocRef, main);
+    batch.set(logsDocRef, logs);
+    await batch.commit();
     saveLastPushEntryCount(currentUserEmail, newCount);
     updateCloudSyncStatus("Synced " + new Date().toLocaleTimeString());
   } catch(err){
@@ -3199,22 +3202,37 @@ if(typeof window !== "undefined" && typeof window.addEventListener === "function
 async function pullFromCloud(email){
   if(!fbUser || !fbDb) return false;
   try{
-    const snap = await fbDb.collection("users").doc(fbUser.uid).get();
+    const userDocRef = fbDb.collection("users").doc(fbUser.uid);
+    const logsDocRef = userDocRef.collection("logs").doc("main");
+    const [snap, logsSnap] = await Promise.all([userDocRef.get(), logsDocRef.get()]);
     if(!snap.exists) return false;
     const cloudData = snap.data();
+    // v1.96: the day-by-day logs now live in their own document (see performCloudPush /
+    // splitCloudPayload) -- but an account that hasn't pushed since upgrading, or another device
+    // still on an older version, can still have them sitting in the OLD spot: the main document
+    // itself. Merge from BOTH possible locations (legacy main-doc fields, then the new logs doc) so
+    // neither the first split nor a mixed-version transition ever makes data seem to vanish. Once
+    // this device pushes again, the main document stops carrying these fields going forward.
+    const cloudLogs = (logsSnap && logsSnap.exists) ? logsSnap.data() : {};
     const users = getUsers();
     const local = users[email] || {};
+    let foodLog = mergeDateKeyedEntryLog(cloudData.foodLog, local.foodLog);
+    foodLog = mergeDateKeyedEntryLog(cloudLogs.foodLog, foodLog);
+    let workoutLog = mergeDateKeyedEntryLog(cloudData.workoutLog, local.workoutLog);
+    workoutLog = mergeDateKeyedEntryLog(cloudLogs.workoutLog, workoutLog);
+    let habitLog = mergeDateKeyedEntryLog(cloudData.habitLog, local.habitLog);
+    habitLog = mergeDateKeyedEntryLog(cloudLogs.habitLog, habitLog);
+    let dailyQuestionsLog = mergeDailyQuestionsLog(cloudData.dailyQuestionsLog, local.dailyQuestionsLog);
+    dailyQuestionsLog = mergeDailyQuestionsLog(cloudLogs.dailyQuestionsLog, dailyQuestionsLog);
+    let coachNotes = mergeIdKeyedArray(cloudData.coachNotes, local.coachNotes);
+    coachNotes = mergeIdKeyedArray(cloudLogs.coachNotes, coachNotes);
     const merged = Object.assign({}, local, cloudData, {
       email,
       scaleLogs: mergeScaleLogPhotos(cloudData.scaleLogs, local.scaleLogs),
       exerciseReferences: mergeExerciseReferences(cloudData.exerciseReferences, local.exerciseReferences),
-      foodLog: mergeDateKeyedEntryLog(cloudData.foodLog, local.foodLog),
-      workoutLog: mergeDateKeyedEntryLog(cloudData.workoutLog, local.workoutLog),
-      habitLog: mergeDateKeyedEntryLog(cloudData.habitLog, local.habitLog),
+      foodLog, workoutLog, habitLog, dailyQuestionsLog, coachNotes,
       foodDayNotes: mergeDateKeyedValues(cloudData.foodDayNotes, local.foodDayNotes),
-      dailyQuestionsLog: mergeDailyQuestionsLog(cloudData.dailyQuestionsLog, local.dailyQuestionsLog),
       commitments: mergeIdKeyedArray(cloudData.commitments, local.commitments),
-      coachNotes: mergeIdKeyedArray(cloudData.coachNotes, local.coachNotes),
     });
     // Last-resort backstop, mirroring the push-side "never overwrite with an accidental wipe" guard
     // (looksLikeCatastrophicWipe/performCloudPush above) -- the merge functions above are a strict
