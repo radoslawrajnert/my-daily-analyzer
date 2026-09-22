@@ -1907,8 +1907,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.96";
+const APP_VERSION = "1.97";
 const CHANGELOG = [
+  { version: "1.97", date: "2026-09-22", desc: "Fixed the real cause behind the \"profile/settings data no longer fits\" sync error that could still show up right after v1.96's document split: the exercise-reference photo budget was measuring photos in the wrong unit (their raw image size, not the ~33% larger base64 text actually stored), so it let noticeably more photo data through than the budget intended -- e.g. a report of \"1128KB... exerciseReferences 875KB\" against a budget meant to cap around 700KB. The budget now measures the same unit it's capping, so exercise photos are trimmed to genuinely fit." },
   { version: "1.96", date: "2026-09-22", desc: "Real fix for the cloud sync size limit, not just a trim: your account is now stored as two separate documents in the cloud instead of one -- your day-by-day logs (nutrition, workouts, habits, daily check-ins, AI Coach history) in one, everything else (profile, settings, scale log, exercise references, target ranges) in the other. Each now gets its own full 1MB budget instead of all of it sharing one, so the v1.93 120-day log window is no longer needed and has been removed -- full history syncs across devices again. This needed a one-time update to the cloud security rules to allow it, which is now in place. If your data still somehow doesn't fit in one of the two documents, the sync error will now say exactly which one and what's largest inside it." },
   { version: "1.95", date: "2026-09-22", desc: "The \"account data too large to sync\" error message now names the actual largest parts of your data instead of just guessing it's from a long logging history -- that guess turned out to be wrong for at least one account (the size barely changed after v1.93's 120-day log window shipped), so the message wasn't actually useful for pinning down the real cause. If you see this error now, please pass along exactly what it lists as the largest parts -- that's what's needed to fix it for good." },
   { version: "1.94", date: "2026-09-22", desc: "\"Add a reading\" form: Chest, Waist, Hip, Thigh and Calf now each get their own full-width row, stacked top to bottom in that order (matching how they run down the body), instead of the previous layout with four side by side and Calf alone underneath." },
@@ -2698,9 +2699,13 @@ function initFirebaseIfConfigured(){
   }
 }
 
-// Estimates the byte size of a base64 data: URL (roughly 3/4 of the base64 string's length, since
-// base64 inflates raw bytes by 4/3) -- not exact (ignores padding), but fine for a size BUDGET
-// rather than a hard byte-for-byte accounting.
+// Estimates the RAW (decoded) byte size of a base64 data: URL (roughly 3/4 of the base64 string's
+// length, since base64 inflates raw bytes by 4/3) -- not exact (ignores padding). This is the size
+// of the underlying image data, NOT the size it takes up once embedded in a JSON/Firestore document
+// (which stores the base64 TEXT itself, ~4/3 bigger than this). Do not use this to budget how much
+// document space a photo will consume -- use byteLengthOfString(dataUrl) for that (see v1.97 fix:
+// splitCloudPayload's exercise-photo budget used this function and silently let ~33% more base64
+// text through than intended, because it budgeted in raw-byte units against a document-byte cap).
 function dataUrlByteLength(dataUrl){
   if(typeof dataUrl !== "string") return 0;
   const idx = dataUrl.indexOf(",");
@@ -2812,7 +2817,14 @@ function splitCloudPayload(clean){
 
     const entries = Object.keys(main.exerciseReferences).map(k=>{
       const r = main.exerciseReferences[k] || {};
-      return {k, note: r.note || "", updatedAt: r.updatedAt || 0, photo: r.photo || null, bytes: dataUrlByteLength(r.photo)};
+      // v1.97: budget in the SAME unit that actually lands in the JSON document -- the serialized
+      // byte length of the photo string itself. The previous dataUrlByteLength() here estimated the
+      // photo's RAW (decoded) byte size, which is ~25% SMALLER than the base64 string Firestore
+      // actually stores -- so a budget meant to cap the document at ~700KB of base64 text was really
+      // only capping ~700KB of raw bytes, letting ~933KB of actual base64 text through. That's the
+      // live report of "your profile/settings data (1128KB)... Largest parts: exerciseReferences
+      // 875KB" -- trimming was running, just against the wrong unit, so it undershot its own budget.
+      return {k, note: r.note || "", updatedAt: r.updatedAt || 0, photo: r.photo || null, bytes: byteLengthOfString(r.photo)};
     });
     main.exerciseReferences = {};
     entries.forEach(({k, note, updatedAt})=>{ main.exerciseReferences[k] = {note, updatedAt, photo: null}; });
