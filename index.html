@@ -1909,8 +1909,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.89";
+const APP_VERSION = "1.90";
 const CHANGELOG = [
+  { version: "1.90", date: "2026-09-22", desc: "Added a safety net for a serious report: workout data logged, then gone about 10 minutes later. A full audit of every place that saves nutrition/workout entries (the manual form, guided workout Next/Previous, cloud push/pull) found the pull-side merge logic is already designed so a cloud sync can only ever ADD entries, never remove any that are already on your device -- but as a last resort, pullFromCloud() now explicitly refuses to apply any sync that would somehow still result in fewer logged entries than what's already saved locally, keeping your on-device data exactly as-is and showing a clear message instead of silently losing anything. If you can reproduce this again, please note: which device/browser, whether you left the app running or switched away, and whether Cloud Sync is turned on -- that detail is what's still needed to pin down the root cause for certain." },
   { version: "1.89", date: "2026-09-21", desc: "Redesigned the exercise progress chart after three rounds of bar-chart tweaks still didn't look right -- mocked up 10 different chart styles side by side and picked one directly instead of guessing further. It's now a line-and-dot chart: one dot per session connected by a thin line, colored green when you beat the session before it and orange when you didn't, with the weight (or reps) shown right above its own dot. No bars, no connector lines -- each value only ever has to line up with a single point." },
   { version: "1.88", date: "2026-09-21", desc: "Simplified the exercise progress chart after the v1.87 colored-number/connector-line treatment looked cluttered in practice. Back to plain: gray value labels (like every other chart), no connector lines -- only the bars themselves carry the green/orange meaning. The v1.86 positioning fix (each label sitting directly above its own bar) is unchanged." },
   { version: "1.87", date: "2026-09-21", desc: "The exercise progress chart's value label still didn't read as clearly tied to its own bar after the v1.86 fix. Each number is now colored to match its bar (green/orange) and sits at the end of a thin colored line running straight down into the column, so which number belongs to which session is unmistakable at a glance -- no more guessing by position alone. Also widened the chart's left/right margin a bit." },
@@ -3088,7 +3089,7 @@ async function pullFromCloud(email){
     const cloudData = snap.data();
     const users = getUsers();
     const local = users[email] || {};
-    users[email] = Object.assign({}, local, cloudData, {
+    const merged = Object.assign({}, local, cloudData, {
       email,
       scaleLogs: mergeScaleLogPhotos(cloudData.scaleLogs, local.scaleLogs),
       exerciseReferences: mergeExerciseReferences(cloudData.exerciseReferences, local.exerciseReferences),
@@ -3100,6 +3101,23 @@ async function pullFromCloud(email){
       commitments: mergeIdKeyedArray(cloudData.commitments, local.commitments),
       coachNotes: mergeIdKeyedArray(cloudData.coachNotes, local.coachNotes),
     });
+    // Last-resort backstop, mirroring the push-side "never overwrite with an accidental wipe" guard
+    // (looksLikeCatastrophicWipe/performCloudPush above) -- the merge functions above are a strict
+    // union (a pull can only ADD entries relative to local, never remove any), so this should be
+    // mathematically impossible to trip. If it somehow does -- a bug in a merge helper, a malformed
+    // cloud snapshot, anything -- refuse to apply the pull's logs rather than silently losing
+    // nutrition/workout entries that were safely sitting on this device a moment ago. Every other
+    // field (settings, profile, etc.) still updates from the cloud as normal; only the two log
+    // fields fall back to local-only in this specific failure case.
+    if(countLoggableEntries(merged) < countLoggableEntries(local)){
+      console.error("Cloud pull rejected: merge would have reduced logged entries", {
+        localCount: countLoggableEntries(local), mergedCount: countLoggableEntries(merged),
+      });
+      merged.foodLog = local.foodLog;
+      merged.workoutLog = local.workoutLog;
+      showToast("Cloud sync issue detected — kept your on-device workout/nutrition entries safe. Please tell the developer.");
+    }
+    users[email] = merged;
     localStorage.setItem(USERS_KEY, JSON.stringify(users)); // direct write — avoids re-triggering a push of what we just pulled
     return true;
   } catch(err){
