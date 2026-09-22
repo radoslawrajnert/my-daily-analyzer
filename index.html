@@ -1907,8 +1907,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.94";
+const APP_VERSION = "1.95";
 const CHANGELOG = [
+  { version: "1.95", date: "2026-09-22", desc: "The \"account data too large to sync\" error message now names the actual largest parts of your data instead of just guessing it's from a long logging history -- that guess turned out to be wrong for at least one account (the size barely changed after v1.93's 120-day log window shipped), so the message wasn't actually useful for pinning down the real cause. If you see this error now, please pass along exactly what it lists as the largest parts -- that's what's needed to fix it for good." },
   { version: "1.94", date: "2026-09-22", desc: "\"Add a reading\" form: Chest, Waist, Hip, Thigh and Calf now each get their own full-width row, stacked top to bottom in that order (matching how they run down the body), instead of the previous layout with four side by side and Calf alone underneath." },
   { version: "1.93", date: "2026-09-22", desc: "Two more cloud sync fixes: (1) Found and fixed the real cause of an edited Scale Log reading silently reverting after being saved -- the function that merges scale-log entries from the cloud was, despite its name, replacing the WHOLE entry (weight, body fat %, measurements -- not just the photo) with whatever the cloud happened to have, so any sync that ran shortly after an edit (including v1.91's new \"re-check on regaining focus\") could revert it back to the old value. A local edit is now never overwritten by a sync, the same rule already used everywhere else in the app. (2) \"Sync now\" could fail outright once an account's logging history grew large enough, even after v1.92's photo trimming. Cross-device sync now only needs to upload the last 120 days of food/workout/habit/check-in entries -- older entries stay exactly as they are on every device, nothing is deleted, and your full uncapped history is always available via the JSON backup export." },
   { version: "1.92", date: "2026-09-22", desc: "Fixed \"Sync now\" failing with a cloud size-limit error (\"size exceeds allowed size of 1048576\"). Exercise-reference photos were budgeted against a fixed 700KB assumption about how much room your food/workout/habit history would leave under the cloud's 1MB-per-account limit -- after months of daily logging, that assumption no longer held for some accounts, so photos could still push the total over the limit. The photo budget is now calculated from your account's actual data size each time you sync, so it always fits -- and if your logging history alone is ever too large even with photos trimmed to nothing, you'll get a specific, readable message instead of the raw cloud error." },
@@ -2717,6 +2718,21 @@ function byteLengthOfString(str){
   catch(e){ return String(str).length; }
 }
 
+// v1.95: when an account's data still doesn't fit under the cloud's 1MB limit even after the v1.93
+// 120-day log window and v1.92 exercise-photo trimming, the previous message could only say "this is
+// very likely from a long logging history" -- a guess, not a diagnosis, and (per a live report) it
+// turned out to be wrong: the total barely moved (1063KB -> 1064KB) after the window shipped, meaning
+// the bulk of the data lives somewhere OTHER than foodLog/workoutLog/habitLog/dailyQuestionsLog. This
+// breaks the sanitized document down by its top-level field so the size guard below can name the
+// actual largest contributors instead of guessing -- e.g. a long history of saved AI Coach replies
+// (coachNotes) can easily outweigh the day-to-day logs the window already covers.
+function sizeBreakdownByField(obj){
+  const out = {};
+  if(!obj || typeof obj !== "object") return out;
+  Object.keys(obj).forEach(k=>{ out[k] = byteLengthOfString(JSON.stringify(obj[k])); });
+  return out;
+}
+
 // Strips fields that shouldn't be embedded in the Firestore document (password, raw photo data)
 // before writing. Photos themselves go to Firebase Storage separately (see
 // syncScaleLogPhotosToCloud/attachPhotoUrls below) -- only their small download URLs end up here.
@@ -3144,7 +3160,17 @@ async function performCloudPush(force){
     // instead of letting Firestore's own opaque "size exceeds allowed size" error surface.
     const cleanSizeBytes = byteLengthOfString(JSON.stringify(clean));
     if(cleanSizeBytes > 1048576){
-      updateCloudSyncStatus(`Sync error: your account's data (${Math.round(cleanSizeBytes/1024)}KB) no longer fits under the cloud's 1MB-per-account limit, even with exercise-reference photos trimmed to nothing. This is very likely from a long logging history rather than anything you did wrong -- please tell the developer.`);
+      // v1.95: name the actual largest fields instead of guessing "long logging history" -- the
+      // v1.93 120-day log window didn't meaningfully shrink this for at least one real account, so
+      // the bulk of the data evidently lives somewhere the window doesn't cover.
+      const breakdown = sizeBreakdownByField(clean);
+      const topFields = Object.keys(breakdown)
+        .filter(k => breakdown[k] >= 1024)
+        .sort((a,b) => breakdown[b] - breakdown[a])
+        .slice(0, 4)
+        .map(k => `${k} ${Math.round(breakdown[k]/1024)}KB`)
+        .join(", ");
+      updateCloudSyncStatus(`Sync error: your account's data (${Math.round(cleanSizeBytes/1024)}KB) no longer fits under the cloud's 1MB-per-account limit, even with exercise-reference photos trimmed to nothing and only the last 120 days of logs included. Largest parts: ${topFields || "(none over 1KB individually)"}. This is not something you did wrong -- please tell the developer these numbers.`);
       showToast("Cloud sync couldn't fit your data under the 1MB limit — see Settings → Cloud Sync");
       return;
     }
