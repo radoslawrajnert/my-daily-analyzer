@@ -1909,8 +1909,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.91";
+const APP_VERSION = "1.92";
 const CHANGELOG = [
+  { version: "1.92", date: "2026-09-22", desc: "Fixed \"Sync now\" failing with a cloud size-limit error (\"size exceeds allowed size of 1048576\"). Exercise-reference photos were budgeted against a fixed 700KB assumption about how much room your food/workout/habit history would leave under the cloud's 1MB-per-account limit -- after months of daily logging, that assumption no longer held for some accounts, so photos could still push the total over the limit. The photo budget is now calculated from your account's actual data size each time you sync, so it always fits -- and if your logging history alone is ever too large even with photos trimmed to nothing, you'll get a specific, readable message instead of the raw cloud error." },
   { version: "1.91", date: "2026-09-22", desc: "Fixed seeing different nutrition/workout numbers for the same day on two devices at once (e.g. iPhone vs PC). The cause: a browser tab only ever pulled the latest cloud data once, right when it was first opened -- a tab left open for a while (very normal on a PC) just kept showing that one snapshot forever, even as new entries kept arriving in the cloud from another device throughout the day. Coming back to an already-open tab or app now automatically re-checks the cloud (at most once every 20 seconds) and refreshes the screen if anything new arrived, so switching back to it behaves the same as reopening it fresh." },
   { version: "1.90", date: "2026-09-22", desc: "Added a safety net for a serious report: workout data logged, then gone about 10 minutes later. A full audit of every place that saves nutrition/workout entries (the manual form, guided workout Next/Previous, cloud push/pull) found the pull-side merge logic is already designed so a cloud sync can only ever ADD entries, never remove any that are already on your device -- but as a last resort, pullFromCloud() now explicitly refuses to apply any sync that would somehow still result in fewer logged entries than what's already saved locally, keeping your on-device data exactly as-is and showing a clear message instead of silently losing anything. If you can reproduce this again, please note: which device/browser, whether you left the app running or switched away, and whether Cloud Sync is turned on -- that detail is what's still needed to pin down the root cause for certain." },
   { version: "1.89", date: "2026-09-21", desc: "Redesigned the exercise progress chart after three rounds of bar-chart tweaks still didn't look right -- mocked up 10 different chart styles side by side and picked one directly instead of guessing further. It's now a line-and-dot chart: one dot per session connected by a thin line, colored green when you beat the session before it and orange when you didn't, with the weight (or reps) shown right above its own dot. No bars, no connector lines -- each value only ever has to line up with a single point." },
@@ -2705,6 +2706,17 @@ function dataUrlByteLength(dataUrl){
   return Math.ceil(b64.length * 0.75);
 }
 
+// Real UTF-8 byte length of an arbitrary string (JS string .length counts UTF-16 code units, which
+// undercounts anything outside plain ASCII -- e.g. Polish characters like the "ę" in "siemię
+// lniane"). Used to size the actual Firestore document, not just base64 photo blobs (dataUrlByteLength
+// above already handles those correctly since base64 output is always plain ASCII). The
+// encodeURIComponent/unescape trick avoids depending on TextEncoder, which isn't guaranteed in every
+// environment this code runs in (including this app's own Node test harness).
+function byteLengthOfString(str){
+  try{ return unescape(encodeURIComponent(str)).length; }
+  catch(e){ return String(str).length; }
+}
+
 // Strips fields that shouldn't be embedded in the Firestore document (password, raw photo data)
 // before writing. Photos themselves go to Firebase Storage separately (see
 // syncScaleLogPhotosToCloud/attachPhotoUrls below) -- only their small download URLs end up here.
@@ -2733,23 +2745,39 @@ function sanitizeForCloud(u){
   // policy -- a one-time setup step most people never do -- so it silently failed to actually
   // deliver photos cross-device for anyone who hadn't done that. Embedding instead rides on the
   // exact same Firestore sync that's already proven to work for the rest of the account (notes,
-  // workouts, etc.), no extra setup required. This only works because exerciseRefPhoto resizes
-  // MUCH smaller than a scale photo (see setupPhotoDropzone) -- a few KB instead of tens of KB --
-  // so a realistic number of them stay well under Firestore's 1MB/doc limit. As a hard safety net
-  // against ever silently blowing that limit (the exact failure mode a past bug hit), keep photos
-  // smallest-first up to a fixed byte budget and drop any that don't fit rather than let the whole
-  // document -- everything else in it included -- fail to save.
+  // workouts, etc.), no extra setup required.
+  //
+  // v1.71 kept photos smallest-first up to a FIXED 700KB budget, on the assumption that everything
+  // else in the document (food/workout/habit history) would always leave comfortable headroom under
+  // Firestore's 1,048,576-byte document limit. Reported live: "Sync now" started failing with a
+  // size-exceeded error -- after months of daily logging, the non-photo data alone can eat well into
+  // that assumed headroom, so a fixed budget can still leave the total document over the real limit.
+  // Budget dynamically instead: measure the actual size of everything else in the document FIRST,
+  // then only spend whatever room is genuinely left (still capped, so a light account doesn't try to
+  // cram in every photo it has) on exercise photos, smallest first. Same "drop what doesn't fit
+  // rather than fail the whole document" approach as before, just sized to this account's real data
+  // instead of a one-size-fits-all guess.
   if(clone.exerciseReferences && typeof clone.exerciseReferences === "object"){
-    const EXREF_PHOTO_BUDGET_BYTES = 700000;
+    const FIRESTORE_DOC_LIMIT_BYTES = 1048576;
+    const SAFETY_MARGIN_BYTES = 60000; // headroom for Firestore's own per-document/field overhead
+    const MAX_PHOTO_BUDGET_BYTES = 700000; // don't go overboard just because the rest of the doc is tiny
+
     const entries = Object.keys(clone.exerciseReferences).map(k=>{
       const r = clone.exerciseReferences[k] || {};
       return {k, note: r.note || "", updatedAt: r.updatedAt || 0, photo: r.photo || null, bytes: dataUrlByteLength(r.photo)};
     });
+    // Size everything else in the document with every exercise photo stripped out first, so the
+    // budget below reflects this account's actual food/workout/habit history, not a guess.
+    clone.exerciseReferences = {};
+    entries.forEach(({k, note, updatedAt})=>{ clone.exerciseReferences[k] = {note, updatedAt, photo: null}; });
+    const baseSize = byteLengthOfString(JSON.stringify(clone));
+    const photoBudget = Math.max(0, Math.min(MAX_PHOTO_BUDGET_BYTES, FIRESTORE_DOC_LIMIT_BYTES - SAFETY_MARGIN_BYTES - baseSize));
+
     entries.sort((a,b)=> a.bytes - b.bytes);
     const refs = {};
     let used = 0;
     entries.forEach(({k, note, updatedAt, photo, bytes})=>{
-      const keepPhoto = bytes > 0 && (used + bytes) <= EXREF_PHOTO_BUDGET_BYTES;
+      const keepPhoto = bytes > 0 && (used + bytes) <= photoBudget;
       if(keepPhoto) used += bytes;
       refs[k] = { note, updatedAt, photo: keepPhoto ? photo : null };
     });
@@ -3058,6 +3086,17 @@ async function performCloudPush(force){
     if(!force && looksLikeCatastrophicWipe(previousCount, newCount)){
       updateCloudSyncStatus(`Sync paused — your nutrition/workout entries dropped from ${previousCount} to ${newCount}, which looks like an accidental wipe. Nothing in the cloud was overwritten. If this was intentional, use "Sync now" to push it anyway.`);
       showToast("Sync paused to protect your cloud data — see Settings → Cloud Sync");
+      return;
+    }
+    // v1.92: sanitizeForCloud() now trims exercise-reference photos dynamically to fit under
+    // Firestore's 1,048,576-byte document limit -- but if the account's own food/workout/habit
+    // history has gotten large enough that it alone doesn't fit (even with zero exercise photos),
+    // that trimming has nothing left to cut. Catch that case here with a clear, specific message
+    // instead of letting Firestore's own opaque "size exceeds allowed size" error surface.
+    const cleanSizeBytes = byteLengthOfString(JSON.stringify(clean));
+    if(cleanSizeBytes > 1048576){
+      updateCloudSyncStatus(`Sync error: your account's data (${Math.round(cleanSizeBytes/1024)}KB) no longer fits under the cloud's 1MB-per-account limit, even with exercise-reference photos trimmed to nothing. This is very likely from a long logging history rather than anything you did wrong -- please tell the developer.`);
+      showToast("Cloud sync couldn't fit your data under the 1MB limit — see Settings → Cloud Sync");
       return;
     }
     await fbDb.collection("users").doc(fbUser.uid).set(clean);
