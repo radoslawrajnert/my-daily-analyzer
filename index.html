@@ -799,6 +799,7 @@
     <div class="view-tabs">
       <button type="button" id="viewTabLog" class="active"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="12" cy="13" r="4"/><path d="M12 13l2.3-2.3"/><path d="M9.5 3v2.5"/></svg>Scale Log</button>
       <button type="button" id="viewTabFood"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v8a2 2 0 0 0 2 2v10"/><path d="M4 2v8"/><path d="M7 2v8"/><path d="M20 2c-2 0-3.5 2.3-3.5 6s1.5 6 3.5 6"/><path d="M20 2v20"/></svg>Nutrition Log</button>
+      <button type="button" id="viewTabRecipes"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 11h.01"/><path d="M11 15h.01"/><path d="M16 16h.01"/><path d="m2 16 20 6-6-20A20 20 0 0 0 2 16"/><path d="M5.71 17.11a17.04 17.04 0 0 1 11.4-11.4"/></svg>Recipes</button>
       <button type="button" id="viewTabWorkout"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11"/><path d="M17.5 6.5v11"/><path d="M2 9.5v5"/><path d="M22 9.5v5"/><path d="M6.5 12h11"/></svg>Workout Log</button>
       <button type="button" id="viewTabHabits"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.5 2.5L16 9.3"/></svg>Good Habits Log</button>
       <button type="button" id="viewTabCommitments"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>Commitment Log</button>
@@ -825,6 +826,7 @@
           <div class="step-desc" style="margin-top:0;">Hide any tabs you don't use so the nav bar only shows what matters to you. Scale Log always stays visible since it's the home view.</div>
           <div class="field" style="display:flex; flex-direction:column; gap:10px;">
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabFood" style="width:auto;" checked> Nutrition Log</label>
+            <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabRecipes" style="width:auto;" checked> Recipes</label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabWorkout" style="width:auto;" checked> Workout Log</label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabHabits" style="width:auto;" checked> Good Habits Log</label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="visTabCommitments" style="width:auto;" checked> Commitment Log</label>
@@ -1336,6 +1338,39 @@
             <div id="dailyQuestionsHeatmapWrap"></div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <div id="recipesView" class="hidden">
+      <div class="card">
+        <h2 id="recipeFormTitle">Add a recipe</h2>
+        <div class="step-desc">Save recipes you make often, with macros per serving — so the finished dish is easy to make again and easy to log.</div>
+        <form id="recipeForm" autocomplete="off">
+          <div class="row-inline">
+            <div class="field"><label>Recipe name *</label><input type="text" id="recipeName" required placeholder="e.g. Protein Cheesecake"></div>
+            <div class="field"><label>Servings (pieces) *</label><input type="number" id="recipeServings" min="1" max="100" step="1" required value="8"></div>
+          </div>
+          <div class="field"><label>Ingredients <span style="font-weight:400;">(one per line)</span></label><textarea id="recipeIngredients" rows="6" placeholder="e.g.&#10;Vanilla Skyr — 1000 g"></textarea></div>
+          <div class="field"><label>Instructions <span style="font-weight:400;">(one step per line)</span></label><textarea id="recipeInstructions" rows="8" placeholder="1. …"></textarea></div>
+          <div class="row-inline">
+            <div class="field"><label>Calories per serving (kcal) *</label><input type="number" id="recipeKcal" min="0" max="5000" step="any" required></div>
+            <div class="field"><label>Protein per serving (g)</label><input type="number" id="recipeProtein" min="0" max="500" step="any"></div>
+          </div>
+          <div class="row-inline">
+            <div class="field"><label>Carbs per serving (g)</label><input type="number" id="recipeCarb" min="0" max="500" step="any"></div>
+            <div class="field"><label>Fat per serving (g)</label><input type="number" id="recipeFat" min="0" max="500" step="any"></div>
+          </div>
+          <div class="nav" style="justify-content:flex-end;">
+            <button type="button" class="secondary hidden" id="recipeCancelBtn">Cancel edit</button>
+            <button type="submit" id="recipeSubmitBtn">Save recipe →</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Your recipes</h2>
+        <div class="step-desc">Search for "Protein Cheesecake" in Nutrition Log's Quick pick to log it directly, or use "+ Add to My products" on a recipe below to save it into your own products list too.</div>
+        <div id="recipesListWrap"></div>
       </div>
     </div>
 
@@ -1907,9 +1942,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.97";
+const APP_VERSION = "1.98";
 const CHANGELOG = [
-  { version: "1.97", date: "2026-09-22", desc: "Fixed the real cause behind the \"profile/settings data no longer fits\" sync error that could still show up right after v1.96's document split: the exercise-reference photo budget was measuring photos in the wrong unit (their raw image size, not the ~33% larger base64 text actually stored), so it let noticeably more photo data through than the budget intended -- e.g. a report of \"1128KB... exerciseReferences 875KB\" against a budget meant to cap around 700KB. The budget now measures the same unit it's capping, so exercise photos are trimmed to genuinely fit." },
+  { version: "1.98", date: "2026-09-22", desc: "New \"Recipes\" tab: save a homemade dish with its ingredients, step-by-step instructions and macros per serving, then either search for it directly in Nutrition Log's Quick pick or use \"+ Add to My products\" on the recipe card to save it into your own products list too. Comes with a first recipe already filled in -- Protein Cheesecake (Skyr, whey protein, eggs and oats, 8 slices) -- also added to the shared food database so it's searchable right away." },
   { version: "1.96", date: "2026-09-22", desc: "Real fix for the cloud sync size limit, not just a trim: your account is now stored as two separate documents in the cloud instead of one -- your day-by-day logs (nutrition, workouts, habits, daily check-ins, AI Coach history) in one, everything else (profile, settings, scale log, exercise references, target ranges) in the other. Each now gets its own full 1MB budget instead of all of it sharing one, so the v1.93 120-day log window is no longer needed and has been removed -- full history syncs across devices again. This needed a one-time update to the cloud security rules to allow it, which is now in place. If your data still somehow doesn't fit in one of the two documents, the sync error will now say exactly which one and what's largest inside it." },
   { version: "1.95", date: "2026-09-22", desc: "The \"account data too large to sync\" error message now names the actual largest parts of your data instead of just guessing it's from a long logging history -- that guess turned out to be wrong for at least one account (the size barely changed after v1.93's 120-day log window shipped), so the message wasn't actually useful for pinning down the real cause. If you see this error now, please pass along exactly what it lists as the largest parts -- that's what's needed to fix it for good." },
   { version: "1.94", date: "2026-09-22", desc: "\"Add a reading\" form: Chest, Waist, Hip, Thigh and Calf now each get their own full-width row, stacked top to bottom in that order (matching how they run down the body), instead of the previous layout with four side by side and Calf alone underneath." },
@@ -3937,6 +3972,7 @@ function switchView(view){
   renderMissingDataWarningBanner();
   document.getElementById("viewTabLog").classList.toggle("active", view==="log");
   document.getElementById("viewTabFood").classList.toggle("active", view==="food");
+  document.getElementById("viewTabRecipes").classList.toggle("active", view==="recipes");
   document.getElementById("viewTabWorkout").classList.toggle("active", view==="workout");
   document.getElementById("viewTabHabits").classList.toggle("active", view==="habits");
   document.getElementById("viewTabCommitments").classList.toggle("active", view==="commitments");
@@ -3945,6 +3981,7 @@ function switchView(view){
   document.getElementById("planView").classList.toggle("hidden", view!=="plan");
   document.getElementById("logView").classList.toggle("hidden", view!=="log");
   document.getElementById("foodView").classList.toggle("hidden", view!=="food");
+  document.getElementById("recipesView").classList.toggle("hidden", view!=="recipes");
   document.getElementById("workoutView").classList.toggle("hidden", view!=="workout");
   document.getElementById("habitsView").classList.toggle("hidden", view!=="habits");
   document.getElementById("commitmentsView").classList.toggle("hidden", view!=="commitments");
@@ -3952,6 +3989,7 @@ function switchView(view){
   document.getElementById("coachView").classList.toggle("hidden", view!=="coach");
   if(view==="log") renderLogView();
   if(view==="food"){ renderFoodView(); }
+  if(view==="recipes") renderRecipesView();
   if(view==="workout") renderWorkoutsView();
   if(view==="habits") renderHabitsView();
   if(view==="commitments") renderCommitmentsView();
@@ -4102,6 +4140,7 @@ function autoInsightsHtml(){
 
 document.getElementById("viewTabLog").addEventListener("click", ()=>switchView("log"));
 document.getElementById("viewTabFood").addEventListener("click", ()=>switchView("food"));
+document.getElementById("viewTabRecipes").addEventListener("click", ()=>switchView("recipes"));
 document.getElementById("viewTabWorkout").addEventListener("click", ()=>switchView("workout"));
 document.getElementById("viewTabHabits").addEventListener("click", ()=>switchView("habits"));
 document.getElementById("viewTabCommitments").addEventListener("click", ()=>switchView("commitments"));
@@ -5854,6 +5893,7 @@ const COMMON_FOODS = [
   {label:"Buckwheat groats (cooked)", emoji:"🌾", kcal:92, protein:3.4, carb:19.9, fat:0.6},
   {label:"Olive oil", emoji:"🫒", kcal:884, protein:0, carb:0, fat:100, units:[{label:"1 tbsp (14g)", grams:14}, {label:"1 tsp (5g)", grams:5}]},
   {label:"Flax seeds (siemię lniane)", emoji:"🌱", kcal:534, protein:18.3, carb:28.9, fat:42.2, units:[{label:"1 small tsp (5g)", grams:5}]},
+  {label:"Protein Cheesecake (homemade, Skyr + whey + oats) — 1 slice ≈175g", emoji:"🍰", kcal:126, protein:16.8, carb:8.9, fat:2.7, units:[{label:"slice (175g, 1/8 of the recipe)", grams:175}]},
   {label:"Beer, non-alcoholic — 1 bottle/can ≈330ml", emoji:"🍺", kcal:25, protein:0.3, carb:5.5, fat:0, units:[{label:"can (330ml)", grams:330}]},
   {label:"Reiswaffel (rice cake), Penny — 1 waffle ≈9g", emoji:"🍘", kcal:380, protein:9.5, carb:83, fat:3.3, units:[{label:"waffle (9g)", grams:9}]},
   {label:"Almonds", emoji:"🥜", kcal:579, protein:21, carb:22, fat:50},
@@ -13669,6 +13709,208 @@ function renderCommitmentsView(){
 }
 
 /* ---------------------------------------------------------
+   RECIPES — homemade dishes saved with macros per serving
+--------------------------------------------------------- */
+// A brand-new user field (u.recipes) is undefined for every existing account -- rather than a
+// migration flag that has to run once and be remembered, getRecipes() just defaults an undefined
+// field to this seed array (same "default missing key sensibly" pattern getVisibleTabs() already
+// uses for v[key] !== false). The seed only ever gets saved for real -- becoming a normal,
+// editable, deletable entry -- the first time this user actually adds, edits or deletes a recipe;
+// until then it's regenerated fresh (with a stable id) on every read, so it always shows up
+// without needing any per-account, one-time setup step to reach existing users.
+function defaultRecipeSeed(){
+  return [{
+    id: "recipe-protein-cheesecake",
+    name: "Protein Cheesecake",
+    servings: 8,
+    ingredients: [
+      "Vanilla Skyr — 1000 g (1 kg)",
+      "BioTechUSA Whey 100, Cheesecake flavor — 120 g (4 scoops)",
+      "Eggs — 4 whole (yolk + white)",
+      "Rolled oats — 80 g",
+      "Baking paper",
+    ].join("\n"),
+    instructions: [
+      "1. Whisk all 4 eggs together in a bowl until smooth.",
+      "2. Blend the oats (80 g) into a flour, then mix with about 2-3 tablespoons of the whisked egg — just enough for the mixture to hold together. Press it evenly into the bottom of a large baking pan lined with baking paper.",
+      "3. Air fryer: 160°C, 5-6 min — pre-bake the base only.",
+      "4. Mix or blend the rest of the whisked egg with the Skyr and whey protein until smooth and even.",
+      "5. Pour the filling over the pre-baked base.",
+      "6. Air fryer: 150-160°C, 25-35 min — check from the 20-minute mark. Take it out once the edges are set but the center still jiggles slightly (it firms up as it cools). If the top starts browning too much, cover loosely with foil for the last few minutes.",
+      "7. Let it cool to room temperature, then refrigerate for at least 2-3 hours, ideally overnight.",
+      "8. Slice into 8 pieces and serve.",
+    ].join("\n"),
+    kcalPerServing: 220,
+    proteinPerServing: 29.3,
+    carbPerServing: 15.6,
+    fatPerServing: 4.8,
+    createdDate: "2026-09-22",
+  }];
+}
+function getRecipes(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(u && Array.isArray(u.recipes)) return u.recipes.slice();
+  return defaultRecipeSeed();
+}
+function saveRecipesArr(arr){
+  const users = getUsers();
+  if(!users[currentUserEmail]) return;
+  users[currentUserEmail].recipes = arr;
+  saveUsers(users);
+}
+function genRecipeId(){
+  return "r" + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+}
+
+let editingRecipeId = null;
+
+function editRecipe(id){
+  const r = getRecipes().find(x=>x.id===id);
+  if(!r) return;
+  editingRecipeId = id;
+  document.getElementById("recipeName").value = r.name;
+  document.getElementById("recipeServings").value = r.servings;
+  document.getElementById("recipeIngredients").value = r.ingredients || "";
+  document.getElementById("recipeInstructions").value = r.instructions || "";
+  document.getElementById("recipeKcal").value = r.kcalPerServing;
+  document.getElementById("recipeProtein").value = r.proteinPerServing != null ? r.proteinPerServing : "";
+  document.getElementById("recipeCarb").value = r.carbPerServing != null ? r.carbPerServing : "";
+  document.getElementById("recipeFat").value = r.fatPerServing != null ? r.fatPerServing : "";
+  document.getElementById("recipeFormTitle").textContent = `Edit recipe — ${r.name}`;
+  document.getElementById("recipeSubmitBtn").textContent = "Update recipe →";
+  document.getElementById("recipeCancelBtn").classList.remove("hidden");
+  document.getElementById("recipeForm").scrollIntoView({behavior:"smooth", block:"start"});
+}
+window.editRecipe = editRecipe;
+
+function exitRecipeEditMode(){
+  editingRecipeId = null;
+  document.getElementById("recipeFormTitle").textContent = "Add a recipe";
+  document.getElementById("recipeSubmitBtn").textContent = "Save recipe →";
+  document.getElementById("recipeCancelBtn").classList.add("hidden");
+}
+
+document.getElementById("recipeCancelBtn").addEventListener("click", ()=>{
+  document.getElementById("recipeForm").reset();
+  exitRecipeEditMode();
+  renderRecipesView();
+});
+
+document.getElementById("recipeForm").addEventListener("submit", (e)=>{
+  e.preventDefault();
+  const name = document.getElementById("recipeName").value.trim();
+  if(!name) return;
+  const servings = parseInt(document.getElementById("recipeServings").value, 10);
+  if(!servings || servings < 1) return;
+  const kcalPerServing = parseFloat(document.getElementById("recipeKcal").value);
+  if(Number.isNaN(kcalPerServing)) return;
+  const ingredients = document.getElementById("recipeIngredients").value.trim();
+  const instructions = document.getElementById("recipeInstructions").value.trim();
+  const proteinPerServing = document.getElementById("recipeProtein").value ? parseFloat(document.getElementById("recipeProtein").value) : null;
+  const carbPerServing = document.getElementById("recipeCarb").value ? parseFloat(document.getElementById("recipeCarb").value) : null;
+  const fatPerServing = document.getElementById("recipeFat").value ? parseFloat(document.getElementById("recipeFat").value) : null;
+
+  const arr = getRecipes();
+  const wasEditing = !!editingRecipeId;
+  const existing = wasEditing ? arr.find(r=>r.id===editingRecipeId) : null;
+  const recipe = {
+    id: wasEditing ? editingRecipeId : genRecipeId(),
+    name, servings, ingredients, instructions, kcalPerServing, proteinPerServing, carbPerServing, fatPerServing,
+    createdDate: existing ? existing.createdDate : todayStr(),
+  };
+  if(wasEditing){
+    const idx = arr.findIndex(r=>r.id===editingRecipeId);
+    if(idx>=0) arr[idx] = recipe; else arr.push(recipe);
+  } else {
+    arr.push(recipe);
+  }
+  saveRecipesArr(arr);
+
+  e.target.reset();
+  document.getElementById("recipeServings").value = 8;
+  exitRecipeEditMode();
+  renderRecipesView();
+  showToast(wasEditing ? "Recipe updated" : "Recipe added");
+});
+
+function deleteRecipe(id){
+  const arr = getRecipes().filter(r=>r.id!==id);
+  saveRecipesArr(arr);
+  if(editingRecipeId === id){
+    document.getElementById("recipeForm").reset();
+    document.getElementById("recipeServings").value = 8;
+    exitRecipeEditMode();
+  }
+  renderRecipesView();
+}
+window.deleteRecipe = deleteRecipe;
+
+// One-click shortcut: saves this recipe's per-serving macros into the user's own "My products"
+// list (foodPackages), reusing that data model directly -- same fields editPackage/the packages
+// form already read. perHundredG is explicitly false because these numbers are for ONE serving
+// (a slice), not per 100g -- matching how a combo/meal package (not a per-100g product) is scaled
+// when logged. If a product with the same name is already there, this just points the user at it
+// instead of creating a duplicate.
+function addRecipeToProducts(id){
+  const r = getRecipes().find(x=>x.id===id);
+  if(!r) return;
+  const arr = getFoodPackages();
+  if(arr.some(p=>p.name === r.name)){
+    showToast(`"${r.name}" is already in My products`);
+    return;
+  }
+  arr.push({
+    id: genPackageId(),
+    name: r.name,
+    serving: `1 serving (1/${r.servings} of the recipe)`,
+    category: "Recipes",
+    kcal: r.kcalPerServing,
+    proteinG: r.proteinPerServing,
+    carbG: r.carbPerServing,
+    fatG: r.fatPerServing,
+    store: null,
+    units: [],
+    perHundredG: false,
+  });
+  saveFoodPackagesArr(arr);
+  populatePackageCategoryControls();
+  populateFoodQuickPick();
+  showToast(`"${r.name}" added to My products`);
+}
+window.addRecipeToProducts = addRecipeToProducts;
+
+function renderRecipesView(){
+  const recipes = getRecipes();
+  const wrap = document.getElementById("recipesListWrap");
+  if(recipes.length === 0){
+    wrap.innerHTML = `<div class="empty-note">No recipes yet — save one above with its macros per serving.</div>`;
+    return;
+  }
+  const sorted = recipes.slice().sort((a,b)=> a.name.localeCompare(b.name));
+  wrap.innerHTML = sorted.map(r=>`
+    <div class="card" style="margin-bottom:14px; box-shadow:none; border:1px solid var(--border);">
+      <h3 style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin:0 0 6px;">
+        <span>${r.name} <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— ${r.servings} servings</span></span>
+      </h3>
+      <div class="commit-stats" style="margin-bottom:10px;">
+        <div><span class="stat-num">${Math.round(r.kcalPerServing)}</span>kcal / serving</div>
+        ${r.proteinPerServing!=null ? `<div><span class="stat-num">${r.proteinPerServing}g</span>protein</div>` : ""}
+        ${r.carbPerServing!=null ? `<div><span class="stat-num">${r.carbPerServing}g</span>carbs</div>` : ""}
+        ${r.fatPerServing!=null ? `<div><span class="stat-num">${r.fatPerServing}g</span>fat</div>` : ""}
+      </div>
+      ${r.ingredients ? `<div style="margin-bottom:10px;"><strong>Ingredients:</strong><div style="white-space:pre-line; margin-top:4px;">${r.ingredients}</div></div>` : ""}
+      ${r.instructions ? `<div style="margin-bottom:10px;"><strong>Instructions:</strong><div style="white-space:pre-line; margin-top:4px;">${r.instructions}</div></div>` : ""}
+      <div class="nav" style="justify-content:flex-start; flex-wrap:wrap;">
+        <button type="button" class="secondary" onclick="addRecipeToProducts('${r.id}')">+ Add to My products</button>
+        <button type="button" class="edit-btn" onclick="editRecipe('${r.id}')">Edit</button>
+        <button type="button" class="del-btn" onclick="deleteRecipe('${r.id}')">Delete</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+/* ---------------------------------------------------------
    AI LOG — voice/text day summary parsed into draft entries
 --------------------------------------------------------- */
 let aiLogParsedResult = null; // {food:[], activities:[], habits:[]} from the last successful parse
@@ -14260,9 +14502,9 @@ function genCoachId(){
 // Plan" (opened by clicking their name). v1.67: Scale Log moved INTO this hideable list -- Today
 // is the one tab that's always shown now (the home view you land on after logging in), so Scale
 // Log is just a regular tab like Nutrition/Workout Log.
-const HIDEABLE_TABS = ["food", "workout", "habits", "commitments", "ailog", "coach"];
-const TAB_BUTTON_ID = {food: "viewTabFood", workout: "viewTabWorkout", habits: "viewTabHabits", commitments: "viewTabCommitments", ailog: "viewTabAiLog", coach: "viewTabCoach"};
-const TAB_CHECKBOX_ID = {food: "visTabFood", workout: "visTabWorkout", habits: "visTabHabits", commitments: "visTabCommitments", ailog: "visTabAiLog", coach: "visTabCoach"};
+const HIDEABLE_TABS = ["food", "recipes", "workout", "habits", "commitments", "ailog", "coach"];
+const TAB_BUTTON_ID = {food: "viewTabFood", recipes: "viewTabRecipes", workout: "viewTabWorkout", habits: "viewTabHabits", commitments: "viewTabCommitments", ailog: "viewTabAiLog", coach: "viewTabCoach"};
+const TAB_CHECKBOX_ID = {food: "visTabFood", recipes: "visTabRecipes", workout: "visTabWorkout", habits: "visTabHabits", commitments: "visTabCommitments", ailog: "visTabAiLog", coach: "visTabCoach"};
 
 function getVisibleTabs(){
   const users = getUsers();
@@ -15716,7 +15958,7 @@ document.getElementById("coachSaveFeedbackBtn").addEventListener("click", ()=>{
 // tracked variable, so it can never drift out of sync with switchView's own toggling) so it can be
 // re-rendered in place immediately after a successful pull.
 function getActiveView(){
-  const views = [["plan","planView"], ["log","logView"], ["food","foodView"], ["workout","workoutView"],
+  const views = [["plan","planView"], ["log","logView"], ["food","foodView"], ["recipes","recipesView"], ["workout","workoutView"],
     ["habits","habitsView"], ["commitments","commitmentsView"], ["ailog","aiLogView"], ["coach","coachView"]];
   for(const [name, id] of views){
     const el = document.getElementById(id);
