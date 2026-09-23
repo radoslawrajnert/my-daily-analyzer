@@ -1942,8 +1942,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.98";
+const APP_VERSION = "1.99";
 const CHANGELOG = [
+  { version: "1.99", date: "2026-09-23", desc: "Added Burger King Cheeseburger to the food database, so it shows up when searching/logging a meal (1 piece ≈120g: ~247 kcal, 12.5g protein, 20g carbs, 10g fat per 100g)." },
   { version: "1.98", date: "2026-09-22", desc: "New \"Recipes\" tab: save a homemade dish with its ingredients, step-by-step instructions and macros per serving, then either search for it directly in Nutrition Log's Quick pick or use \"+ Add to My products\" on the recipe card to save it into your own products list too. Comes with a first recipe already filled in -- Protein Cheesecake (Skyr, whey protein, eggs and oats, 8 slices) -- also added to the shared food database so it's searchable right away." },
   { version: "1.96", date: "2026-09-22", desc: "Real fix for the cloud sync size limit, not just a trim: your account is now stored as two separate documents in the cloud instead of one -- your day-by-day logs (nutrition, workouts, habits, daily check-ins, AI Coach history) in one, everything else (profile, settings, scale log, exercise references, target ranges) in the other. Each now gets its own full 1MB budget instead of all of it sharing one, so the v1.93 120-day log window is no longer needed and has been removed -- full history syncs across devices again. This needed a one-time update to the cloud security rules to allow it, which is now in place. If your data still somehow doesn't fit in one of the two documents, the sync error will now say exactly which one and what's largest inside it." },
   { version: "1.95", date: "2026-09-22", desc: "The \"account data too large to sync\" error message now names the actual largest parts of your data instead of just guessing it's from a long logging history -- that guess turned out to be wrong for at least one account (the size barely changed after v1.93's 120-day log window shipped), so the message wasn't actually useful for pinning down the real cause. If you see this error now, please pass along exactly what it lists as the largest parts -- that's what's needed to fix it for good." },
@@ -5894,6 +5895,7 @@ const COMMON_FOODS = [
   {label:"Olive oil", emoji:"🫒", kcal:884, protein:0, carb:0, fat:100, units:[{label:"1 tbsp (14g)", grams:14}, {label:"1 tsp (5g)", grams:5}]},
   {label:"Flax seeds (siemię lniane)", emoji:"🌱", kcal:534, protein:18.3, carb:28.9, fat:42.2, units:[{label:"1 small tsp (5g)", grams:5}]},
   {label:"Protein Cheesecake (homemade, Skyr + whey + oats) — 1 slice ≈175g", emoji:"🍰", kcal:126, protein:16.8, carb:8.9, fat:2.7, units:[{label:"slice (175g, 1/8 of the recipe)", grams:175}]},
+  {label:"Burger King Cheeseburger — 1 piece ≈120g", emoji:"🍔", kcal:247, protein:12.5, carb:20, fat:10, units:[{label:"cheeseburger (120g)", grams:120}]},
   {label:"Beer, non-alcoholic — 1 bottle/can ≈330ml", emoji:"🍺", kcal:25, protein:0.3, carb:5.5, fat:0, units:[{label:"can (330ml)", grams:330}]},
   {label:"Reiswaffel (rice cake), Penny — 1 waffle ≈9g", emoji:"🍘", kcal:380, protein:9.5, carb:83, fat:3.3, units:[{label:"waffle (9g)", grams:9}]},
   {label:"Almonds", emoji:"🥜", kcal:579, protein:21, carb:22, fat:50},

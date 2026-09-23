@@ -10,7 +10,7 @@
 // Bump CACHE_NAME whenever index.html changes so returning visitors pick up the new version
 // instead of being stuck on a stale cached copy -- APP_VERSION already gets bumped on every
 // release, so its value doubles as the cache-busting key.
-const CACHE_NAME = "body-nutrition-analyzer-v1.98";
+const CACHE_NAME = "body-nutrition-analyzer-v1.99";
 const APP_SHELL = [
   "./",
   "./index.html",
