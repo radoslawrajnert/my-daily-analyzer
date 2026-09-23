@@ -1942,8 +1942,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.00";
+const APP_VERSION = "2.01";
 const CHANGELOG = [
+  { version: "2.01", date: "2026-09-23", desc: "Fixed \"Sync now\" only ever pushing this device's data to the cloud, never pulling first -- so on a device that was behind (e.g. a phone that hadn't yet seen a meal just logged on the desktop), tapping \"Sync now\" couldn't bring that newer entry over, and could even silently overwrite it in the cloud with this device's older snapshot. \"Sync now\" now pulls first (safely merging in anything from other devices) and only then pushes, so it actually behaves like a two-way sync." },
   { version: "2.00", date: "2026-09-23", desc: "Fixed: switching to another browser tab/window for a while and coming back could silently jump you to Nutrition Log and lose whatever you were in the middle of typing on another tab. Cause: the browser can silently discard a backgrounded tab to save memory, so \"coming back\" is actually a fresh reload -- which the app couldn't tell apart from a genuine close-and-reopen, so it always redirected to Nutrition Log either way. The app now remembers whichever tab was actually on screen and restores that instead of always forcing Nutrition Log -- this also means a normal close-and-reopen now returns you to your last tab rather than always Nutrition Log." },
   { version: "1.99", date: "2026-09-23", desc: "Added Burger King Cheeseburger to the food database, so it shows up when searching/logging a meal (1 piece ≈120g: ~247 kcal, 12.5g protein, 20g carbs, 10g fat per 100g)." },
   { version: "1.98", date: "2026-09-22", desc: "New \"Recipes\" tab: save a homemade dish with its ingredients, step-by-step instructions and macros per serving, then either search for it directly in Nutrition Log's Quick pick or use \"+ Add to My products\" on the recipe card to save it into your own products list too. Comes with a first recipe already filled in -- Protein Cheesecake (Skyr, whey protein, eggs and oats, 8 slices) -- also added to the shared food database so it's searchable right away." },
@@ -3551,6 +3552,27 @@ document.getElementById("cloudSyncForceBtn").addEventListener("click", async ()=
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer = null;
   updateCloudSyncStatus("Syncing…");
+  // v2.01: this used to only PUSH this device's data to the cloud -- it never pulled first. Live
+  // report: logged food on desktop, checked the phone, nothing there; tapped "Sync now" on the
+  // phone and it STILL wasn't there. That's because performCloudPush() writes this device's local
+  // snapshot straight to the cloud -- it doesn't merge with whatever's already up there first (that
+  // merging only ever happens on the PULL side, via pullFromCloud's union-merge helpers). A
+  // push-only "Sync now" can never show you something that only exists in the cloud so far, and
+  // worse, pushing a device that's behind can silently overwrite a newer entry another device just
+  // put there. Pulling first (merging in anything from elsewhere, safely) and only then pushing
+  // makes "Sync now" actually behave like its name says.
+  const pulled = await pullFromCloud(currentUserEmail);
+  if(pulled){
+    migrateLegacyActivityEntriesToWorkout(true);
+    cleanupDuplicateWorkoutPresets(true);
+    migrateLegacyDefaultSplitColorsOnce(true);
+    applyPresetAdjustmentsV2();
+    seedDefaultSplitExercisePatterns();
+    const activeView = getActiveView();
+    if(activeView) switchView(activeView);
+  }
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = null;
   await performCloudPush(true);
   showToast("Sync finished — check the status above");
 });
