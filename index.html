@@ -1942,8 +1942,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "1.99";
+const APP_VERSION = "2.00";
 const CHANGELOG = [
+  { version: "2.00", date: "2026-09-23", desc: "Fixed: switching to another browser tab/window for a while and coming back could silently jump you to Nutrition Log and lose whatever you were in the middle of typing on another tab. Cause: the browser can silently discard a backgrounded tab to save memory, so \"coming back\" is actually a fresh reload -- which the app couldn't tell apart from a genuine close-and-reopen, so it always redirected to Nutrition Log either way. The app now remembers whichever tab was actually on screen and restores that instead of always forcing Nutrition Log -- this also means a normal close-and-reopen now returns you to your last tab rather than always Nutrition Log." },
   { version: "1.99", date: "2026-09-23", desc: "Added Burger King Cheeseburger to the food database, so it shows up when searching/logging a meal (1 piece ≈120g: ~247 kcal, 12.5g protein, 20g carbs, 10g fat per 100g)." },
   { version: "1.98", date: "2026-09-22", desc: "New \"Recipes\" tab: save a homemade dish with its ingredients, step-by-step instructions and macros per serving, then either search for it directly in Nutrition Log's Quick pick or use \"+ Add to My products\" on the recipe card to save it into your own products list too. Comes with a first recipe already filled in -- Protein Cheesecake (Skyr, whey protein, eggs and oats, 8 slices) -- also added to the shared food database so it's searchable right away." },
   { version: "1.96", date: "2026-09-22", desc: "Real fix for the cloud sync size limit, not just a trim: your account is now stored as two separate documents in the cloud instead of one -- your day-by-day logs (nutrition, workouts, habits, daily check-ins, AI Coach history) in one, everything else (profile, settings, scale log, exercise references, target ranges) in the other. Each now gets its own full 1MB budget instead of all of it sharing one, so the v1.93 120-day log window is no longer needed and has been removed -- full history syncs across devices again. This needed a one-time update to the cloud security rules to allow it, which is now in place. If your data still somehow doesn't fit in one of the two documents, the sync error will now say exactly which one and what's largest inside it." },
@@ -2604,6 +2605,16 @@ const STEPS = [
 
 const USERS_KEY = "bodyAnalyzer.users.v1";
 const SESSION_KEY = "bodyAnalyzer.currentUser.v1";
+// v1.100: which top-level tab was on screen last -- saved on every switchView() call, read back on
+// the next entry into the app (see resolveEntryView() near resolveLandingView()). Global rather than
+// per-account (like THEME_KEY etc.) since it's just "which tab", not account data.
+const LAST_VIEW_KEY = "bodyAnalyzer.lastView.v1";
+function saveLastView(view){
+  try{ localStorage.setItem(LAST_VIEW_KEY, view); }catch(e){ /* best-effort */ }
+}
+function getLastView(){
+  try{ return localStorage.getItem(LAST_VIEW_KEY); }catch(e){ return null; }
+}
 
 let answers = {};
 let currentStep = 0;
@@ -3354,6 +3365,10 @@ function enterApp(email, forceMigration){
   // is reliably distinguished from every other entry into the app (an explicit login, or the app
   // just auto-resuming an existing session on page load), which all show the welcome-back popup.
   const isReturningUser = !!u.firstSeenAt;
+  // Captured now, before switchView("plan") below overwrites LAST_VIEW_KEY with "plan" itself --
+  // this needs to read whatever tab was actually on screen at the END of the previous entry into
+  // the app (see resolveEntryView()'s comment for why that matters more than it sounds like it should).
+  const entryView = resolveEntryView();
   migrateLegacyActivityEntriesToWorkout(forceMigration);
   cleanupDuplicateWorkoutPresets(forceMigration);
   migrateLegacyDefaultSplitColorsOnce(forceMigration);
@@ -3385,12 +3400,14 @@ function enterApp(email, forceMigration){
   renderMissingDataWarningBanner();
   if(isReturningUser){
     showWelcomeBackPopup(u.name);
-    // v1.82: previously the redirect to your configured landing view (resolveLandingView(),
-    // Nutrition Log by default) only happened when the welcome-back popup was dismissed via its
-    // own close button/X -- so it relied on that click actually happening. Doing it here too, right
-    // away, means you land on the right view immediately regardless of whether/how the popup gets
-    // dismissed; closeWelcomeBackPopup()'s own call to the same thing is now just a harmless re-run.
-    switchView(resolveLandingView());
+    // v1.82: previously the redirect to your configured landing view only happened when the
+    // welcome-back popup was dismissed via its own close button/X -- so it relied on that click
+    // actually happening. Doing it here too, right away, means you land on the right view
+    // immediately regardless of whether/how the popup gets dismissed; closeWelcomeBackPopup()'s own
+    // call to the same thing is now just a harmless re-run. v1.100: uses the captured entryView
+    // (see above) instead of always forcing resolveLandingView(), so this restores whichever tab
+    // was actually last open rather than always jumping to Nutrition Log.
+    switchView(entryView);
   }
 }
 
@@ -3404,11 +3421,12 @@ function showWelcomeBackPopup(name){
 }
 function closeWelcomeBackPopup(){
   document.getElementById("welcomeBackOverlay").classList.add("hidden");
-  // v1.67: dismissing the welcome-back greeting now takes you to whichever view resolveLandingView()
-  // resolves to -- rather than leaving you on My Plan, or the previously hardcoded "food" this
-  // actually never respected the Visible-tabs/default-landing-view settings above (those existed
-  // in Settings but nothing ever called resolveLandingView() to use them).
-  switchView(resolveLandingView());
+  // v1.67: dismissing the welcome-back greeting now takes you to whichever view resolveEntryView()
+  // resolves to -- rather than leaving you on My Plan. v1.100: switched from resolveLandingView()
+  // to resolveEntryView() -- by the time this runs, enterApp() has already switched to the right
+  // view via entryView, so this is just a harmless re-run of the same result, kept for the case
+  // this function is ever called on its own from somewhere that hasn't already done that.
+  switchView(resolveEntryView());
 }
 document.getElementById("welcomeBackCloseBtn").addEventListener("click", closeWelcomeBackPopup);
 document.getElementById("welcomeBackCloseX").addEventListener("click", closeWelcomeBackPopup);
@@ -3971,6 +3989,7 @@ document.getElementById("helpOverlay").addEventListener("click", (e)=>{
 --------------------------------------------------------- */
 function switchView(view){
   renderMissingDataWarningBanner();
+  saveLastView(view);
   document.getElementById("viewTabLog").classList.toggle("active", view==="log");
   document.getElementById("viewTabFood").classList.toggle("active", view==="food");
   document.getElementById("viewTabRecipes").classList.toggle("active", view==="recipes");
@@ -15042,6 +15061,30 @@ function resolveLandingView(){
   const visible = getVisibleTabs();
   if(HIDEABLE_TABS.includes(view) && visible[view] === false) return "plan";
   return view;
+}
+
+// v1.100: which view to land on when actually ENTERING the app (login, or the app auto-resuming an
+// existing session) -- as opposed to resolveLandingView() above, which is the hardcoded fallback
+// used when there's nowhere better to go. Live report: on desktop, switching to another window/tab
+// for a while and coming back sent the app straight back to Nutrition Log and lost whatever was
+// half-typed on another tab. Root cause: the browser (Chrome/Edge) can silently discard a
+// backgrounded tab to save memory, so "coming back" is actually a fresh page load -- which this app
+// can't tell apart from a genuine close-and-reopen, so it ran the same "welcome back, here's your
+// landing view" flow either way. Since LAST_VIEW_KEY is saved on every switchView() call, the app
+// can now restore whichever tab was actually on screen last, silent-reload or not, rather than
+// always forcing the same hardcoded tab. Falls back to resolveLandingView() when there's no saved
+// tab yet (first-ever entry) or the saved tab has since been hidden via Settings -> Visible tabs.
+function resolveEntryView(){
+  const last = getLastView();
+  const knownViews = ["plan", "log", "food", "recipes", "workout", "habits", "commitments", "ailog", "coach"];
+  if(last && knownViews.includes(last)){
+    if(HIDEABLE_TABS.includes(last)){
+      const visible = getVisibleTabs();
+      if(visible[last] === false) return resolveLandingView();
+    }
+    return last;
+  }
+  return resolveLandingView();
 }
 
 function getCoachFocus(){
