@@ -1974,8 +1974,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.04";
+const APP_VERSION = "2.05";
 const CHANGELOG = [
+  { version: "2.05", date: "2026-09-24", desc: "The Coach export now includes a full \"Phase history\" section covering every past and active phase -- calorie/protein targets, notes, rest-day guardrail rules, splits, and aesthetic ranges -- not just the current one, so the coach can see what's already been tried. Also fixed a bug where a phase's real start date could display as the misleading \"01.01\": accounts that migrated to the Phases feature early on had their very first phase silently stamped with a placeholder date from the year 2000, which showed up (day/month only, no year) looking like a plausible-but-wrong \"01.01\". This is now automatically corrected to the account's actual earliest logged date." },
   { version: "2.04", date: "2026-09-24", desc: "Found the real cause behind data still not showing up on a phone even after v2.03: on iPhone, opening the same account in Edge showed the data fine, but Safari didn't -- even after reloading. Since iOS Safari and iOS Edge share the exact same underlying engine, that pointed to Safari's tab being stuck running an old, cached copy of the app rather than a real sync problem. The app now detects when a newer version has installed itself in the background and shows an unmissable \"Refresh now\" banner at the very top of the page, and checks for updates more proactively (whenever the tab becomes visible again), so a stale tab can no longer hide silently." },
   { version: "2.03", date: "2026-09-24", desc: "Rebuilt cloud sync's startup checks after v2.02's fix still didn't fully solve data not appearing automatically on a second device. Added an always-visible \"cloud sync\" status strip at the top of every tab with a one-tap Sync now button, so it's now impossible to miss whether syncing actually happened -- instead of it silently succeeding or failing in the background with no way to tell. If the automatic connection-on-open takes more than a few seconds (which can happen on some phone browsers), the strip now switches to a clear \"tap to sync now\" prompt rather than leaving you guessing." },
   { version: "2.02", date: "2026-09-24", desc: "Fixed cloud data not showing up automatically on iPhone after being entered on another device (tapping \"Sync now\" always worked -- see v2.01 -- it just wasn't happening on its own). iOS Safari can restore an already-open tab from its \"back-forward cache\" when switching back to it, which skips the normal on-load sync entirely. The app now also syncs on that kind of restore, and a rare case where a signed-in cloud account doesn't match the active local profile is now logged instead of failing silently, so a similar report is easier to pin down in the future." },
@@ -14772,6 +14773,27 @@ function mergeAestheticTargetDefaults(saved){
 //   aestheticTargets: {key:{min,max}, ...} }, sorted oldest-first. Every reading is judged
 // against whichever phase covers ITS OWN date (getPhaseForDate), so completing a phase and
 // starting a new one with different targets never retroactively recolors old readings.
+// v2.05: the migration catch-all below used to hardcode startDate to the literal placeholder
+// "2000-01-01" -- fine internally (computeWeeklyMetricSeriesForPhase already clamped it for
+// charts), but it also leaked out verbatim anywhere a phase's raw start date gets displayed or
+// exported (formatShortDate() renders any Jan-1st date, regardless of year, as just "01.01",
+// which read as a real but wrong date rather than "no real date was ever recorded"). This helper
+// finds the earliest date this account actually has real activity on -- scale, food, or workout
+// log -- so the migrated "Phase 1" can carry an honest start date instead of a decades-old
+// sentinel.
+function earliestActivityDate(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u) return null;
+  let earliest = null;
+  const consider = (d)=>{ if(d && (earliest === null || d < earliest)) earliest = d; };
+  (u.scaleLogs || []).forEach(l=>consider(l.date));
+  const foodLog = u.foodLog || {};
+  Object.keys(foodLog).forEach(d=>{ if((foodLog[d]||[]).length) consider(d); });
+  const workoutLog = u.workoutLog || {};
+  Object.keys(workoutLog).forEach(d=>{ if((workoutLog[d]||[]).length) consider(d); });
+  return earliest;
+}
 function getPhases(){
   const users = getUsers();
   const u = users[currentUserEmail];
@@ -14783,7 +14805,9 @@ function getPhases(){
     const migrated = [{
       id: "phase-1",
       name: "Phase 1",
-      startDate: "2000-01-01",
+      // v2.05: use the earliest date this account has REAL data on, not a decades-old sentinel --
+      // falls back to today only for a brand-new account with no history at all yet.
+      startDate: earliestActivityDate() || todayStr(),
       endDate: null,
       targetWeightKg: (u.answers && u.answers.targetWeightKg != null) ? u.answers.targetWeightKg : null,
       aestheticTargets: mergeAestheticTargetDefaults(u.aestheticTargets),
@@ -14807,6 +14831,20 @@ function getPhases(){
     saveUsers(users);
     return migrated;
   }
+  // v2.05: one-time self-heal for accounts that already ran the migration above back when it still
+  // hardcoded "2000-01-01" -- their Phase 1 (or, in principle, any phase someone hand-typed that date
+  // into) is still carrying the old sentinel today, which is what caused start dates to display as
+  // the misleading "01.01" (see earliestActivityDate() comment above). Only touches a phase that's
+  // still on the exact sentinel value, and only rewrites it once real activity exists to derive a
+  // better date from -- never invents a date if there's genuinely no earlier data yet.
+  let healed = false;
+  u.phases.forEach(p=>{
+    if(p.startDate === "2000-01-01"){
+      const real = earliestActivityDate();
+      if(real && real !== "2000-01-01"){ p.startDate = real; healed = true; }
+    }
+  });
+  if(healed) saveUsers(users);
   return u.phases.slice().sort((a,b)=> a.startDate < b.startDate ? -1 : (a.startDate > b.startDate ? 1 : 0));
 }
 function savePhases(phases){
@@ -15337,6 +15375,60 @@ function buildCoachExport(userNotes, attachments, skipped, opts){
       });
     }
     lines.push("");
+
+    // v2.05: the export previously only ever mentioned the CURRENT phase -- the coach had no way to
+    // see what earlier phases looked like (when they ran, what was targeted, how training/guardrail
+    // rules differed) even though that history is exactly the kind of context a real coach would want
+    // ("what have you tried, and how did it go"). This walks every phase, oldest first, past ones
+    // collapsed to their own summary and the active one marked as such.
+    lines.push("## Phase history (past & active)");
+    lines.push("_Every phase this account has had, oldest first, with what was targeted and configured during each -- so you can see what's already been tried, not just where things stand today._");
+    const allPhasesForExport = getPhases();
+    allPhasesForExport.forEach((p, idx)=>{
+      const isActive = p.endDate == null;
+      const dateRange = isActive
+        ? `${formatDateDisplay(p.startDate)} – present`
+        : `${formatDateDisplay(p.startDate)} – ${formatDateDisplay(p.endDate)}`;
+      lines.push(`### ${idx+1}. ${p.name}${isActive ? " (ACTIVE)" : ""}`);
+      lines.push(`- Dates: ${dateRange}`);
+      if(p.plannedDurationDays) lines.push(`- Planned length: ${p.plannedDurationDays} days`);
+      lines.push(`- Calorie target: ${p.calorieTarget != null ? p.calorieTarget + " kcal" : "auto-calculated (no fixed override set)"}`);
+      lines.push(`- Protein target: ${p.proteinTarget != null ? p.proteinTarget + "g" : "auto-calculated (no fixed override set)"}`);
+      if(p.targetWeightKg != null) lines.push(`- Target weight: ${p.targetWeightKg} kg`);
+      if(p.aestheticTargets){
+        const rangeBits = [];
+        MINI_TREND_METRICS.forEach(m=>{
+          const t = p.aestheticTargets[m.key];
+          if(!t) return;
+          rangeBits.push(`${m.label} ${t.min}${m.unit||""}-${t.max}${m.unit||""}`);
+        });
+        if(rangeBits.length) lines.push(`- Aesthetic target ranges: ${rangeBits.join(", ")}`);
+      }
+      if(p.notes) lines.push(`- Notes: ${p.notes}`);
+      const guardrailForPhase = p.restGuardrailSettings || null;
+      if(guardrailForPhase){
+        const rules = [];
+        if(guardrailForPhase.streakEnabled) rules.push(`rest day after ${guardrailForPhase.streakDays} consecutive training days`);
+        if(guardrailForPhase.weeklyCapEnabled) rules.push(`cap training at ${guardrailForPhase.weeklyCap} day(s)/week`);
+        lines.push(`- Rest-day guardrail: ${rules.length ? rules.join("; ") : "no rules enabled"}`);
+      } else {
+        lines.push(`- Rest-day guardrail: (used whatever the account-wide/most recent setting was at the time)`);
+      }
+      const splitsForPhase = Array.isArray(p.workoutSplits) ? p.workoutSplits : null;
+      if(splitsForPhase){
+        if(splitsForPhase.length){
+          lines.push(`- Splits: ${splitsForPhase.map(s=>{
+            const exNames = (s.exercises||[]).map(ex=>ex.name);
+            return `${s.emoji ? s.emoji+" " : ""}${s.name} (${exNames.length ? exNames.join(", ") : "no exercises defined"})`;
+          }).join(" | ")}`);
+        } else {
+          lines.push(`- Splits: none defined this phase.`);
+        }
+      } else {
+        lines.push(`- Splits: (used whatever the account-wide/most recent splits were at the time)`);
+      }
+      lines.push("");
+    });
 
     lines.push("## Weight & measurements");
     // Capped to the same yesterday-or-earlier assessment window as everything else in this section --
