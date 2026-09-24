@@ -2005,8 +2005,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.13";
+const APP_VERSION = "2.14";
 const CHANGELOG = [
+  { version: "2.14", date: "2026-09-24", desc: "Fixed deleted entries (nutrition log, workout log, habit log, scale-log readings, commitments, AI Coach notes) sometimes reappearing -- or showing up doubled -- after a sync. Direct live report: \"sometimes the synchronization is happening and my values are doubled...! if I delete the position it should not come back again because of any synchronisation.\" Root cause: cloud sync has always merged data as a strict union that never drops anything it doesn't recognize (a deliberate earlier fix for entries silently vanishing) -- which meant a genuine deletion looked identical to \"hasn't synced yet\", so pulling a cloud snapshot from before the deletion (another device, or this device's own not-yet-landed push) quietly brought the deleted entry back. Deletions are now recorded as their own small \"this was deleted on purpose\" markers that travel with the sync data, so a pull can tell the two apart and a deletion sticks everywhere, including on other devices." },
   { version: "2.13", date: "2026-09-24", desc: "Fixed a saved AI Coach next-phase suggestion getting silently thrown away if you opened \"Complete phase\", saw the offer to use it, and then closed the form (X/Cancel, or declining the confirm) without actually finishing -- reopening \"Complete phase\" later no longer showed the offer at all. The suggestion is now only cleared once a phase is actually completed, so backing out of the form never loses it and you'll be asked again next time." },
   { version: "2.12", date: "2026-09-24", desc: "\"Evaluate current phase\" now prefills the WHOLE Complete Phase form, not just calories, protein and exercises -- target weight, planned duration, and every aesthetic measure (Body fat %, Muscle %, Visceral fat, Chest, Waist, Hip, Thigh, Calf) are covered too, per direct follow-up feedback (\"the system should already pre-filled-in all the information ... how many calories, protein for a day, hip size etc\"). Works the same whichever path you used to evaluate the phase -- \"Ask AI Coach now\", \"Generate full export\" + \"Load AI Feedback\", doesn't matter." },
   { version: "2.11", date: "2026-09-24", desc: "Follow-up to v2.10's Daily-view paging -- \"maybe 14 days... and the graphics should be aligned to the center\". Pages now show 14 days at a time instead of 7, and the bars/labels (and the check-in results grid) are centered in the available space instead of being pushed hard to one side, which used to leave the chart looking lopsided with a big empty gap on days with fewer than a full page's worth of data." },
@@ -3104,13 +3105,20 @@ async function syncScaleLogPhotosToCloud(email, scaleLogs){
 // (this device's own upload) always wins, since it's already right here with zero network
 // round-trip; otherwise falls back to whatever cloud URL is available (a photo taken/added on a
 // different device), so photos actually show up across devices instead of staying blank.
-function mergeScaleLogPhotos(cloudArr, localArr){
-  if(!Array.isArray(cloudArr)) return localArr || [];
-  const localList = localArr || [];
+// v2.14: `deletedDates` is the scale-log tombstone map (see the block below mergeIdKeyedArray) --
+// any date present there is a reading that was DELETED on purpose, not one that just hasn't synced
+// yet, so it's filtered out of both sides before the union below ever runs. Without this, a pull
+// from a cloud snapshot still holding the old reading (pushed by another device, or by this same
+// device before its own delete finished syncing) would silently bring it right back.
+function mergeScaleLogPhotos(cloudArr, localArr, deletedDates){
+  const tombstones = deletedDates || {};
+  const localList = (Array.isArray(localArr) ? localArr : []).filter(item=>!tombstones[item.date]);
+  if(!Array.isArray(cloudArr)) return localList;
+  const cloudArrLive = cloudArr.filter(item=>!tombstones[item.date]);
   const localByDate = new Map(localList.map(item=>[item.date, item]));
-  const cloudDates = new Set(cloudArr.map(item=>item.date));
+  const cloudDates = new Set(cloudArrLive.map(item=>item.date));
   const fields = ["photoFront","photoBack","photo"];
-  const merged = cloudArr.map(item=>{
+  const merged = cloudArrLive.map(item=>{
     const localMatch = localByDate.get(item.date);
     // v1.93: despite the name, this merges the WHOLE scale-log entry for a date, not just its
     // photos -- but it used to start from Object.assign({}, item) (the CLOUD entry) and only
@@ -3157,14 +3165,21 @@ function mergeScaleLogPhotos(cloudArr, localArr){
 // keys from both sides; for a date present on both sides, unions entries by id (a genuine edit of
 // the very same id on two devices before either synced is rare enough that preferring the local
 // copy is a reasonable default -- the same precedent as preferring the local photo above).
-function mergeDateKeyedEntryLog(cloudObj, localObj){
+// v2.14: `deletedIds` is the id-keyed tombstone map (see the block below mergeIdKeyedArray) -- any
+// entry whose id shows up there was DELETED on purpose, not merely absent because it hasn't synced
+// yet, so it's dropped from both sides before the per-date union below ever runs. Without this, a
+// pull from a cloud snapshot that still has the old entry (pushed by another device, or by this same
+// device before its own delete finished syncing) would silently bring the "deleted" entry right back
+// -- reported live as deleted entries reappearing, and values showing up "doubled".
+function mergeDateKeyedEntryLog(cloudObj, localObj, deletedIds){
   const cloud = (cloudObj && typeof cloudObj === "object") ? cloudObj : {};
   const local = (localObj && typeof localObj === "object") ? localObj : {};
+  const tombstones = deletedIds || {};
   const dates = new Set([...Object.keys(cloud), ...Object.keys(local)]);
   const merged = {};
   dates.forEach(date=>{
-    const cloudEntries = Array.isArray(cloud[date]) ? cloud[date] : [];
-    const localEntries = Array.isArray(local[date]) ? local[date] : [];
+    const cloudEntries = (Array.isArray(cloud[date]) ? cloud[date] : []).filter(e=>!tombstones[e.id]);
+    const localEntries = (Array.isArray(local[date]) ? local[date] : []).filter(e=>!tombstones[e.id]);
     if(!cloudEntries.length){ merged[date] = localEntries; return; }
     if(!localEntries.length){ merged[date] = cloudEntries; return; }
     const byId = new Map(cloudEntries.map(e=>[e.id, e]));
@@ -3193,15 +3208,73 @@ function mergeDailyQuestionsLog(cloudObj, localObj){
 }
 
 // For flat arrays of id-keyed items -- commitments, coachNotes. Same union-by-id approach as
-// mergeDateKeyedEntryLog, just without the date grouping.
-function mergeIdKeyedArray(cloudArr, localArr){
-  const cloud = Array.isArray(cloudArr) ? cloudArr : [];
-  const local = Array.isArray(localArr) ? localArr : [];
+// mergeDateKeyedEntryLog, just without the date grouping. Same tombstone filtering as above.
+function mergeIdKeyedArray(cloudArr, localArr, deletedIds){
+  const tombstones = deletedIds || {};
+  const cloud = (Array.isArray(cloudArr) ? cloudArr : []).filter(item=>!tombstones[item.id]);
+  const local = (Array.isArray(localArr) ? localArr : []).filter(item=>!tombstones[item.id]);
   if(!cloud.length) return local;
   if(!local.length) return cloud;
   const byId = new Map(cloud.map(item=>[item.id, item]));
   local.forEach(item=>byId.set(item.id, item));
   return Array.from(byId.values());
+}
+
+// v2.14: deletion tombstones -- what makes the merge functions above able to tell "this entry hasn't
+// synced yet" apart from "this entry was deleted on purpose". Direct live report: entries thought
+// deleted reappearing (and values showing up "doubled") after a sync. Every merge in this app is
+// (deliberately, per the v1.78/v1.80 comments above) a strict union that never drops data it doesn't
+// recognize -- exactly right for "don't lose data that just hasn't synced yet", but it makes a real
+// deletion indistinguishable from that, so a pull from any snapshot still holding the old entry
+// (another device that hasn't seen the delete, or this same device before its own delete's debounced
+// push has landed) silently un-deletes it. Two flat maps of {key: deletedAtEpochMs}: one for every
+// id-keyed log (food/workout/habit entries, commitments, coach notes -- their generated ids already
+// carry a distinct prefix per type, e.g. "f"/"w"/"h"/"c"/"cn", so one map safely covers all of them
+// with no collision risk), one for scale-log readings specifically since those are keyed by date,
+// not id. Pruned to the last ~400 days so the tombstone map itself never grows into a real storage
+// concern relative to the data it protects.
+const TOMBSTONE_MAX_AGE_MS = 400 * 24 * 60 * 60 * 1000;
+function pruneTombstones(map){
+  if(!map || typeof map !== "object") return {};
+  const cutoff = Date.now() - TOMBSTONE_MAX_AGE_MS;
+  const out = {};
+  Object.keys(map).forEach(k=>{ if(typeof map[k] === "number" && map[k] > cutoff) out[k] = map[k]; });
+  return out;
+}
+// Union two tombstone maps, keeping the newer timestamp when a key is present on both sides -- used
+// by pullFromCloud so a deletion recorded on ANY device eventually reaches every other one, the same
+// "never silently lose it" guarantee the data merges themselves already get.
+function mergeTombstoneMaps(a, b){
+  const out = Object.assign({}, pruneTombstones(a));
+  const bMap = pruneTombstones(b);
+  Object.keys(bMap).forEach(k=>{ if(!(k in out) || bMap[k] > out[k]) out[k] = bMap[k]; });
+  return out;
+}
+function getDeletedIds(){
+  const u = getUsers()[currentUserEmail];
+  return pruneTombstones(u && u.deletedIds);
+}
+function recordDeletedId(id){
+  if(!id || !currentUserEmail) return;
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u) return;
+  u.deletedIds = pruneTombstones(u.deletedIds);
+  u.deletedIds[id] = Date.now();
+  saveUsers(users);
+}
+function getDeletedScaleDates(){
+  const u = getUsers()[currentUserEmail];
+  return pruneTombstones(u && u.deletedScaleDates);
+}
+function recordDeletedScaleDate(date){
+  if(!date || !currentUserEmail) return;
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u) return;
+  u.deletedScaleDates = pruneTombstones(u.deletedScaleDates);
+  u.deletedScaleDates[date] = Date.now();
+  saveUsers(users);
 }
 
 function updateCloudSyncStatus(text){
@@ -3267,6 +3340,16 @@ window.updateSyncBanner = updateSyncBanner;
 // flushing any pending push immediately on visibilitychange/pagehide, and refusing to ever push a
 // snapshot that looks like an accidental near-total wipe over real previously-synced data.
 const LAST_PUSH_ENTRY_COUNT_KEY = "bodyAnalyzer.lastPushEntryCount.v1";
+// v2.14: small helper for pullFromCloud's tombstone-aware safety-net check below -- returns a
+// date-keyed log object containing only the entries `predicate` matches, same shape countLoggableEntries expects.
+function filterEntriesById(dateKeyedLog, predicate){
+  const out = {};
+  Object.keys(dateKeyedLog || {}).forEach(date=>{
+    const kept = (Array.isArray(dateKeyedLog[date]) ? dateKeyedLog[date] : []).filter(predicate);
+    if(kept.length) out[date] = kept;
+  });
+  return out;
+}
 function countLoggableEntries(u){
   const foodCount = Object.values((u && u.foodLog) || {}).reduce((n, arr)=> n + (Array.isArray(arr) ? arr.length : 0), 0);
   const workoutCount = Object.values((u && u.workoutLog) || {}).reduce((n, arr)=> n + (Array.isArray(arr) ? arr.length : 0), 0);
@@ -3403,35 +3486,49 @@ async function pullFromCloud(email){
     const cloudLogs = (logsSnap && logsSnap.exists) ? logsSnap.data() : {};
     const users = getUsers();
     const local = users[email] || {};
-    let foodLog = mergeDateKeyedEntryLog(cloudData.foodLog, local.foodLog);
-    foodLog = mergeDateKeyedEntryLog(cloudLogs.foodLog, foodLog);
-    let workoutLog = mergeDateKeyedEntryLog(cloudData.workoutLog, local.workoutLog);
-    workoutLog = mergeDateKeyedEntryLog(cloudLogs.workoutLog, workoutLog);
-    let habitLog = mergeDateKeyedEntryLog(cloudData.habitLog, local.habitLog);
-    habitLog = mergeDateKeyedEntryLog(cloudLogs.habitLog, habitLog);
+    // v2.14: union this device's deletion tombstones with the cloud's (keeping the newer timestamp
+    // on a key recorded by both), BEFORE any of the data merges below run -- see mergeIdKeyedArray's
+    // comment for why these exist. This also propagates a deletion made on ANOTHER device to this
+    // one: if that device already pushed its tombstone, this pull picks it up and applies it here too.
+    const deletedIds = mergeTombstoneMaps(cloudData.deletedIds, local.deletedIds);
+    const deletedScaleDates = mergeTombstoneMaps(cloudData.deletedScaleDates, local.deletedScaleDates);
+    let foodLog = mergeDateKeyedEntryLog(cloudData.foodLog, local.foodLog, deletedIds);
+    foodLog = mergeDateKeyedEntryLog(cloudLogs.foodLog, foodLog, deletedIds);
+    let workoutLog = mergeDateKeyedEntryLog(cloudData.workoutLog, local.workoutLog, deletedIds);
+    workoutLog = mergeDateKeyedEntryLog(cloudLogs.workoutLog, workoutLog, deletedIds);
+    let habitLog = mergeDateKeyedEntryLog(cloudData.habitLog, local.habitLog, deletedIds);
+    habitLog = mergeDateKeyedEntryLog(cloudLogs.habitLog, habitLog, deletedIds);
     let dailyQuestionsLog = mergeDailyQuestionsLog(cloudData.dailyQuestionsLog, local.dailyQuestionsLog);
     dailyQuestionsLog = mergeDailyQuestionsLog(cloudLogs.dailyQuestionsLog, dailyQuestionsLog);
-    let coachNotes = mergeIdKeyedArray(cloudData.coachNotes, local.coachNotes);
-    coachNotes = mergeIdKeyedArray(cloudLogs.coachNotes, coachNotes);
+    let coachNotes = mergeIdKeyedArray(cloudData.coachNotes, local.coachNotes, deletedIds);
+    coachNotes = mergeIdKeyedArray(cloudLogs.coachNotes, coachNotes, deletedIds);
     const merged = Object.assign({}, local, cloudData, {
       email,
-      scaleLogs: mergeScaleLogPhotos(cloudData.scaleLogs, local.scaleLogs),
+      deletedIds, deletedScaleDates,
+      scaleLogs: mergeScaleLogPhotos(cloudData.scaleLogs, local.scaleLogs, deletedScaleDates),
       exerciseReferences: mergeExerciseReferences(cloudData.exerciseReferences, local.exerciseReferences),
       foodLog, workoutLog, habitLog, dailyQuestionsLog, coachNotes,
       foodDayNotes: mergeDateKeyedValues(cloudData.foodDayNotes, local.foodDayNotes),
-      commitments: mergeIdKeyedArray(cloudData.commitments, local.commitments),
+      commitments: mergeIdKeyedArray(cloudData.commitments, local.commitments, deletedIds),
     });
     // Last-resort backstop, mirroring the push-side "never overwrite with an accidental wipe" guard
     // (looksLikeCatastrophicWipe/performCloudPush above) -- the merge functions above are a strict
-    // union (a pull can only ADD entries relative to local, never remove any), so this should be
-    // mathematically impossible to trip. If it somehow does -- a bug in a merge helper, a malformed
-    // cloud snapshot, anything -- refuse to apply the pull's logs rather than silently losing
-    // nutrition/workout entries that were safely sitting on this device a moment ago. Every other
-    // field (settings, profile, etc.) still updates from the cloud as normal; only the two log
-    // fields fall back to local-only in this specific failure case.
-    if(countLoggableEntries(merged) < countLoggableEntries(local)){
-      console.error("Cloud pull rejected: merge would have reduced logged entries", {
-        localCount: countLoggableEntries(local), mergedCount: countLoggableEntries(merged),
+    // union (a pull can only ADD entries relative to local, never remove any) EXCEPT for entries a
+    // tombstone (deletedIds, v2.14 -- see the comment above mergeIdKeyedArray) explicitly says were
+    // deleted on purpose, so this should be mathematically impossible to trip for any other reason.
+    // If it somehow does -- a bug in a merge helper, a malformed cloud snapshot, anything -- refuse
+    // to apply the pull's logs rather than silently losing nutrition/workout entries that were
+    // safely sitting on this device a moment ago. Every other field (settings, profile, etc.) still
+    // updates from the cloud as normal; only the two log fields fall back to local-only in this
+    // specific failure case.
+    const localTombstonedCount = countLoggableEntries({
+      foodLog: filterEntriesById(local.foodLog, e => deletedIds[e.id]),
+      workoutLog: filterEntriesById(local.workoutLog, e => deletedIds[e.id]),
+    });
+    const expectedMinAfterTombstones = countLoggableEntries(local) - localTombstonedCount;
+    if(countLoggableEntries(merged) < expectedMinAfterTombstones){
+      console.error("Cloud pull rejected: merge would have reduced logged entries beyond what known deletions explain", {
+        localCount: countLoggableEntries(local), mergedCount: countLoggableEntries(merged), localTombstonedCount,
       });
       merged.foodLog = local.foodLog;
       merged.workoutLog = local.workoutLog;
@@ -4854,6 +4951,10 @@ document.getElementById("logForm").addEventListener("submit", (e)=>{
   // if editing and the date changed, drop the old dated entry so we don't end up with two
   if(editingLogDate && editingLogDate !== date){
     logs = logs.filter(l=>l.date!==editingLogDate);
+    // v2.14: this drops the old date the same way an outright delete does -- without a tombstone, a
+    // pull from a cloud snapshot still holding the old-dated reading would bring back exactly the
+    // "two entries" duplication being reported live.
+    recordDeletedScaleDate(editingLogDate);
   }
   const idx = logs.findIndex(l=>l.date===date);
   const entry = {date, weightKg, bodyFatPct, musclePct, visceralFat, chestCm, waistCm, hipCm, thighCm, calfCm, photoFront, photoBack};
@@ -4870,6 +4971,7 @@ document.getElementById("logForm").addEventListener("submit", (e)=>{
 
 function deleteLogEntry(date){
   const logs = getScaleLogs().filter(l=>l.date!==date);
+  recordDeletedScaleDate(date); // v2.14: so a later sync can't resurrect it -- see mergeScaleLogPhotos
   saveScaleLogs(logs);
   if(editingLogDate === date){
     document.getElementById("logForm").reset();
@@ -7317,6 +7419,7 @@ function deleteFoodEntry(date, id){
   if(!log[date]) return;
   log[date] = log[date].filter(e=>e.id!==id);
   if(log[date].length === 0) delete log[date];
+  recordDeletedId(id); // v2.14: so a later sync can't resurrect it -- see mergeDateKeyedEntryLog
   saveFoodLogObj(log);
   // Usage stats in "My products / My meals" are computed live from the log (see
   // computePackageUsage), so deleting an entry here is automatically reflected there too --
@@ -10407,6 +10510,7 @@ function deleteWorkoutEntry(date, id){
   if(!log[date]) return;
   log[date] = log[date].filter(e=>e.id!==id);
   if(log[date].length === 0) delete log[date];
+  recordDeletedId(id); // v2.14: so a later sync can't resurrect it -- see mergeDateKeyedEntryLog
   saveWorkoutLogObj(log);
   if(editingWorkoutId === id){
     document.getElementById("workoutForm").reset();
@@ -12503,6 +12607,7 @@ function deleteHabitEntry(date, id){
   if(!log[date]) return;
   log[date] = log[date].filter(e=>e.id!==id);
   if(log[date].length === 0) delete log[date];
+  recordDeletedId(id); // v2.14: so a later sync can't resurrect it -- see mergeDateKeyedEntryLog
   saveHabitLogObj(log);
   if(editingHabitId === id){
     document.getElementById("habitForm").reset();
@@ -13969,6 +14074,7 @@ window.toggleCommitPaused = toggleCommitPaused;
 
 function deleteCommitment(id){
   const arr = getCommitments().filter(c=>c.id!==id);
+  recordDeletedId(id); // v2.14: so a later sync can't resurrect it -- see mergeIdKeyedArray
   saveCommitmentsArr(arr);
   if(editingCommitId === id){
     document.getElementById("commitForm").reset();
@@ -16220,6 +16326,7 @@ function renderCoachView(){
 }
 
 function deleteCoachNote(id){
+  recordDeletedId(id); // v2.14: so a later sync can't resurrect it -- see mergeIdKeyedArray
   saveCoachNotesArr(getCoachNotes().filter(n=>n.id!==id));
   renderCoachView();
 }
