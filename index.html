@@ -1980,8 +1980,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.07";
+const APP_VERSION = "2.08";
 const CHANGELOG = [
+  { version: "2.08", date: "2026-09-24", desc: "Fixed \"Evaluate current phase\" so it actually works with the real intended flow: tick the checkbox, hit \"Generate full export\" (not just \"Ask AI Coach now\"), paste it into any AI chat, ask for next-phase tips, then paste the reply back in via \"Load AI Feedback\" -- the Next Phase Suggestion is now picked up from THAT paste-back too, not only from the in-app \"Ask AI Coach now\" reply. Either way it lands in the same place: offered next time you hit \"Complete phase\" on the Target ranges tab." },
   { version: "2.07", date: "2026-09-24", desc: "Calories per day and Protein per day (Nutrition Log) now show your last 30 days instead of just 14 -- \"I can only see 14 days, add a scroll\" (live user report). On a screen too narrow to fit all 30 columns at their normal size, the chart is now wider than the card and scrolls sideways for the rest instead of squeezing every bar down to fit, the same way it already did on mobile -- just no longer limited to narrow screens. The daily check-in results grid below it grew to match, and stays column-aligned with both charts while scrolling. The Weekly/Phase views are unchanged." },
   { version: "2.06", date: "2026-09-24", desc: "New \"Evaluate current phase\" checkbox in the Coach view: tick it before \"Ask AI Coach now\" and the coach is also asked to suggest starting calorie/protein targets and exercises for your NEXT phase, based on everything it just reviewed. The suggestion is saved quietly in the background -- then next time you hit \"Complete phase\" on the Target ranges tab, if a suggestion is on file, you're asked whether to use it to prefill the new phase's targets and splits instead of just carrying the current ones forward." },
   { version: "2.05", date: "2026-09-24", desc: "The Coach export now includes a full \"Phase history\" section covering every past and active phase -- calorie/protein targets, notes, rest-day guardrail rules, splits, and aesthetic ranges -- not just the current one, so the coach can see what's already been tried. Also fixed a bug where a phase's real start date could display as the misleading \"01.01\": accounts that migrated to the Phases feature early on had their very first phase silently stamped with a placeholder date from the year 2000, which showed up (day/month only, no year) looking like a plausible-but-wrong \"01.01\". This is now automatically corrected to the account's actual earliest logged date." },
@@ -16329,7 +16330,12 @@ document.getElementById("coachGenerateBtn").addEventListener("click", async ()=>
   if(rawAttachments.length) showToast("Checking your photos and files...");
   const {included: attachments, skipped} = await partitionAttachmentsByAvailability(rawAttachments);
 
-  const text = buildCoachExport(userNotes, attachments, skipped);
+  // v2.08: "Evaluate current phase" applies here too, not just "Ask AI Coach now" -- this export is
+  // meant to be pasted into an external AI chat (ChatGPT/Claude) and the reply pasted back below via
+  // "Load AI Feedback", so the Next Phase Suggestion instruction has to make it into THIS text for
+  // that whole loop to work.
+  const evaluatePhaseChecked = !!document.getElementById("coachEvaluatePhaseCheckbox").checked;
+  const text = buildCoachExport(userNotes, attachments, skipped, {evaluatePhase: evaluatePhaseChecked});
   document.getElementById("coachExportText").value = text;
   document.getElementById("coachExportWrap").classList.remove("hidden");
   document.getElementById("coachCopyBtn").classList.remove("hidden");
@@ -16372,6 +16378,13 @@ document.getElementById("coachSaveFeedbackBtn").addEventListener("click", ()=>{
   const notes = getCoachNotes();
   notes.push({id: genCoachId(), date: todayStr(), text});
   saveCoachNotesArr(notes);
+  // v2.08: this is the OTHER place a Next Phase Suggestion can arrive from -- "Generate full export"
+  // (with "Evaluate current phase" ticked) is meant to be pasted into an external AI chat, and the
+  // reply pasted back here, not typed into "Ask AI Coach now". Whether or not the checkbox was on
+  // for THIS export doesn't matter at paste-back time -- if the pasted text happens to contain a
+  // well-formatted Next Phase Suggestion section, save it quietly, same as the direct-ask path does.
+  const suggestion = parseNextPhaseSuggestion(text);
+  if(suggestion) savePendingPhaseSuggestion(suggestion);
   document.getElementById("coachFeedbackInput").value = "";
   renderCoachView();
   showToast("Feedback saved");
