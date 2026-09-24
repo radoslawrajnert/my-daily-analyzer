@@ -480,6 +480,19 @@
      copy -- the live site shows nothing at all here. */
   .env-test-banner{display:flex; align-items:center; justify-content:center; gap:8px; background:rgba(255,183,77,.16); border-bottom:2px solid var(--warn); padding:8px 16px; font-size:.82rem; font-weight:700; color:var(--warn); text-align:center;}
   .env-test-banner svg{width:16px; height:16px; flex:0 0 auto;}
+  /* v2.03: always-visible cloud-sync status strip, sitting at the very top of every tab (inside
+     appWrap, above the view-tabs) so it's impossible to miss whether cloud sync is up to date --
+     directly in response to reports of data silently not showing up on a second device. Deliberately
+     NOT buried inside Settings like the original "Sync now" button. Only shown when cloud sync is
+     actually configured + a profile is logged in (see updateSyncBanner's early-return). */
+  .cloud-sync-banner{display:flex; align-items:center; gap:8px; background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:7px 12px; margin-bottom:12px; font-size:.8rem; color:var(--muted);}
+  .cloud-sync-banner-dot{width:8px; height:8px; border-radius:50%; flex:0 0 auto; background:var(--muted);}
+  .cloud-sync-banner-dot.cloud-sync-dot-busy{background:#5b9df9; animation:cloudSyncPulse 1.1s ease-in-out infinite;}
+  .cloud-sync-banner-dot.cloud-sync-dot-ok{background:#4caf7d;}
+  .cloud-sync-banner-dot.cloud-sync-dot-warn{background:var(--warn);}
+  @keyframes cloudSyncPulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .cloud-sync-banner-text{flex:1 1 auto;}
+  .cloud-sync-banner button{flex:0 0 auto; padding:4px 12px; font-size:.78rem;}
   /* Creatine card icon is a full-color PNG (see CREATINE_ICON_B64), so it needs no dark/light
      theme filter -- it reads fine against both panel colors as-is. */
   .creatine-icon{display:block;}
@@ -796,6 +809,11 @@
   </div>
 
   <div id="appWrap" class="hidden">
+    <div class="cloud-sync-banner hidden" id="cloudSyncBanner">
+      <span class="cloud-sync-banner-dot" id="cloudSyncBannerDot"></span>
+      <span class="cloud-sync-banner-text" id="cloudSyncBannerText">Cloud sync</span>
+      <button type="button" class="secondary hidden" id="cloudSyncBannerBtn">Sync now</button>
+    </div>
     <div class="view-tabs">
       <button type="button" id="viewTabLog" class="active"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="12" cy="13" r="4"/><path d="M12 13l2.3-2.3"/><path d="M9.5 3v2.5"/></svg>Scale Log</button>
       <button type="button" id="viewTabFood"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v8a2 2 0 0 0 2 2v10"/><path d="M4 2v8"/><path d="M7 2v8"/><path d="M20 2c-2 0-3.5 2.3-3.5 6s1.5 6 3.5 6"/><path d="M20 2v20"/></svg>Nutrition Log</button>
@@ -1942,8 +1960,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.02";
+const APP_VERSION = "2.03";
 const CHANGELOG = [
+  { version: "2.03", date: "2026-09-24", desc: "Rebuilt cloud sync's startup checks after v2.02's fix still didn't fully solve data not appearing automatically on a second device. Added an always-visible \"cloud sync\" status strip at the top of every tab with a one-tap Sync now button, so it's now impossible to miss whether syncing actually happened -- instead of it silently succeeding or failing in the background with no way to tell. If the automatic connection-on-open takes more than a few seconds (which can happen on some phone browsers), the strip now switches to a clear \"tap to sync now\" prompt rather than leaving you guessing." },
   { version: "2.02", date: "2026-09-24", desc: "Fixed cloud data not showing up automatically on iPhone after being entered on another device (tapping \"Sync now\" always worked -- see v2.01 -- it just wasn't happening on its own). iOS Safari can restore an already-open tab from its \"back-forward cache\" when switching back to it, which skips the normal on-load sync entirely. The app now also syncs on that kind of restore, and a rare case where a signed-in cloud account doesn't match the active local profile is now logged instead of failing silently, so a similar report is easier to pin down in the future." },
   { version: "2.01", date: "2026-09-23", desc: "Fixed \"Sync now\" only ever pushing this device's data to the cloud, never pulling first -- so on a device that was behind (e.g. a phone that hadn't yet seen a meal just logged on the desktop), tapping \"Sync now\" couldn't bring that newer entry over, and could even silently overwrite it in the cloud with this device's older snapshot. \"Sync now\" now pulls first (safely merging in anything from other devices) and only then pushes, so it actually behaves like a two-way sync." },
   { version: "2.00", date: "2026-09-23", desc: "Fixed: switching to another browser tab/window for a while and coming back could silently jump you to Nutrition Log and lose whatever you were in the middle of typing on another tab. Cause: the browser can silently discard a backgrounded tab to save memory, so \"coming back\" is actually a fresh reload -- which the app couldn't tell apart from a genuine close-and-reopen, so it always redirected to Nutrition Log either way. The app now remembers whichever tab was actually on screen and restores that instead of always forcing Nutrition Log -- this also means a normal close-and-reopen now returns you to your last tab rather than always Nutrition Log." },
@@ -3131,6 +3150,54 @@ function updateCloudSyncStatus(text){
   if(el) el.textContent = text;
 }
 
+// v2.03: paints the always-visible sync banner at the top of every tab (see .cloud-sync-banner in
+// the CSS and #cloudSyncBanner in appWrap). Added after repeated live reports that data entered on
+// one device wasn't showing up on another -- the underlying pull/merge logic was already correct
+// (manually tapping the old, Settings-only "Sync now" button always worked), but nothing on screen
+// ever told the user whether an automatic sync had actually happened, so there was no way to notice
+// a stall or retry it without digging into Settings. This banner makes that status impossible to
+// miss and gives a one-tap way to force a full sync from any tab.
+function updateSyncBanner(state){
+  const banner = document.getElementById("cloudSyncBanner");
+  const dot = document.getElementById("cloudSyncBannerDot");
+  const text = document.getElementById("cloudSyncBannerText");
+  const btn = document.getElementById("cloudSyncBannerBtn");
+  if(!banner || !dot || !text || !btn) return;
+  if(state === "hidden" || !isCloudSyncConfigured() || !currentUserEmail){
+    banner.classList.add("hidden");
+    return;
+  }
+  banner.classList.remove("hidden");
+  dot.className = "cloud-sync-banner-dot";
+  const setDot = (cls) => { if(cls) dot.classList.add(cls); };
+  switch(state){
+    case "checking":
+      setDot("cloud-sync-dot-busy"); text.textContent = "Connecting to cloud sync…"; btn.classList.add("hidden");
+      break;
+    case "syncing":
+      setDot("cloud-sync-dot-busy"); text.textContent = "Syncing your data…"; btn.classList.add("hidden");
+      break;
+    case "synced":
+      setDot("cloud-sync-dot-ok"); text.textContent = "Up to date"; btn.classList.remove("hidden"); btn.textContent = "Sync now";
+      break;
+    case "slow":
+      setDot("cloud-sync-dot-warn"); text.textContent = "Still connecting — tap to sync now"; btn.classList.remove("hidden"); btn.textContent = "Sync now";
+      break;
+    case "mismatch":
+      setDot("cloud-sync-dot-warn"); text.textContent = "Cloud account mismatch — check Settings → Cloud Sync"; btn.classList.add("hidden");
+      break;
+    case "error":
+      setDot("cloud-sync-dot-warn"); text.textContent = "Couldn't reach cloud sync — tap to retry"; btn.classList.remove("hidden"); btn.textContent = "Retry";
+      break;
+    case "signed-out":
+      setDot("cloud-sync-dot-warn"); text.textContent = "Cloud sync signed out — open Settings → Cloud Sync to reconnect"; btn.classList.add("hidden");
+      break;
+    default:
+      setDot("cloud-sync-dot-ok"); text.textContent = "Cloud sync ready"; btn.classList.remove("hidden"); btn.textContent = "Sync now";
+  }
+}
+window.updateSyncBanner = updateSyncBanner;
+
 // v1.80: a "never let sync erase real data" safety net, per a live report -- data logged on one
 // device (safely sitting in ITS OWN localStorage) still wasn't reaching another device even after
 // the pull-side fix in v1.78. The remaining hole was on the PUSH side: pushToCloud() debounces
@@ -3320,6 +3387,39 @@ async function pullFromCloud(email){
   }
 }
 
+// v2.03: the exact pull-then-push sequence the Settings "Sync now" button has used since v2.01,
+// factored out so the new always-visible sync banner's button can trigger the same full, safe
+// two-way sync without duplicating the logic. silent=true skips the toast (used by automatic/
+// background callers that shouldn't interrupt the user with a popup for something they didn't ask for).
+async function runFullCloudSync(opts){
+  const silent = !!(opts && opts.silent);
+  if(!fbUser || !fbDb || !currentUserEmail){
+    if(!silent) showToast("Not connected yet");
+    return false;
+  }
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = null;
+  updateCloudSyncStatus("Syncing…");
+  updateSyncBanner("syncing");
+  const pulled = await pullFromCloud(currentUserEmail);
+  if(pulled){
+    migrateLegacyActivityEntriesToWorkout(true);
+    cleanupDuplicateWorkoutPresets(true);
+    migrateLegacyDefaultSplitColorsOnce(true);
+    applyPresetAdjustmentsV2();
+    seedDefaultSplitExercisePatterns();
+    const activeView = getActiveView();
+    if(activeView) switchView(activeView);
+  }
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = null;
+  await performCloudPush(true);
+  updateSyncBanner("synced");
+  if(!silent) showToast("Sync finished — check the status above");
+  return true;
+}
+window.runFullCloudSync = runFullCloudSync;
+
 function friendlyFirebaseError(err){
   const map = {
     "auth/email-already-in-use": "A cloud account with this email already exists — switch to Log in.",
@@ -3352,6 +3452,7 @@ function showLoginScreen(){
   document.getElementById("appWrap").classList.add("hidden");
   document.getElementById("userBar").classList.add("hidden");
   document.getElementById("brandTagline").classList.remove("hidden");
+  updateSyncBanner("hidden");
   const savedEmail = localStorage.getItem("bodyAnalyzer.lastEmail.v1");
   if(savedEmail) document.getElementById("loginEmail").value = savedEmail;
   setLoginMode(Object.keys(getUsers()).length ? "login" : "signup");
@@ -3391,6 +3492,11 @@ function enterApp(email, forceMigration){
   document.getElementById("brandTagline").classList.add("hidden");
   renderUserBar();
   renderVersionInfo();
+  // v2.03: show the always-visible sync banner immediately in a "checking" state whenever cloud sync
+  // is configured -- don't wait for the Firebase SDK to finish loading (that can take a moment, and
+  // used to leave nothing on screen at all in the meantime). initialCloudSync() below updates it to
+  // syncing/synced/etc. once the actual connection resolves.
+  updateSyncBanner(isCloudSyncConfigured() ? "checking" : "hidden");
   applyVisibleTabsToNav();
   currentStep = 0;
   document.getElementById("reportCard").style.display = "none";
@@ -3549,33 +3655,14 @@ document.getElementById("cloudSyncClearBtn").addEventListener("click", ()=>{
   showToast("Cloud sync removed — this device is local-only again");
 });
 document.getElementById("cloudSyncForceBtn").addEventListener("click", async ()=>{
-  if(!fbUser || !fbDb || !currentUserEmail){ showToast("Not connected yet"); return; }
-  clearTimeout(cloudSyncTimer);
-  cloudSyncTimer = null;
-  updateCloudSyncStatus("Syncing…");
-  // v2.01: this used to only PUSH this device's data to the cloud -- it never pulled first. Live
-  // report: logged food on desktop, checked the phone, nothing there; tapped "Sync now" on the
-  // phone and it STILL wasn't there. That's because performCloudPush() writes this device's local
-  // snapshot straight to the cloud -- it doesn't merge with whatever's already up there first (that
-  // merging only ever happens on the PULL side, via pullFromCloud's union-merge helpers). A
-  // push-only "Sync now" can never show you something that only exists in the cloud so far, and
-  // worse, pushing a device that's behind can silently overwrite a newer entry another device just
-  // put there. Pulling first (merging in anything from elsewhere, safely) and only then pushing
-  // makes "Sync now" actually behave like its name says.
-  const pulled = await pullFromCloud(currentUserEmail);
-  if(pulled){
-    migrateLegacyActivityEntriesToWorkout(true);
-    cleanupDuplicateWorkoutPresets(true);
-    migrateLegacyDefaultSplitColorsOnce(true);
-    applyPresetAdjustmentsV2();
-    seedDefaultSplitExercisePatterns();
-    const activeView = getActiveView();
-    if(activeView) switchView(activeView);
-  }
-  clearTimeout(cloudSyncTimer);
-  cloudSyncTimer = null;
-  await performCloudPush(true);
-  showToast("Sync finished — check the status above");
+  // v2.01: this used to only PUSH this device's data to the cloud -- it never pulled first (fixed by
+  // pulling first, then pushing -- see runFullCloudSync above). v2.03: factored the sequence out into
+  // runFullCloudSync() so this button and the new always-visible sync banner's button share the exact
+  // same logic instead of two copies drifting apart.
+  await runFullCloudSync();
+});
+document.getElementById("cloudSyncBannerBtn").addEventListener("click", async ()=>{
+  await runFullCloudSync();
 });
 
 /* ---------------------------------------------------------
@@ -16051,7 +16138,9 @@ function getActiveView(){
 let lastVisibilityPullAt = 0;
 async function syncFromCloudAndRefresh(){
   if(!fbUser || !currentUserEmail) return;
+  updateSyncBanner("syncing");
   const pulled = await pullFromCloud(currentUserEmail);
+  updateSyncBanner("synced");
   if(pulled){
     // Same reasoning as the login-flow pull: an older cloud snapshot can silently
     // reintroduce un-migrated Activity Log rows, so re-run the migration right after.
@@ -16074,6 +16163,50 @@ async function syncFromCloudAndRefresh(){
   }
 }
 
+// v2.03: "build this from scratch" -- a live report that data entered on desktop still wasn't
+// showing up on iPhone even after v2.02's bfcache fix. Rebuilt the whole startup sync path around
+// two ideas instead of chasing another single invisible timing bug:
+//   1. There's now ALWAYS an on-screen, unmissable status (the banner in appWrap) with a one-tap
+//      "Sync now" button, so a stall is visible instead of silent, and there's a guaranteed manual
+//      way through it no matter what the underlying cause on a given browser/OS turns out to be.
+//   2. The Firebase auth-restore step (previously "fire and forget" inside a .then() chain, with no
+//      way to tell whether or when it would actually resolve) now has an explicit safety timeout: if
+//      the very first onAuthStateChanged callback hasn't fired within 4s, the banner switches to a
+//      "tap to sync now" state rather than sitting on "Connecting…" forever with no recourse. This
+//      covers the case (suspected on iOS Safari, but not something pure client-side JS can prove or
+//      fully control) where the browser throttles background auth/network work until the user
+//      interacts with the page.
+async function initialCloudSync(){
+  if(!isCloudSyncConfigured()){ updateSyncBanner("hidden"); return; }
+  updateSyncBanner("checking");
+  let authResolved = false;
+  setTimeout(()=>{ if(!authResolved) updateSyncBanner("slow"); }, 4000);
+  const ok = await loadFirebaseSdk();
+  if(!ok || !initFirebaseIfConfigured()){ authResolved = true; updateSyncBanner("error"); return; }
+  fbAuth.onAuthStateChanged(async (user)=>{
+    authResolved = true;
+    fbUser = user;
+    refreshCloudSyncSettingsUI();
+    if(user && currentUserEmail){
+      // This match guards against a stale/leftover Firebase session for a DIFFERENT account than the
+      // one currently active locally (pullFromCloud fetches by fbUser.uid, then merges into the local
+      // profile named by currentUserEmail -- if those two didn't actually belong to the same account,
+      // an auto-pull here would merge the wrong account's cloud data in). v2.02: this used to fail
+      // silently with no trace at all when it didn't match -- logging it now at least leaves evidence.
+      if(normEmail(user.email) === currentUserEmail){
+        lastVisibilityPullAt = Date.now();
+        await syncFromCloudAndRefresh();
+      } else {
+        console.warn("Cloud Sync: signed-in Firebase account does not match the active local profile -- skipping auto-sync on load.", {firebaseEmail: user.email, localProfile: currentUserEmail});
+        updateSyncBanner("mismatch");
+      }
+    } else {
+      updateSyncBanner(user ? "synced" : "signed-out");
+    }
+  });
+}
+window.initialCloudSync = initialCloudSync;
+
 (function init(){
   renderEnvBanner();
   const savedSession = localStorage.getItem(SESSION_KEY);
@@ -16084,34 +16217,10 @@ async function syncFromCloudAndRefresh(){
     showLoginScreen();
   }
 
-  // If cloud sync is configured, restore the Firebase session in the background and
-  // refresh this device's copy from the cloud. Never blocks first paint or offline use —
-  // the app is already usable with whatever's on the device by the time this resolves.
-  if(isCloudSyncConfigured()){
-    loadFirebaseSdk().then(ok=>{
-      if(!ok || !initFirebaseIfConfigured()) return;
-      fbAuth.onAuthStateChanged(async (user)=>{
-        fbUser = user;
-        refreshCloudSyncSettingsUI();
-        if(user && currentUserEmail){
-          // This match guards against a stale/leftover Firebase session for a DIFFERENT account
-          // than the one currently active locally (pullFromCloud fetches by fbUser.uid, then merges
-          // into the local profile named by currentUserEmail -- if those two didn't actually belong
-          // to the same account, an auto-pull here would merge the wrong account's cloud data in).
-          // v2.02: this used to fail silently with no trace at all when it didn't match, which made
-          // a genuine "why didn't this device auto-sync" report impossible to diagnose after the
-          // fact -- logging it now at least leaves evidence for next time, without changing behavior
-          // for the (expected, common) matching case.
-          if(normEmail(user.email) === currentUserEmail){
-            lastVisibilityPullAt = Date.now();
-            await syncFromCloudAndRefresh();
-          } else {
-            console.warn("Cloud Sync: signed-in Firebase account does not match the active local profile -- skipping auto-sync on load.", {firebaseEmail: user.email, localProfile: currentUserEmail});
-          }
-        }
-      });
-    });
-  }
+  // Restore the Firebase session and refresh this device's copy from the cloud in the background --
+  // never blocks first paint or offline use, the app is already usable with whatever's on the device
+  // by the time this resolves. See initialCloudSync() above.
+  initialCloudSync();
 })();
 
 // See syncFromCloudAndRefresh() above -- re-pulls on regaining focus, not just on first load, so a
