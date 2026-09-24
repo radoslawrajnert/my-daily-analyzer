@@ -2005,8 +2005,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.11";
+const APP_VERSION = "2.12";
 const CHANGELOG = [
+  { version: "2.12", date: "2026-09-24", desc: "\"Evaluate current phase\" now prefills the WHOLE Complete Phase form, not just calories, protein and exercises -- target weight, planned duration, and every aesthetic measure (Body fat %, Muscle %, Visceral fat, Chest, Waist, Hip, Thigh, Calf) are covered too, per direct follow-up feedback (\"the system should already pre-filled-in all the information ... how many calories, protein for a day, hip size etc\"). Works the same whichever path you used to evaluate the phase -- \"Ask AI Coach now\", \"Generate full export\" + \"Load AI Feedback\", doesn't matter." },
   { version: "2.11", date: "2026-09-24", desc: "Follow-up to v2.10's Daily-view paging -- \"maybe 14 days... and the graphics should be aligned to the center\". Pages now show 14 days at a time instead of 7, and the bars/labels (and the check-in results grid) are centered in the available space instead of being pushed hard to one side, which used to leave the chart looking lopsided with a big empty gap on days with fewer than a full page's worth of data." },
   { version: "2.10", date: "2026-09-24", desc: "Follow-up to v2.09's Calories/Protein-per-day scroll fix -- \"it is too many things at once... I think 7 results it is enough at once\". Replaced scrolling through the whole 30-day Daily view with paging: the charts (and the daily check-in results grid below them) now show just 7 days at a time, with Older/Newer buttons to step back through the rest of your history. Opening Daily always starts on the most recent 7 days; Weekly and Phase views are unchanged." },
   { version: "2.09", date: "2026-09-24", desc: "Fixed the v2.07 wider Calories/Protein-per-day charts looking \"horrible\" with misaligned value labels on desktop, and added the promised scroll instead of cramming all 30 days into view. Two separate bugs: (1) the value/date labels are positioned by percentage relative to the chart's own container, but that container had no explicit width, so on a wide card it stretched past the chart's real content width and labels drifted further off-position the later into the 30-day series they were -- now fixed so the container always matches the chart's actual width exactly. (2) the chart's scrollable area had no cap on how wide it could get, so on a sufficiently wide screen it simply had room to fit all 30 bars with nothing to scroll -- now capped at a comfortable fixed width while viewing Daily, so scrolling always kicks in once there's more to see (Weekly/Phase views are unaffected either way)." },
@@ -14921,15 +14922,19 @@ function saveRestGuardrailFromUI(){
 // measurement, saved to the profile so future readings can eventually be compared against them.
 // Each metric key maps 1:1 to the same field used on Scale Log entries (bodyFatPct, musclePct,
 // etc.), and each has its own Min/Max input pair named "target<Base>Min"/"target<Base>Max".
+// v2.12: added "label" (the plain-text name used both in the modal table and, now, in the Coach
+// export's "Next Phase Suggestion" instructions/parsing -- see buildCoachExport and
+// parseNextPhaseSuggestion) so all three places describe these 8 measures identically instead of
+// keeping separate hardcoded label text in sync by hand.
 const AESTHETIC_TARGET_METRICS = [
-  {key:"bodyFatPct", base:"targetBodyFat", defaultMin:12,   defaultMax:15},
-  {key:"musclePct",  base:"targetMuscle",  defaultMin:41,   defaultMax:44},
-  {key:"visceralFat",base:"targetVisceral",defaultMin:6,    defaultMax:6},
-  {key:"chestCm",    base:"targetChest",   defaultMin:99,   defaultMax:103},
-  {key:"waistCm",    base:"targetWaist",   defaultMin:75,   defaultMax:78},
-  {key:"hipCm",      base:"targetHip",     defaultMin:83,   defaultMax:87},
-  {key:"thighCm",    base:"targetThigh",   defaultMin:53.5, defaultMax:56},
-  {key:"calfCm",     base:"targetCalf",    defaultMin:36,   defaultMax:38},
+  {key:"bodyFatPct", base:"targetBodyFat", defaultMin:12,   defaultMax:15, label:"Body fat %"},
+  {key:"musclePct",  base:"targetMuscle",  defaultMin:41,   defaultMax:44, label:"Muscle %"},
+  {key:"visceralFat",base:"targetVisceral",defaultMin:6,    defaultMax:6,  label:"Visceral fat"},
+  {key:"chestCm",    base:"targetChest",   defaultMin:99,   defaultMax:103,label:"Chest"},
+  {key:"waistCm",    base:"targetWaist",   defaultMin:75,   defaultMax:78, label:"Waist"},
+  {key:"hipCm",      base:"targetHip",     defaultMin:83,   defaultMax:87, label:"Hip"},
+  {key:"thighCm",    base:"targetThigh",   defaultMin:53.5, defaultMax:56, label:"Thigh"},
+  {key:"calfCm",     base:"targetCalf",    defaultMin:36,   defaultMax:38, label:"Calf"},
 ];
 // Shared by the migration path below (which must NOT call getAestheticTargets -- that would now
 // recurse back into phases) and the empty-state fallback in getAestheticTargets itself.
@@ -15338,7 +15343,11 @@ function openCompletePhaseModal(){
   document.getElementById("newPhaseCalories").value = currentTargets ? currentTargets.calories : "";
   document.getElementById("newPhaseProtein").value = currentTargets ? currentTargets.proteinG : "";
   document.getElementById("newPhaseNotes").value = ""; // notes always start blank for a new phase
-  document.getElementById("newPhasePlannedDuration").value = ""; // planned duration is its own fresh commitment, never prefilled
+  // v2.12: planned duration USED to always start blank ("its own fresh commitment, never
+  // prefilled") -- now it's still blank by default, but a saved AI suggestion (below) can fill it
+  // in, same as every other field, per direct follow-up feedback asking for the WHOLE form to be
+  // prefillable from the suggestion, not just calories/protein/splits.
+  document.getElementById("newPhasePlannedDuration").value = "";
   const current = getAestheticTargets();
   AESTHETIC_TARGET_METRICS.forEach(m=>{
     const newBase = "newPhase"+m.base.slice(6); // "targetBodyFat" -> "newPhaseBodyFat"
@@ -15348,10 +15357,14 @@ function openCompletePhaseModal(){
     if(maxEl) maxEl.value = current[m.key].max;
   });
   // v2.06: if "Evaluate current phase" produced a saved suggestion since the last time a phase was
-  // completed, offer it here -- accepting overwrites the calorie/protein fields just prefilled above
-  // and queues an adjusted splits copy for the submit handler; declining (or having nothing saved)
-  // leaves everything exactly as the normal carry-forward behavior above already set it. Either way
-  // the suggestion is consumed now -- asking again next time would just be re-showing stale advice.
+  // completed, offer it here -- accepting overwrites the fields just prefilled above and queues an
+  // adjusted splits copy for the submit handler; declining (or having nothing saved) leaves
+  // everything exactly as the normal carry-forward behavior above already set it. Either way the
+  // suggestion is consumed now -- asking again next time would just be re-showing stale advice.
+  // v2.12: accepting now prefills the WHOLE form, not just calories/protein/splits -- target
+  // weight, planned duration, and every aesthetic measure row the suggestion covered -- per direct
+  // follow-up feedback ("the system should already pre-filled-in all the information ... how many
+  // calories, protein for a day, hip size etc").
   pendingSuggestionSplitsOverride = null;
   const suggestion = getPendingPhaseSuggestion();
   if(suggestion){
@@ -15359,11 +15372,30 @@ function openCompletePhaseModal(){
     const bits = [];
     if(suggestion.calorieTarget != null) bits.push(`${suggestion.calorieTarget} kcal`);
     if(suggestion.proteinTarget != null) bits.push(`${suggestion.proteinTarget}g protein`);
+    if(suggestion.targetWeightKg != null) bits.push(`${suggestion.targetWeightKg}kg target weight`);
+    if(suggestion.plannedDurationDays != null) bits.push(`${suggestion.plannedDurationDays}-day plan`);
+    if(suggestion.aestheticTargets){
+      const n = Object.keys(suggestion.aestheticTargets).length;
+      bits.push(`${n} aesthetic measure${n===1?"":"s"}`);
+    }
     if(suggestion.splits && suggestion.splits.length) bits.push(`exercises for ${suggestion.splits.length} split${suggestion.splits.length===1?"":"s"}`);
     const useIt = confirm(`Your AI Coach saved a suggestion for the next phase (${bits.join(", ")}). Use it to prefill this phase instead of your current numbers?`);
     if(useIt){
       if(suggestion.calorieTarget != null) document.getElementById("newPhaseCalories").value = suggestion.calorieTarget;
       if(suggestion.proteinTarget != null) document.getElementById("newPhaseProtein").value = suggestion.proteinTarget;
+      if(suggestion.targetWeightKg != null) document.getElementById("newPhaseTargetWeight").value = suggestion.targetWeightKg;
+      if(suggestion.plannedDurationDays != null) document.getElementById("newPhasePlannedDuration").value = suggestion.plannedDurationDays;
+      if(suggestion.aestheticTargets){
+        AESTHETIC_TARGET_METRICS.forEach(m=>{
+          const t = suggestion.aestheticTargets[m.key];
+          if(!t) return;
+          const newBase = "newPhase"+m.base.slice(6);
+          const minEl = document.getElementById(newBase+"Min");
+          const maxEl = document.getElementById(newBase+"Max");
+          if(minEl && t.min != null) minEl.value = t.min;
+          if(maxEl && t.max != null) maxEl.value = t.max;
+        });
+      }
       if(suggestion.splits && suggestion.splits.length){
         pendingSuggestionSplitsOverride = applyPhaseSuggestionToSplits(suggestion, getWorkoutSplits());
       }
@@ -15543,7 +15575,15 @@ function buildCoachExport(userNotes, attachments, skipped, opts){
   lines.push(`7. Recovery & Consistency — only if rest-day guardrail and/or daily check-in data is included below; otherwise write "No recovery/check-in data this time." Comment on whether rest days are actually being taken relative to the configured guardrail rule(s), and flag any daily check-in pattern worth calling out (e.g. frequent poor sleep, recurring stomach problems, low hydration, high caffeine/alcohol days) -- especially if it lines up with a plateau or another concerning trend noted elsewhere in this report.`);
   if(evaluatePhase){
     const splitNamesForSuggestion = getWorkoutSplits().map(s=>s.name);
-    lines.push(`8. Next Phase Suggestion — based on everything above, suggest concrete starting values for my NEXT phase. This section is parsed automatically by my app, so its formatting must be followed EXACTLY: after the "8. Next Phase Suggestion" title, one line "Calories: <number>", one line "Protein: <number>g", then one line per split named below in the form "<Split name>: <comma-separated exercise names>" -- keep, swap, or add exercises as you see fit, but use exactly these split names, one line each, nothing else in this section (no extra commentary, no bullets):\nSplits to cover: ${splitNamesForSuggestion.length ? splitNamesForSuggestion.join(", ") : "(none defined yet -- omit the split lines and just give Calories/Protein)"}`);
+    // v2.12: "the system should already pre-filled-in all the information ... how many calories,
+    // protein for a day, hip size etc" (live follow-up) -- this used to only ask for Calories/
+    // Protein/exercises; now it also asks for a target weight, an optional planned duration, and a
+    // min-max range for every AESTHETIC_TARGET_METRICS row (Body fat %, Muscle %, Visceral fat,
+    // Chest, Waist, Hip, Thigh, Calf) so Complete Phase can prefill the WHOLE form, not just three
+    // fields. Built from AESTHETIC_TARGET_METRICS.label so the instructions, the parser, and the
+    // modal table always describe these 8 measures identically.
+    const aestheticLinesForSuggestion = AESTHETIC_TARGET_METRICS.map(m => `${m.label}: <min>-<max>`).join("\n");
+    lines.push(`8. Next Phase Suggestion — based on everything above, suggest concrete starting values for my NEXT phase. This section is parsed automatically by my app, so its formatting must be followed EXACTLY: after the "8. Next Phase Suggestion" title, one line per item below (numbers only -- no units, no extra words), in this exact order:\nCalories: <number>\nProtein: <number>g\nTarget weight: <number>\nPlanned duration: <number> (in days -- omit this one line entirely if you have no specific recommendation, otherwise keep every other line)\n${aestheticLinesForSuggestion}\nThen, after those, one line per split named below in the form "<Split name>: <comma-separated exercise names>" -- keep, swap, or add exercises as you see fit, but use exactly these split names, one line each, nothing else in this section (no extra commentary, no bullets):\nSplits to cover: ${splitNamesForSuggestion.length ? splitNamesForSuggestion.join(", ") : "(none defined yet -- omit the split lines and just give the numbers above)"}`);
   }
   lines.push("");
   lines.push(`Formatting rules for the reply itself: put each section title on its own line, written exactly as "1. Overall Assessment" etc. (a number, a period, a space, then just the short title — nothing else on that line); use "* " at the start of a line for bullet points; use **double asterisks** around anything you want bolded. Don't use markdown # headers instead of the numbered titles above, and don't merge two sections onto one line.`);
@@ -15983,24 +16023,50 @@ function getLatestCoachAdviceForExercise(exerciseName){
 // which exercises the coach suggested -- so they can be stored quietly on the account and offered
 // later from Complete Phase, instead of the user having to reread the whole report and retype
 // everything by hand. Returns null if the section is missing or nothing recognizable was in it.
+// v2.12: "the system should already pre-filled-in all the information ... how many calories,
+// protein for a day, hip size etc" -- also parses Target weight, Planned duration, and a min-max
+// range for each AESTHETIC_TARGET_METRICS row (Body fat %, Muscle %, Visceral fat, Chest, Waist,
+// Hip, Thigh, Calf). Each of these is checked with its own fixed-label regex BEFORE the generic
+// "<name>: <comma list>" fallback that builds split lines, so a numeric range like "Chest: 100-104"
+// is read as a body-measurement target while a same-labeled exercise list like "Chest: Bench Press,
+// Incline Fly" (from a real workout split literally named "Chest") still correctly falls through to
+// the split parser below -- the two are told apart by what follows the colon, not by the label text.
+function aestheticSuggestionLineRegex(label){
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^${escaped}\\s*:\\s*([\\d.]+)\\s*(?:%|cm)?\\s*-\\s*([\\d.]+)\\s*(?:%|cm)?\\s*$`, "i");
+}
 function parseNextPhaseSuggestion(rawText){
   const section = extractCoachSectionText(rawText, "Next Phase Suggestion");
   if(!section) return null;
   const lines = section.split("\n").map(l=>l.replace(/^[*-]\s+/, "").trim()).filter(Boolean);
-  let calorieTarget = null, proteinTarget = null;
+  let calorieTarget = null, proteinTarget = null, targetWeightKg = null, plannedDurationDays = null;
+  const aestheticTargets = {};
   const splitLines = [];
   lines.forEach(line=>{
     let m;
     if((m = line.match(/^calories?\s*:\s*([\d.]+)/i))){ calorieTarget = Math.round(parseFloat(m[1])); return; }
     if((m = line.match(/^protein\s*:\s*([\d.]+)\s*g?/i))){ proteinTarget = Math.round(parseFloat(m[1])); return; }
+    if((m = line.match(/^target\s*weight\s*:\s*([\d.]+)/i))){ targetWeightKg = parseFloat(m[1]); return; }
+    if((m = line.match(/^planned\s*duration\s*:\s*(\d+)/i))){ plannedDurationDays = parseInt(m[1], 10); return; }
+    for(const metric of AESTHETIC_TARGET_METRICS){
+      if((m = line.match(aestheticSuggestionLineRegex(metric.label)))){
+        aestheticTargets[metric.key] = { min: parseFloat(m[1]), max: parseFloat(m[2]) };
+        return;
+      }
+    }
     if((m = line.match(/^([^:]+):\s*(.+)$/))){
       const splitName = m[1].trim();
       const exercises = m[2].split(",").map(s=>s.trim()).filter(Boolean);
       if(splitName && exercises.length) splitLines.push({splitName, exercises});
     }
   });
-  if(calorieTarget == null && proteinTarget == null && !splitLines.length) return null;
-  return {calorieTarget, proteinTarget, splits: splitLines, savedAt: todayStr()};
+  const hasAestheticTargets = Object.keys(aestheticTargets).length > 0;
+  if(calorieTarget == null && proteinTarget == null && targetWeightKg == null && plannedDurationDays == null && !hasAestheticTargets && !splitLines.length) return null;
+  return {
+    calorieTarget, proteinTarget, targetWeightKg, plannedDurationDays,
+    aestheticTargets: hasAestheticTargets ? aestheticTargets : null,
+    splits: splitLines, savedAt: todayStr(),
+  };
 }
 function getPendingPhaseSuggestion(){
   const users = getUsers();
