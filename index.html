@@ -1361,12 +1361,12 @@
           <span class="phase-badge" id="nutritionTrendPhaseBadge"></span>
         </div>
         <div class="chart-scroll-sync">
-          <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Calories per day <span id="calorieTrendPeriodLabel" style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks vs. target</span></div>
+          <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Calories per day <span id="calorieTrendPeriodLabel" style="font-weight:400; color:var(--muted); font-size:.82rem;">— last 30 days vs. target</span></div>
           <div id="calorieTrendWrap"></div>
-          <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Protein per day <span id="proteinTrendPeriodLabel" style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks vs. target</span></div>
+          <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Protein per day <span id="proteinTrendPeriodLabel" style="font-weight:400; color:var(--muted); font-size:.82rem;">— last 30 days vs. target</span></div>
           <div id="proteinTrendWrap"></div>
           <div id="dailyQuestionsHeatmapSection">
-            <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Daily check-in results <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last two weeks</span></div>
+            <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Daily check-in results <span style="font-weight:400; color:var(--muted); font-size:.82rem;">— last 30 days</span></div>
             <div id="dailyQuestionsHeatmapWrap"></div>
           </div>
         </div>
@@ -1980,8 +1980,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.06";
+const APP_VERSION = "2.07";
 const CHANGELOG = [
+  { version: "2.07", date: "2026-09-24", desc: "Calories per day and Protein per day (Nutrition Log) now show your last 30 days instead of just 14 -- \"I can only see 14 days, add a scroll\" (live user report). On a screen too narrow to fit all 30 columns at their normal size, the chart is now wider than the card and scrolls sideways for the rest instead of squeezing every bar down to fit, the same way it already did on mobile -- just no longer limited to narrow screens. The daily check-in results grid below it grew to match, and stays column-aligned with both charts while scrolling. The Weekly/Phase views are unchanged." },
   { version: "2.06", date: "2026-09-24", desc: "New \"Evaluate current phase\" checkbox in the Coach view: tick it before \"Ask AI Coach now\" and the coach is also asked to suggest starting calorie/protein targets and exercises for your NEXT phase, based on everything it just reviewed. The suggestion is saved quietly in the background -- then next time you hit \"Complete phase\" on the Target ranges tab, if a suggestion is on file, you're asked whether to use it to prefill the new phase's targets and splits instead of just carrying the current ones forward." },
   { version: "2.05", date: "2026-09-24", desc: "The Coach export now includes a full \"Phase history\" section covering every past and active phase -- calorie/protein targets, notes, rest-day guardrail rules, splits, and aesthetic ranges -- not just the current one, so the coach can see what's already been tried. Also fixed a bug where a phase's real start date could display as the misleading \"01.01\": accounts that migrated to the Phases feature early on had their very first phase silently stamped with a placeholder date from the year 2000, which showed up (day/month only, no year) looking like a plausible-but-wrong \"01.01\". This is now automatically corrected to the account's actual earliest logged date." },
   { version: "2.04", date: "2026-09-24", desc: "Found the real cause behind data still not showing up on a phone even after v2.03: on iPhone, opening the same account in Edge showed the data fine, but Safari didn't -- even after reloading. Since iOS Safari and iOS Edge share the exact same underlying engine, that pointed to Safari's tab being stuck running an old, cached copy of the app rather than a real sync problem. The app now detects when a newer version has installed itself in the background and shows an unmissable \"Refresh now\" banner at the very top of the page, and checks for updates more proactively (whenever the tab becomes visible again), so a stale tab can no longer hide silently." },
@@ -2217,6 +2218,8 @@ const I18N_STRINGS = {
   "Your average daily intake on days you actually logged — a truer picture than a single day.": "A sua ingestão média diária nos dias em que efetivamente registou — uma imagem mais fiel do que um único dia.",
   "Calories per day": "Calorias por dia",
   "— last two weeks vs. target": "— últimas duas semanas vs. objetivo",
+  "— last 30 days vs. target": "— últimos 30 dias vs. objetivo",
+  "— last 30 days": "— últimos 30 dias",
   "— last 8 weeks vs. target": "— últimas 8 semanas vs. objetivo",
   "Protein per day": "Proteína por dia",
   "Daily": "Diário",
@@ -6500,10 +6503,14 @@ function renderDailyQuestionsHeatmap(){
     wrap.innerHTML = `<div class="empty-note">No daily check-in questions turned on — enable some in Settings → Nutrition Log Settings.</div>`;
     return;
   }
-  // Floors this wrap at the same native width as the bar charts above it, so all three keep their
-  // day columns aligned while scrolling together on a narrow phone -- see .chart-scroll-sync.
-  wrap.style.minWidth = DAILY_CHART_GRID.w + "px";
-  const days = 14;
+  // v2.07: shared with the Calorie/Protein Daily-view bar charts above (NUTRITION_TREND_DAILY_DAYS)
+  // so these columns stay lined up with theirs -- see the constant's own comment for why 14 grew.
+  const days = NUTRITION_TREND_DAILY_DAYS;
+  // Floors (and, past the DAILY_CHART_GRID.w baseline, actually widens) this wrap to the exact same
+  // width as the bar charts above it, via the same dailyChartGridWidth(n) math, so all three keep
+  // their day columns aligned while scrolling together -- see .chart-scroll-sync.
+  const gridW = dailyChartGridWidth(days);
+  wrap.style.minWidth = gridW + "px";
   const today = todayStr();
   const dateList = [];
   for(let i = days - 1; i >= 0; i--) dateList.push(shiftDateStr(today, -i));
@@ -6515,7 +6522,7 @@ function renderDailyQuestionsHeatmap(){
   // SAME x the bar charts above use for that day, so a column lines up across calories/protein/
   // check-in no matter which one you're looking at. The label's own box is capped at that same
   // left boundary so it can never overlap the first day's column.
-  const firstColPct = (dailyChartBarX(days, 0) / DAILY_CHART_GRID.w * 100).toFixed(3);
+  const firstColPct = (dailyChartBarX(days, 0) / gridW * 100).toFixed(3);
   const rowHtml = (labelHtml, cellsHtml, extraStyle)=> `<div style="position:relative; height:20px;${extraStyle||""}"><div style="position:absolute; left:0; top:0; width:calc(${firstColPct}% - 6px); height:20px; display:flex; align-items:center; font-size:.78rem; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${labelHtml}</div>${cellsHtml}</div>`;
 
   // Cells are a fixed, compact size and absolutely positioned, so they stay small and consistent
@@ -7734,6 +7741,13 @@ function computeWeeklyProteinSeriesForPhase(phase){ return computeWeeklyMetricSe
 function computeWeeklyCalorieSeriesForPhase(phase){ return computeWeeklyMetricSeriesForPhase(phase, "kcal"); }
 
 const NUTRITION_TREND_WEEKLY_WEEKS = 8;
+// v2.07: bumped from 14 -- "I can only see 14 days, can you add a scroll so I can see more" (live
+// user report). Shared by the Calorie/Protein Daily-view bar charts AND the daily check-in heatmap
+// right below them (renderDailyQuestionsHeatmap), which must stay on the exact same day count so
+// their columns keep lining up (see dailyChartBarX/dailyChartBarCenterPct further down). The wider
+// window now renders wider than the card and scrolls horizontally instead of squeezing every bar
+// down to fit -- see dailyChartGridWidth.
+const NUTRITION_TREND_DAILY_DAYS = 30;
 const NUTRITION_TREND_VIEW_KEY = "bodyAnalyzer.nutritionTrendView.v1";
 // v1.46: added a third view, "phase" -- weekly bars spanning the ACTIVE phase's own start date
 // through today (or its end date, for a completed phase, though this view only makes sense for the
@@ -7771,7 +7785,7 @@ function renderNutritionTrendViewToggle(){
   let periodText;
   if(view === "phase") periodText = activePhase ? `— all of ${activePhase.name} vs. target` : "— this phase vs. target";
   else if(view === "weekly") periodText = `— last ${NUTRITION_TREND_WEEKLY_WEEKS} weeks vs. target`;
-  else periodText = "— last two weeks vs. target";
+  else periodText = `— last ${NUTRITION_TREND_DAILY_DAYS} days vs. target`;
   if(calLabel) calLabel.textContent = periodText;
   if(proteinLabel) proteinLabel.textContent = periodText;
   const heatmapSection = document.getElementById("dailyQuestionsHeatmapSection");
@@ -7788,11 +7802,24 @@ function renderNutritionTrendViewToggle(){
 // right, up from v1.20's 70/30) per follow-up feedback, rather than filling the row edge-to-edge
 // or being symmetrically centered.
 const DAILY_CHART_GRID = { w: 720, pad: 24, padRight: 56, barW: 22, gap: 8, alignFrac: 0.90 };
+// v2.07: the actual rendered width for a chart with n columns -- floored at DAILY_CHART_GRID.w (so
+// every existing SHORT view -- the old 14-day daily window, the ~8-12-week Weekly/Phase views --
+// keeps its current look, unchanged) but grows past it once n needs more room than that at each
+// bar's normal size (the new, longer NUTRITION_TREND_DAILY_DAYS window). renderDailyBarChart and
+// renderDailyQuestionsHeatmap both render at exactly this pixel width instead of stretching to fill
+// the card once it exceeds the floor, so extra columns make the whole chart wider than the card and
+// the shared .chart-scroll-sync ancestor scrolls horizontally for them -- same mechanism the mobile
+// fix already relied on, just no longer limited to narrow screens.
+function dailyChartGridWidth(n){
+  const { pad, padRight, barW, gap } = DAILY_CHART_GRID;
+  return Math.max(DAILY_CHART_GRID.w, pad + n*barW + (n-1)*gap + padRight);
+}
 // Left-x (in DAILY_CHART_GRID viewBox units) of day i's fixed-width bar, for a chart with n total
 // days. Both renderDailyBarChart and renderDailyQuestionsHeatmap call this (the latter via
 // dailyChartBarCenterPct) so they always agree on where day i's column sits.
 function dailyChartBarX(n, i){
-  const { w, pad, padRight, barW, gap, alignFrac } = DAILY_CHART_GRID;
+  const { pad, padRight, barW, gap, alignFrac } = DAILY_CHART_GRID;
+  const w = dailyChartGridWidth(n);
   const chartRight = w - padRight;
   const contentAvail = chartRight - pad;
   const content = n*barW + (n-1)*gap;
@@ -7800,10 +7827,12 @@ function dailyChartBarX(n, i){
   const start = pad + slack * alignFrac;
   return start + i*(barW+gap);
 }
-// Horizontal CENTER of day i's column, as a percentage of DAILY_CHART_GRID.w -- what the check-in
-// heatmap (plain CSS, not an SVG viewBox) needs to position its absolutely-placed cells/labels.
+// Horizontal CENTER of day i's column, as a percentage of dailyChartGridWidth(n) -- what the
+// check-in heatmap (plain CSS, not an SVG viewBox) needs to position its absolutely-placed cells/
+// labels.
 function dailyChartBarCenterPct(n, i){
-  const { w, barW } = DAILY_CHART_GRID;
+  const { barW } = DAILY_CHART_GRID;
+  const w = dailyChartGridWidth(n);
   return (dailyChartBarX(n, i) + barW/2) / w * 100;
 }
 // v1.29: true for a narrow (phone) viewport -- used to trim the Calorie/Protein bar charts'
@@ -7827,9 +7856,13 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   }
   const hitTest = opts.hitTest || ((v,t)=> v >= t);
 
-  const { w, pad, padRight, barW } = DAILY_CHART_GRID;
-  // Floors this wrap at its native (desktop) width so bars/labels never shrink on a narrow phone --
-  // see the .chart-scroll-sync comment in the stylesheet for the full mechanism.
+  const { pad, padRight, barW } = DAILY_CHART_GRID;
+  const n = series.length;
+  // v2.07: was always DAILY_CHART_GRID.w (720) -- now grows past that floor once n needs more room
+  // at each bar's normal size (see dailyChartGridWidth). Still floors this wrap at its native
+  // (desktop) width either way so bars/labels never shrink on a narrow phone -- see the
+  // .chart-scroll-sync comment in the stylesheet for the full mechanism.
+  const w = dailyChartGridWidth(n);
   wrap.style.minWidth = w + "px";
   // v1.22: 20% taller than the original 160, per follow-up feedback -- taller columns, same
   // width/position. v1.29: 15% shorter again, but ONLY on a narrow (phone) viewport -- the mobile
@@ -7839,7 +7872,6 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   // identical between mobile and desktop, so this is the one deliberate difference.
   const h = isMobileViewport() ? 192 * 0.85 : 192;
   const chartRight = w - padRight;
-  const n = series.length;
   const maxVal = Math.max(targetValue || 0, ...series.map(s=>s.value), 1) * 1.15;
   const yFor = v => h - pad - (v/maxVal)*(h - pad*2);
 
@@ -7898,7 +7930,7 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
     <div class="trend-label">Average ${Math.round(avgVal)}${opts.unit}/day over ${loggedSeries.length} logged ${periodLabel(loggedSeries.length)}${targetValue?` · ${opts.hitLabel||"Hit target"} ${daysHitTarget}/${loggedSeries.length} ${periodLabel(loggedSeries.length)}`:""}</div>
     ${targetValue ? `<div class="trend-legend"><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--accent);"></span>${opts.hitSwatchLabel||"Hit target"}</span><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--warn);"></span>${opts.missSwatchLabel||"Under target"}</span></div>` : ""}
     <div style="position:relative; height:${h}px;">
-      <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%; height:${h}px; display:block;">
+      <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:${w > DAILY_CHART_GRID.w ? w+"px" : "100%"}; height:${h}px; display:block;">
         ${bars}
         ${targetLine}
       </svg>
@@ -7936,7 +7968,7 @@ function renderProteinTrendChart(){
     ? computeWeeklyProteinSeriesForPhase(getActivePhase())
     : weekly
       ? computeWeeklyProteinSeries(NUTRITION_TREND_WEEKLY_WEEKS)
-      : computeDailyProteinSeries(14).map(s=>({date:s.date, value:s.value, logged:s.logged}));
+      : computeDailyProteinSeries(NUTRITION_TREND_DAILY_DAYS).map(s=>({date:s.date, value:s.value, logged:s.logged}));
   const targets = getPlanTargets();
   const targetG = targets ? targets.proteinG : null;
   renderDailyBarChart("proteinTrendWrap", series, targetG, {
@@ -7958,7 +7990,7 @@ function renderCalorieTrendChart(){
     ? computeWeeklyCalorieSeriesForPhase(getActivePhase())
     : weekly
       ? computeWeeklyCalorieSeries(NUTRITION_TREND_WEEKLY_WEEKS)
-      : computeDailyCalorieSeries(14).map(s=>({date:s.date, value:s.value, logged:s.logged}));
+      : computeDailyCalorieSeries(NUTRITION_TREND_DAILY_DAYS).map(s=>({date:s.date, value:s.value, logged:s.logged}));
   const targets = getPlanTargets();
   const targetKcal = targets ? targets.calories : null;
   // "On track" for calories means close to target either way (within 10%), not just "at least" —
