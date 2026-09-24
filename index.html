@@ -2005,8 +2005,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.12";
+const APP_VERSION = "2.13";
 const CHANGELOG = [
+  { version: "2.13", date: "2026-09-24", desc: "Fixed a saved AI Coach next-phase suggestion getting silently thrown away if you opened \"Complete phase\", saw the offer to use it, and then closed the form (X/Cancel, or declining the confirm) without actually finishing -- reopening \"Complete phase\" later no longer showed the offer at all. The suggestion is now only cleared once a phase is actually completed, so backing out of the form never loses it and you'll be asked again next time." },
   { version: "2.12", date: "2026-09-24", desc: "\"Evaluate current phase\" now prefills the WHOLE Complete Phase form, not just calories, protein and exercises -- target weight, planned duration, and every aesthetic measure (Body fat %, Muscle %, Visceral fat, Chest, Waist, Hip, Thigh, Calf) are covered too, per direct follow-up feedback (\"the system should already pre-filled-in all the information ... how many calories, protein for a day, hip size etc\"). Works the same whichever path you used to evaluate the phase -- \"Ask AI Coach now\", \"Generate full export\" + \"Load AI Feedback\", doesn't matter." },
   { version: "2.11", date: "2026-09-24", desc: "Follow-up to v2.10's Daily-view paging -- \"maybe 14 days... and the graphics should be aligned to the center\". Pages now show 14 days at a time instead of 7, and the bars/labels (and the check-in results grid) are centered in the available space instead of being pushed hard to one side, which used to leave the chart looking lopsided with a big empty gap on days with fewer than a full page's worth of data." },
   { version: "2.10", date: "2026-09-24", desc: "Follow-up to v2.09's Calories/Protein-per-day scroll fix -- \"it is too many things at once... I think 7 results it is enough at once\". Replaced scrolling through the whole 30-day Daily view with paging: the charts (and the daily check-in results grid below them) now show just 7 days at a time, with Older/Newer buttons to step back through the rest of your history. Opening Daily always starts on the most recent 7 days; Weekly and Phase views are unchanged." },
@@ -15359,16 +15360,22 @@ function openCompletePhaseModal(){
   // v2.06: if "Evaluate current phase" produced a saved suggestion since the last time a phase was
   // completed, offer it here -- accepting overwrites the fields just prefilled above and queues an
   // adjusted splits copy for the submit handler; declining (or having nothing saved) leaves
-  // everything exactly as the normal carry-forward behavior above already set it. Either way the
-  // suggestion is consumed now -- asking again next time would just be re-showing stale advice.
+  // everything exactly as the normal carry-forward behavior above already set it.
   // v2.12: accepting now prefills the WHOLE form, not just calories/protein/splits -- target
   // weight, planned duration, and every aesthetic measure row the suggestion covered -- per direct
   // follow-up feedback ("the system should already pre-filled-in all the information ... how many
   // calories, protein for a day, hip size etc").
+  // v2.13: the suggestion used to be cleared the instant it was OFFERED here, regardless of what
+  // happened next -- so closing this modal (X/Cancel/overlay click) or declining the confirm()
+  // without ever actually completing a phase silently threw the saved suggestion away, and it
+  // never got offered again. Direct follow-up report: "I click on complete phase... then came the
+  // question I click x then come back not the question if I want to import values again." Now the
+  // suggestion stays in storage -- and keeps getting re-offered on every reopen -- until a phase is
+  // actually completed (cleared in the submit handler below), so backing out without finishing
+  // never loses it.
   pendingSuggestionSplitsOverride = null;
   const suggestion = getPendingPhaseSuggestion();
   if(suggestion){
-    clearPendingPhaseSuggestion();
     const bits = [];
     if(suggestion.calorieTarget != null) bits.push(`${suggestion.calorieTarget} kcal`);
     if(suggestion.proteinTarget != null) bits.push(`${suggestion.proteinTarget}g protein`);
@@ -15447,6 +15454,11 @@ document.getElementById("completePhaseForm").addEventListener("submit", (e)=>{
     // completePhase() falls back to its normal carry-forward splits whenever this is null.
     workoutSplits: pendingSuggestionSplitsOverride,
   });
+  // v2.13: a phase has now actually been completed (whether or not a saved suggestion was accepted
+  // for it), so any pending suggestion is stale relative to the phase that just started -- clear it
+  // here, on actual completion, instead of the moment it was merely offered (see the comment above
+  // openCompletePhaseModal's suggestion block for why that used to lose it on an abandoned modal).
+  clearPendingPhaseSuggestion();
   pendingSuggestionSplitsOverride = null;
   closeCompletePhaseModal();
   renderTargetRangesTab();
