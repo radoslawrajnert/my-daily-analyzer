@@ -554,6 +554,11 @@
      NOT a permanent part of this base rule. */
   .chart-scroll-sync{overflow-x:auto; -webkit-overflow-scrolling:touch;}
   .chart-scroll-sync.chart-scroll-sync-capped{max-width:720px;}
+  /* v2.10: "I think 7 results it is enough at once" -- Older/Newer buttons let you page through the
+     full 30-day Daily-view window 7 days at a time instead of scrolling/squeezing them all into
+     view (see DAILY_CHART_PAGE_SIZE). Only ever shown while Daily view is active. */
+  .daily-chart-pager{display:flex; align-items:center; justify-content:center; gap:10px; margin-top:10px;}
+  .daily-chart-pager button:disabled{opacity:.4; cursor:default;}
   /* Daily/Weekly toggle above the Calorie/Protein trend charts (v1.33) -- a small self-contained
      pill switch (not .view-tabs, which is sized for the full-width main nav with icons). */
   .trend-view-toggle{display:inline-flex; gap:4px; background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:3px; margin:10px 0 2px;}
@@ -1370,6 +1375,11 @@
           </div>
           <span class="phase-badge" id="nutritionTrendPhaseBadge"></span>
         </div>
+        <div class="daily-chart-pager hidden" id="dailyChartPagerWrap">
+          <button type="button" class="secondary" id="dailyChartPagerOlderBtn" onclick="shiftDailyChartPage(1)" style="font-size:.78rem; padding:4px 10px;">‹ Older</button>
+          <span id="dailyChartPagerLabel" style="font-size:.78rem; color:var(--muted);"></span>
+          <button type="button" class="secondary" id="dailyChartPagerNewerBtn" onclick="shiftDailyChartPage(-1)" style="font-size:.78rem; padding:4px 10px;">Newer ›</button>
+        </div>
         <div class="chart-scroll-sync" id="nutritionChartScrollSync">
           <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Calories per day <span id="calorieTrendPeriodLabel" style="font-weight:400; color:var(--muted); font-size:.82rem;">— last 30 days vs. target</span></div>
           <div id="calorieTrendWrap"></div>
@@ -1990,8 +2000,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.09";
+const APP_VERSION = "2.10";
 const CHANGELOG = [
+  { version: "2.10", date: "2026-09-24", desc: "Follow-up to v2.09's Calories/Protein-per-day scroll fix -- \"it is too many things at once... I think 7 results it is enough at once\". Replaced scrolling through the whole 30-day Daily view with paging: the charts (and the daily check-in results grid below them) now show just 7 days at a time, with Older/Newer buttons to step back through the rest of your history. Opening Daily always starts on the most recent 7 days; Weekly and Phase views are unchanged." },
   { version: "2.09", date: "2026-09-24", desc: "Fixed the v2.07 wider Calories/Protein-per-day charts looking \"horrible\" with misaligned value labels on desktop, and added the promised scroll instead of cramming all 30 days into view. Two separate bugs: (1) the value/date labels are positioned by percentage relative to the chart's own container, but that container had no explicit width, so on a wide card it stretched past the chart's real content width and labels drifted further off-position the later into the 30-day series they were -- now fixed so the container always matches the chart's actual width exactly. (2) the chart's scrollable area had no cap on how wide it could get, so on a sufficiently wide screen it simply had room to fit all 30 bars with nothing to scroll -- now capped at a comfortable fixed width while viewing Daily, so scrolling always kicks in once there's more to see (Weekly/Phase views are unaffected either way)." },
   { version: "2.08", date: "2026-09-24", desc: "Fixed \"Evaluate current phase\" so it actually works with the real intended flow: tick the checkbox, hit \"Generate full export\" (not just \"Ask AI Coach now\"), paste it into any AI chat, ask for next-phase tips, then paste the reply back in via \"Load AI Feedback\" -- the Next Phase Suggestion is now picked up from THAT paste-back too, not only from the in-app \"Ask AI Coach now\" reply. Either way it lands in the same place: offered next time you hit \"Complete phase\" on the Target ranges tab." },
   { version: "2.07", date: "2026-09-24", desc: "Calories per day and Protein per day (Nutrition Log) now show your last 30 days instead of just 14 -- \"I can only see 14 days, add a scroll\" (live user report). On a screen too narrow to fit all 30 columns at their normal size, the chart is now wider than the card and scrolls sideways for the rest instead of squeezing every bar down to fit, the same way it already did on mobile -- just no longer limited to narrow screens. The daily check-in results grid below it grew to match, and stays column-aligned with both charts while scrolling. The Weekly/Phase views are unchanged." },
@@ -2236,6 +2247,8 @@ const I18N_STRINGS = {
   "Protein per day": "Proteína por dia",
   "Daily": "Diário",
   "Weekly": "Semanal",
+  "‹ Older": "‹ Mais antigos",
+  "Newer ›": "Mais recentes ›",
   "My products / My meals": "Os meus produtos / As minhas refeições",
   "All categories": "Todas as categorias",
   "Filter:": "Filtrar:",
@@ -6517,15 +6530,22 @@ function renderDailyQuestionsHeatmap(){
   }
   // v2.07: shared with the Calorie/Protein Daily-view bar charts above (NUTRITION_TREND_DAILY_DAYS)
   // so these columns stay lined up with theirs -- see the constant's own comment for why 14 grew.
-  const days = NUTRITION_TREND_DAILY_DAYS;
+  // v2.10: only the current DAILY_CHART_PAGE_SIZE-day PAGE of that window is actually drawn (see
+  // dailyChartPageSlice) -- the bar charts above slice the same way, so this must build the full
+  // date list first and then slice it identically, not just shrink the day count, to land on
+  // exactly the same calendar days as they do.
+  const fullDays = NUTRITION_TREND_DAILY_DAYS;
+  const today = todayStr();
+  const fullDateList = [];
+  for(let i = fullDays - 1; i >= 0; i--) fullDateList.push(shiftDateStr(today, -i));
+  clampDailyChartPage(fullDays);
+  const dateList = dailyChartPageSlice(fullDateList, dailyChartPage);
+  const days = dateList.length;
   // Floors (and, past the DAILY_CHART_GRID.w baseline, actually widens) this wrap to the exact same
   // width as the bar charts above it, via the same dailyChartGridWidth(n) math, so all three keep
   // their day columns aligned while scrolling together -- see .chart-scroll-sync.
   const gridW = dailyChartGridWidth(days);
   wrap.style.minWidth = gridW + "px";
-  const today = todayStr();
-  const dateList = [];
-  for(let i = days - 1; i >= 0; i--) dateList.push(shiftDateStr(today, -i));
   const shortDate = (d)=>{ const [,mm,dd] = d.split("-"); return `${dd}.${mm}`; };
 
   // v1.20: the category label sits inline with its row again (not stacked above it) -- there's
@@ -7756,10 +7776,58 @@ const NUTRITION_TREND_WEEKLY_WEEKS = 8;
 // v2.07: bumped from 14 -- "I can only see 14 days, can you add a scroll so I can see more" (live
 // user report). Shared by the Calorie/Protein Daily-view bar charts AND the daily check-in heatmap
 // right below them (renderDailyQuestionsHeatmap), which must stay on the exact same day count so
-// their columns keep lining up (see dailyChartBarX/dailyChartBarCenterPct further down). The wider
-// window now renders wider than the card and scrolls horizontally instead of squeezing every bar
-// down to fit -- see dailyChartGridWidth.
+// their columns keep lining up (see dailyChartBarX/dailyChartBarCenterPct further down). v2.07 had
+// this render wider than the card and scroll horizontally to show all 30 at once; v2.09 fixed a
+// label-alignment bug in that approach; v2.10 replaced it entirely -- see DAILY_CHART_PAGE_SIZE --
+// after live feedback that scrolling through 30 cramped bars "looks horrible" and "I dont want to
+// see so many values". The 30-day window itself is unchanged (still the full history these charts
+// draw from) -- only how much of it is shown on screen at once changed.
 const NUTRITION_TREND_DAILY_DAYS = 30;
+// v2.10: "I think 7 results it is enough at once" (live user report, follow-up to v2.09) -- instead
+// of showing/scrolling through all NUTRITION_TREND_DAILY_DAYS at once, the Daily view now shows one
+// DAILY_CHART_PAGE_SIZE-day-wide page at a time, with Older/Newer buttons (renderDailyChartPager) to
+// step through the full 30-day window. Weekly/Phase views are untouched -- paging only applies here.
+const DAILY_CHART_PAGE_SIZE = 7;
+// Which page is currently showing, 0 = the most recent DAILY_CHART_PAGE_SIZE days (the default),
+// counting UP as you page further into the past. Deliberately module-level plain state (not
+// persisted) -- like the Daily/Weekly/Phase view itself defaulting to "daily" on every fresh load,
+// landing back on the most recent days each time you open the app is the right default.
+let dailyChartPage = 0;
+// How many pages the full window splits into -- every page holds DAILY_CHART_PAGE_SIZE days except
+// possibly the last (oldest) one, which holds whatever remains (30 / 7 = 4 full pages + a 2-day
+// remainder, i.e. 5 pages total).
+function dailyChartPageCount(totalDays){
+  return Math.max(1, Math.ceil(totalDays / DAILY_CHART_PAGE_SIZE));
+}
+// Keeps dailyChartPage in range [0, pageCount-1] for the given total -- called before every read so
+// a stale page number (e.g. from switching accounts) can never point past the end.
+function clampDailyChartPage(totalDays){
+  const maxPage = dailyChartPageCount(totalDays) - 1;
+  if(dailyChartPage > maxPage) dailyChartPage = maxPage;
+  if(dailyChartPage < 0) dailyChartPage = 0;
+  return dailyChartPage;
+}
+// Slices a full, oldest-first day array/series down to just the given page's days. Page 0 = the
+// LAST (most recent) DAILY_CHART_PAGE_SIZE entries; higher page numbers step backward in time from
+// there. The final page naturally gets whatever's left over (<= DAILY_CHART_PAGE_SIZE entries)
+// instead of padding or overlapping into the previous page.
+function dailyChartPageSlice(fullArr, page){
+  const n = fullArr.length;
+  const end = Math.max(0, n - page * DAILY_CHART_PAGE_SIZE);
+  const start = Math.max(0, end - DAILY_CHART_PAGE_SIZE);
+  return fullArr.slice(start, end);
+}
+// The [firstDate, lastDate] calendar range covered by a given page of the full
+// NUTRITION_TREND_DAILY_DAYS window, ending today -- used by the pager label. Kept as its own tiny
+// helper (rather than reaching into a rendered chart's data) so it works even before anything else
+// has rendered, e.g. right after a page change.
+function dailyChartPageDateRange(page){
+  const today = todayStr();
+  const fullDateList = [];
+  for(let i = NUTRITION_TREND_DAILY_DAYS - 1; i >= 0; i--) fullDateList.push(shiftDateStr(today, -i));
+  const pageDates = dailyChartPageSlice(fullDateList, page);
+  return [pageDates[0], pageDates[pageDates.length - 1]];
+}
 const NUTRITION_TREND_VIEW_KEY = "bodyAnalyzer.nutritionTrendView.v1";
 // v1.46: added a third view, "phase" -- weekly bars spanning the ACTIVE phase's own start date
 // through today (or its end date, for a completed phase, though this view only makes sense for the
@@ -7771,6 +7839,9 @@ function getNutritionTrendView(){
 }
 function setNutritionTrendView(view){
   const v = (view === "weekly" || view === "phase") ? view : "daily";
+  // v2.10: switching TO Daily always lands back on the most recent page, regardless of wherever
+  // the pager was left last time -- consistent with the view itself always reopening on "daily".
+  if(v === "daily") dailyChartPage = 0;
   localStorage.setItem(NUTRITION_TREND_VIEW_KEY, v);
   renderNutritionTrendViewToggle();
   renderCalorieTrendChart();
@@ -7808,6 +7879,42 @@ function renderNutritionTrendViewToggle(){
   // stretching to fill however wide the card is, exactly like before this fix.
   const scrollSync = document.getElementById("nutritionChartScrollSync");
   if(scrollSync) scrollSync.classList.toggle("chart-scroll-sync-capped", view === "daily");
+  renderDailyChartPager();
+}
+
+// v2.10: Older/Newer paging through the 30-day Daily-view window, DAILY_CHART_PAGE_SIZE days at a
+// time (see that constant's comment). Only ever shown for Daily -- Weekly/Phase have no paging.
+function renderDailyChartPager(){
+  const wrap = document.getElementById("dailyChartPagerWrap");
+  if(!wrap) return;
+  const view = getNutritionTrendView();
+  const isDaily = view === "daily";
+  wrap.classList.toggle("hidden", !isDaily);
+  if(!isDaily) return;
+  const pageCount = dailyChartPageCount(NUTRITION_TREND_DAILY_DAYS);
+  const page = clampDailyChartPage(NUTRITION_TREND_DAILY_DAYS);
+  const olderBtn = document.getElementById("dailyChartPagerOlderBtn");
+  const newerBtn = document.getElementById("dailyChartPagerNewerBtn");
+  const label = document.getElementById("dailyChartPagerLabel");
+  // "Older" steps further into the past (higher page number); disabled once the oldest page (the
+  // window's leftover remainder) is already showing. "Newer" steps back toward today; disabled once
+  // page 0 (the most recent days) is already showing.
+  if(olderBtn) olderBtn.disabled = page >= pageCount - 1;
+  if(newerBtn) newerBtn.disabled = page <= 0;
+  if(label){
+    const [first, last] = dailyChartPageDateRange(page);
+    label.textContent = `${formatShortDate(first)} – ${formatShortDate(last)}`;
+  }
+}
+// Steps the Daily-view page by delta (+1 = older, -1 = newer), then re-renders everything that
+// depends on which page is showing -- both bar charts, the check-in heatmap, and the pager itself.
+function shiftDailyChartPage(delta){
+  dailyChartPage += delta;
+  clampDailyChartPage(NUTRITION_TREND_DAILY_DAYS);
+  renderCalorieTrendChart();
+  renderProteinTrendChart();
+  renderDailyQuestionsHeatmap();
+  renderDailyChartPager();
 }
 
 // Shared horizontal geometry for every "one column per day" widget on Nutrition Log -- the
@@ -7982,11 +8089,14 @@ function renderProteinTrendChart(){
   const view = getNutritionTrendView();
   const weekly = view === "weekly";
   const phase = view === "phase";
+  // v2.10: Daily view only draws the CURRENT PAGE (DAILY_CHART_PAGE_SIZE days) of the full 30-day
+  // window, not all of it at once -- see dailyChartPageSlice/renderDailyChartPager. Weekly/Phase are
+  // unaffected, same as before.
   const series = phase
     ? computeWeeklyProteinSeriesForPhase(getActivePhase())
     : weekly
       ? computeWeeklyProteinSeries(NUTRITION_TREND_WEEKLY_WEEKS)
-      : computeDailyProteinSeries(NUTRITION_TREND_DAILY_DAYS).map(s=>({date:s.date, value:s.value, logged:s.logged}));
+      : dailyChartPageSlice(computeDailyProteinSeries(NUTRITION_TREND_DAILY_DAYS), clampDailyChartPage(NUTRITION_TREND_DAILY_DAYS)).map(s=>({date:s.date, value:s.value, logged:s.logged}));
   const targets = getPlanTargets();
   const targetG = targets ? targets.proteinG : null;
   renderDailyBarChart("proteinTrendWrap", series, targetG, {
@@ -8004,11 +8114,13 @@ function renderCalorieTrendChart(){
   const view = getNutritionTrendView();
   const weekly = view === "weekly";
   const phase = view === "phase";
+  // v2.10: see the matching comment in renderProteinTrendChart -- Daily view now shows one page at
+  // a time instead of the whole 30-day window.
   const series = phase
     ? computeWeeklyCalorieSeriesForPhase(getActivePhase())
     : weekly
       ? computeWeeklyCalorieSeries(NUTRITION_TREND_WEEKLY_WEEKS)
-      : computeDailyCalorieSeries(NUTRITION_TREND_DAILY_DAYS).map(s=>({date:s.date, value:s.value, logged:s.logged}));
+      : dailyChartPageSlice(computeDailyCalorieSeries(NUTRITION_TREND_DAILY_DAYS), clampDailyChartPage(NUTRITION_TREND_DAILY_DAYS)).map(s=>({date:s.date, value:s.value, logged:s.logged}));
   const targets = getPlanTargets();
   const targetKcal = targets ? targets.calories : null;
   // "On track" for calories means close to target either way (within 10%), not just "at least" —
