@@ -1942,8 +1942,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.01";
+const APP_VERSION = "2.02";
 const CHANGELOG = [
+  { version: "2.02", date: "2026-09-24", desc: "Fixed cloud data not showing up automatically on iPhone after being entered on another device (tapping \"Sync now\" always worked -- see v2.01 -- it just wasn't happening on its own). iOS Safari can restore an already-open tab from its \"back-forward cache\" when switching back to it, which skips the normal on-load sync entirely. The app now also syncs on that kind of restore, and a rare case where a signed-in cloud account doesn't match the active local profile is now logged instead of failing silently, so a similar report is easier to pin down in the future." },
   { version: "2.01", date: "2026-09-23", desc: "Fixed \"Sync now\" only ever pushing this device's data to the cloud, never pulling first -- so on a device that was behind (e.g. a phone that hadn't yet seen a meal just logged on the desktop), tapping \"Sync now\" couldn't bring that newer entry over, and could even silently overwrite it in the cloud with this device's older snapshot. \"Sync now\" now pulls first (safely merging in anything from other devices) and only then pushes, so it actually behaves like a two-way sync." },
   { version: "2.00", date: "2026-09-23", desc: "Fixed: switching to another browser tab/window for a while and coming back could silently jump you to Nutrition Log and lose whatever you were in the middle of typing on another tab. Cause: the browser can silently discard a backgrounded tab to save memory, so \"coming back\" is actually a fresh reload -- which the app couldn't tell apart from a genuine close-and-reopen, so it always redirected to Nutrition Log either way. The app now remembers whichever tab was actually on screen and restores that instead of always forcing Nutrition Log -- this also means a normal close-and-reopen now returns you to your last tab rather than always Nutrition Log." },
   { version: "1.99", date: "2026-09-23", desc: "Added Burger King Cheeseburger to the food database, so it shows up when searching/logging a meal (1 piece ≈120g: ~247 kcal, 12.5g protein, 20g carbs, 10g fat per 100g)." },
@@ -16092,9 +16093,21 @@ async function syncFromCloudAndRefresh(){
       fbAuth.onAuthStateChanged(async (user)=>{
         fbUser = user;
         refreshCloudSyncSettingsUI();
-        if(user && currentUserEmail && normEmail(user.email) === currentUserEmail){
-          lastVisibilityPullAt = Date.now();
-          await syncFromCloudAndRefresh();
+        if(user && currentUserEmail){
+          // This match guards against a stale/leftover Firebase session for a DIFFERENT account
+          // than the one currently active locally (pullFromCloud fetches by fbUser.uid, then merges
+          // into the local profile named by currentUserEmail -- if those two didn't actually belong
+          // to the same account, an auto-pull here would merge the wrong account's cloud data in).
+          // v2.02: this used to fail silently with no trace at all when it didn't match, which made
+          // a genuine "why didn't this device auto-sync" report impossible to diagnose after the
+          // fact -- logging it now at least leaves evidence for next time, without changing behavior
+          // for the (expected, common) matching case.
+          if(normEmail(user.email) === currentUserEmail){
+            lastVisibilityPullAt = Date.now();
+            await syncFromCloudAndRefresh();
+          } else {
+            console.warn("Cloud Sync: signed-in Firebase account does not match the active local profile -- skipping auto-sync on load.", {firebaseEmail: user.email, localProfile: currentUserEmail});
+          }
         }
       });
     });
@@ -16109,6 +16122,27 @@ if(typeof document !== "undefined" && typeof document.addEventListener === "func
     if(!fbUser || !currentUserEmail) return; // not signed into cloud sync -- nothing to pull
     const now = Date.now();
     if(now - lastVisibilityPullAt < 20000) return; // throttle: at most once every 20s
+    lastVisibilityPullAt = now;
+    syncFromCloudAndRefresh();
+  });
+}
+
+// v2.02: live report -- logged food on desktop, opened the app on iPhone the next day, entry wasn't
+// there (manually tapping "Sync now" did bring it in -- see v2.01 -- confirming the underlying pull
+// works fine; it just wasn't running automatically on this device). iOS Safari can restore an
+// already-open tab from its "back-forward cache" (bfcache) when switching back to it -- the page
+// reappears exactly as it was, without re-running any of init()'s top-level code, and
+// visibilitychange does not reliably fire for every one of these restores on iOS the way it does on
+// desktop Chrome/Edge. The standard, documented way to catch this is the pageshow event's
+// event.persisted flag, which is true specifically for a bfcache restore (false for a normal fresh
+// load, where init()'s own pull already runs). Wiring the same syncFromCloudAndRefresh() used above
+// into pageshow closes this gap for iPhone/iPad Safari without changing desktop behavior at all.
+if(typeof window !== "undefined" && typeof window.addEventListener === "function"){
+  window.addEventListener("pageshow", (e)=>{
+    if(!e || !e.persisted) return; // false = a normal load, already covered by init()'s own pull
+    if(!fbUser || !currentUserEmail) return; // not signed into cloud sync -- nothing to pull
+    const now = Date.now();
+    if(now - lastVisibilityPullAt < 20000) return; // same throttle as the visibilitychange listener
     lastVisibilityPullAt = now;
     syncFromCloudAndRefresh();
   });
