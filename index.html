@@ -542,8 +542,18 @@
      shrinking bar spacing while every label stays the same physical font size -- that's what made
      dates/values overlap and become unreadable on mobile. Instead, chart-scroll-item's min-width
      floor keeps each chart at its full native size, and chart-scroll-sync (their shared ancestor)
-     scrolls horizontally so all three stay perfectly column-aligned while you swipe. */
+     scrolls horizontally so all three stay perfectly column-aligned while you swipe.
+     v2.09: this used to be enough on its own, but once the Daily-view window grew to 30 days
+     (dailyChartGridWidth(30) = 972px, see NUTRITION_TREND_DAILY_DAYS), a wide desktop card/window
+     is often plenty roomy enough to fit all 972px with room to spare -- so the intended "swipe/
+     scroll through a comfortable, fixed-size view" experience silently stopped happening for wide
+     screens, and users just saw all 30 cramped-looking bars at once with no scrollbar. Fixed with
+     a .chart-scroll-sync-capped modifier class (see renderNutritionTrendViewToggle) that's only
+     applied while Daily view is active -- Weekly/Phase always floor at the old 720px baseline and
+     must keep stretching to fill however wide the card is, unchanged, so the cap is deliberately
+     NOT a permanent part of this base rule. */
   .chart-scroll-sync{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  .chart-scroll-sync.chart-scroll-sync-capped{max-width:720px;}
   /* Daily/Weekly toggle above the Calorie/Protein trend charts (v1.33) -- a small self-contained
      pill switch (not .view-tabs, which is sized for the full-width main nav with icons). */
   .trend-view-toggle{display:inline-flex; gap:4px; background:var(--panel2); border:1px solid var(--border); border-radius:10px; padding:3px; margin:10px 0 2px;}
@@ -1360,7 +1370,7 @@
           </div>
           <span class="phase-badge" id="nutritionTrendPhaseBadge"></span>
         </div>
-        <div class="chart-scroll-sync">
+        <div class="chart-scroll-sync" id="nutritionChartScrollSync">
           <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Calories per day <span id="calorieTrendPeriodLabel" style="font-weight:400; color:var(--muted); font-size:.82rem;">— last 30 days vs. target</span></div>
           <div id="calorieTrendWrap"></div>
           <div style="font-weight:700; margin-top:18px; margin-bottom:2px;">Protein per day <span id="proteinTrendPeriodLabel" style="font-weight:400; color:var(--muted); font-size:.82rem;">— last 30 days vs. target</span></div>
@@ -1980,8 +1990,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.08";
+const APP_VERSION = "2.09";
 const CHANGELOG = [
+  { version: "2.09", date: "2026-09-24", desc: "Fixed the v2.07 wider Calories/Protein-per-day charts looking \"horrible\" with misaligned value labels on desktop, and added the promised scroll instead of cramming all 30 days into view. Two separate bugs: (1) the value/date labels are positioned by percentage relative to the chart's own container, but that container had no explicit width, so on a wide card it stretched past the chart's real content width and labels drifted further off-position the later into the 30-day series they were -- now fixed so the container always matches the chart's actual width exactly. (2) the chart's scrollable area had no cap on how wide it could get, so on a sufficiently wide screen it simply had room to fit all 30 bars with nothing to scroll -- now capped at a comfortable fixed width while viewing Daily, so scrolling always kicks in once there's more to see (Weekly/Phase views are unaffected either way)." },
   { version: "2.08", date: "2026-09-24", desc: "Fixed \"Evaluate current phase\" so it actually works with the real intended flow: tick the checkbox, hit \"Generate full export\" (not just \"Ask AI Coach now\"), paste it into any AI chat, ask for next-phase tips, then paste the reply back in via \"Load AI Feedback\" -- the Next Phase Suggestion is now picked up from THAT paste-back too, not only from the in-app \"Ask AI Coach now\" reply. Either way it lands in the same place: offered next time you hit \"Complete phase\" on the Target ranges tab." },
   { version: "2.07", date: "2026-09-24", desc: "Calories per day and Protein per day (Nutrition Log) now show your last 30 days instead of just 14 -- \"I can only see 14 days, add a scroll\" (live user report). On a screen too narrow to fit all 30 columns at their normal size, the chart is now wider than the card and scrolls sideways for the rest instead of squeezing every bar down to fit, the same way it already did on mobile -- just no longer limited to narrow screens. The daily check-in results grid below it grew to match, and stays column-aligned with both charts while scrolling. The Weekly/Phase views are unchanged." },
   { version: "2.06", date: "2026-09-24", desc: "New \"Evaluate current phase\" checkbox in the Coach view: tick it before \"Ask AI Coach now\" and the coach is also asked to suggest starting calorie/protein targets and exercises for your NEXT phase, based on everything it just reviewed. The suggestion is saved quietly in the background -- then next time you hit \"Complete phase\" on the Target ranges tab, if a suggestion is on file, you're asked whether to use it to prefill the new phase's targets and splits instead of just carrying the current ones forward." },
@@ -7791,6 +7802,12 @@ function renderNutritionTrendViewToggle(){
   if(proteinLabel) proteinLabel.textContent = periodText;
   const heatmapSection = document.getElementById("dailyQuestionsHeatmapSection");
   if(heatmapSection) heatmapSection.classList.toggle("hidden", view !== "daily");
+  // v2.09: only Daily view's window (NUTRITION_TREND_DAILY_DAYS=30) can ever render wider than the
+  // old 720px baseline (Weekly/Phase always floor at it, see dailyChartGridWidth) -- so the width
+  // cap that forces horizontal scrolling is applied ONLY while Daily is active. Weekly/Phase keep
+  // stretching to fill however wide the card is, exactly like before this fix.
+  const scrollSync = document.getElementById("nutritionChartScrollSync");
+  if(scrollSync) scrollSync.classList.toggle("chart-scroll-sync-capped", view === "daily");
 }
 
 // Shared horizontal geometry for every "one column per day" widget on Nutrition Log -- the
@@ -7930,8 +7947,8 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   wrap.innerHTML = `
     <div class="trend-label">Average ${Math.round(avgVal)}${opts.unit}/day over ${loggedSeries.length} logged ${periodLabel(loggedSeries.length)}${targetValue?` · ${opts.hitLabel||"Hit target"} ${daysHitTarget}/${loggedSeries.length} ${periodLabel(loggedSeries.length)}`:""}</div>
     ${targetValue ? `<div class="trend-legend"><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--accent);"></span>${opts.hitSwatchLabel||"Hit target"}</span><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--warn);"></span>${opts.missSwatchLabel||"Under target"}</span></div>` : ""}
-    <div style="position:relative; height:${h}px;">
-      <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:${w > DAILY_CHART_GRID.w ? w+"px" : "100%"}; height:${h}px; display:block;">
+    <div style="position:relative; width:${w > DAILY_CHART_GRID.w ? w+"px" : "100%"}; height:${h}px;">
+      <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%; height:${h}px; display:block;">
         ${bars}
         ${targetLine}
       </svg>
