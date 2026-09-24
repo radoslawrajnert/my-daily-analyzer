@@ -1690,6 +1690,12 @@
             <button type="button" class="ghost" id="coachClearNotesBtn">Erase</button>
           </div>
         </div>
+        <div class="field" style="margin-top:2px;">
+          <label style="display:flex; align-items:flex-start; gap:8px; font-weight:400;">
+            <input type="checkbox" id="coachEvaluatePhaseCheckbox" style="margin-top:3px;">
+            <span>Evaluate current phase — also ask the coach to suggest calorie/protein targets and exercises for my next phase. Saved quietly in the background; you'll be offered it next time you complete this phase.</span>
+          </label>
+        </div>
         <div class="nav" style="justify-content:flex-start; flex-wrap:wrap;">
           <button type="button" id="coachAskDirectBtn">Ask AI Coach now →</button>
           <button type="button" class="secondary" id="coachGenerateBtn">Generate full export + photos (paste into ChatGPT/Claude) →</button>
@@ -1974,8 +1980,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.05";
+const APP_VERSION = "2.06";
 const CHANGELOG = [
+  { version: "2.06", date: "2026-09-24", desc: "New \"Evaluate current phase\" checkbox in the Coach view: tick it before \"Ask AI Coach now\" and the coach is also asked to suggest starting calorie/protein targets and exercises for your NEXT phase, based on everything it just reviewed. The suggestion is saved quietly in the background -- then next time you hit \"Complete phase\" on the Target ranges tab, if a suggestion is on file, you're asked whether to use it to prefill the new phase's targets and splits instead of just carrying the current ones forward." },
   { version: "2.05", date: "2026-09-24", desc: "The Coach export now includes a full \"Phase history\" section covering every past and active phase -- calorie/protein targets, notes, rest-day guardrail rules, splits, and aesthetic ranges -- not just the current one, so the coach can see what's already been tried. Also fixed a bug where a phase's real start date could display as the misleading \"01.01\": accounts that migrated to the Phases feature early on had their very first phase silently stamped with a placeholder date from the year 2000, which showed up (day/month only, no year) looking like a plausible-but-wrong \"01.01\". This is now automatically corrected to the account's actual earliest logged date." },
   { version: "2.04", date: "2026-09-24", desc: "Found the real cause behind data still not showing up on a phone even after v2.03: on iPhone, opening the same account in Edge showed the data fine, but Safari didn't -- even after reloading. Since iOS Safari and iOS Edge share the exact same underlying engine, that pointed to Safari's tab being stuck running an old, cached copy of the app rather than a real sync problem. The app now detects when a newer version has installed itself in the background and shows an unmissable \"Refresh now\" banner at the very top of the page, and checks for updates more proactively (whenever the tab becomes visible again), so a stale tab can no longer hide silently." },
   { version: "2.03", date: "2026-09-24", desc: "Rebuilt cloud sync's startup checks after v2.02's fix still didn't fully solve data not appearing automatically on a second device. Added an always-visible \"cloud sync\" status strip at the top of every tab with a one-tap Sync now button, so it's now impossible to miss whether syncing actually happened -- instead of it silently succeeding or failing in the background with no way to tell. If the automatic connection-on-open takes more than a few seconds (which can happen on some phone browsers), the strip now switches to a clear \"tap to sync now\" prompt rather than leaving you guessing." },
@@ -14917,7 +14924,10 @@ function completePhase(input){
     // forward -- a new phase starts as a real, editable copy of the training plan that was in
     // effect a moment ago, not a blank slate. Each phase still owns its own copy from here on, so
     // editing one phase's splits later never retroactively changes another phase's.
-    workoutSplits: carriedSplits,
+    // v2.06: input.workoutSplits lets the Complete Phase modal pass an already-adjusted copy (e.g.
+    // exercises swapped in from an accepted AI Coach suggestion) instead of always the untouched
+    // carry-forward -- still falls back to carriedSplits whenever no override is given.
+    workoutSplits: Array.isArray(input.workoutSplits) ? input.workoutSplits : carriedSplits,
     restGuardrailSettings: carriedGuardrail,
   };
   savePhases(phases.concat([newPhase]));
@@ -15133,6 +15143,11 @@ document.getElementById("activePhaseNameInput").addEventListener("blur", (e)=> r
 document.getElementById("activePhaseNameInput").addEventListener("keydown", (e)=>{
   if(e.key === "Enter"){ e.preventDefault(); e.target.blur(); }
 });
+// v2.06: set by openCompletePhaseModal() when an "Evaluate current phase" suggestion is on file and
+// the person chooses to use it -- holds the already-adjusted splits copy (exercises swapped in per
+// the suggestion) so the submit handler below can pass it straight to completePhase() as an
+// override. null means "no accepted suggestion this time, use the normal carry-forward".
+let pendingSuggestionSplitsOverride = null;
 function openCompletePhaseModal(){
   const active = getActivePhase();
   if(!active) return;
@@ -15158,11 +15173,36 @@ function openCompletePhaseModal(){
     if(minEl) minEl.value = current[m.key].min;
     if(maxEl) maxEl.value = current[m.key].max;
   });
+  // v2.06: if "Evaluate current phase" produced a saved suggestion since the last time a phase was
+  // completed, offer it here -- accepting overwrites the calorie/protein fields just prefilled above
+  // and queues an adjusted splits copy for the submit handler; declining (or having nothing saved)
+  // leaves everything exactly as the normal carry-forward behavior above already set it. Either way
+  // the suggestion is consumed now -- asking again next time would just be re-showing stale advice.
+  pendingSuggestionSplitsOverride = null;
+  const suggestion = getPendingPhaseSuggestion();
+  if(suggestion){
+    clearPendingPhaseSuggestion();
+    const bits = [];
+    if(suggestion.calorieTarget != null) bits.push(`${suggestion.calorieTarget} kcal`);
+    if(suggestion.proteinTarget != null) bits.push(`${suggestion.proteinTarget}g protein`);
+    if(suggestion.splits && suggestion.splits.length) bits.push(`exercises for ${suggestion.splits.length} split${suggestion.splits.length===1?"":"s"}`);
+    const useIt = confirm(`Your AI Coach saved a suggestion for the next phase (${bits.join(", ")}). Use it to prefill this phase instead of your current numbers?`);
+    if(useIt){
+      if(suggestion.calorieTarget != null) document.getElementById("newPhaseCalories").value = suggestion.calorieTarget;
+      if(suggestion.proteinTarget != null) document.getElementById("newPhaseProtein").value = suggestion.proteinTarget;
+      if(suggestion.splits && suggestion.splits.length){
+        pendingSuggestionSplitsOverride = applyPhaseSuggestionToSplits(suggestion, getWorkoutSplits());
+      }
+    }
+  }
   document.getElementById("completePhaseOverlay").classList.remove("hidden");
 }
 window.openCompletePhaseModal = openCompletePhaseModal;
 function closeCompletePhaseModal(){
   document.getElementById("completePhaseOverlay").classList.add("hidden");
+  // v2.06: closing without submitting (Cancel/X/overlay click) should never leave an accepted
+  // suggestion's splits override sitting around for a LATER, unrelated phase completion to pick up.
+  pendingSuggestionSplitsOverride = null;
 }
 document.getElementById("completePhaseBtn").addEventListener("click", openCompletePhaseModal);
 document.getElementById("completePhaseCloseBtn").addEventListener("click", closeCompletePhaseModal);
@@ -15197,7 +15237,11 @@ document.getElementById("completePhaseForm").addEventListener("submit", (e)=>{
     proteinTarget: Number.isFinite(proVal) ? proVal : null,
     notes: notesVal,
     plannedDurationDays: (Number.isFinite(durationVal) && durationVal > 0) ? durationVal : null,
+    // v2.06: non-null only when the person just accepted a saved AI Coach suggestion above --
+    // completePhase() falls back to its normal carry-forward splits whenever this is null.
+    workoutSplits: pendingSuggestionSplitsOverride,
   });
+  pendingSuggestionSplitsOverride = null;
   closeCompletePhaseModal();
   renderTargetRangesTab();
   if(typeof renderLogView === "function") renderLogView();
@@ -15290,6 +15334,12 @@ function syncCoachFocusUI(){
 // or paraphrased on their behalf.
 function buildCoachExport(userNotes, attachments, skipped, opts){
   const directMode = !!(opts && opts.directMode);
+  // v2.06: "Evaluate current phase" checkbox in the Coach view -- when on, the export also asks for
+  // a strictly-formatted "Next Phase Suggestion" section (see NEXT_PHASE_SPLIT_LINE_RE below) so
+  // parseNextPhaseSuggestion() can lift concrete starting numbers/exercises out of the reply and
+  // quietly save them for Complete Phase to offer later, instead of the user having to reread the
+  // whole report and retype everything by hand.
+  const evaluatePhase = !!(opts && opts.evaluatePhase);
   const lines = [];
   const a = answers || {};
   const targets = getPlanTargets();
@@ -15317,6 +15367,10 @@ function buildCoachExport(userNotes, attachments, skipped, opts){
   lines.push(`5. Answers to My Questions — only if I've added something in the section below; treat it as supplementary to the report above, not the main focus. If I didn't add anything, write "No question this time."`);
   lines.push(`6. Exercise Progression Guidance — only if workout data is included below; otherwise write "No workout data this time." For each main lift listed, give a one-line verdict: increase the weight/reps, hold at the current load for another session or two, or back off (deload) -- and say briefly why, based on the last top set, the suggested next load, and whether it's flagged as plateaued. Group by movement pattern rather than restating every single exercise line by line if several are clearly telling the same story.`);
   lines.push(`7. Recovery & Consistency — only if rest-day guardrail and/or daily check-in data is included below; otherwise write "No recovery/check-in data this time." Comment on whether rest days are actually being taken relative to the configured guardrail rule(s), and flag any daily check-in pattern worth calling out (e.g. frequent poor sleep, recurring stomach problems, low hydration, high caffeine/alcohol days) -- especially if it lines up with a plateau or another concerning trend noted elsewhere in this report.`);
+  if(evaluatePhase){
+    const splitNamesForSuggestion = getWorkoutSplits().map(s=>s.name);
+    lines.push(`8. Next Phase Suggestion — based on everything above, suggest concrete starting values for my NEXT phase. This section is parsed automatically by my app, so its formatting must be followed EXACTLY: after the "8. Next Phase Suggestion" title, one line "Calories: <number>", one line "Protein: <number>g", then one line per split named below in the form "<Split name>: <comma-separated exercise names>" -- keep, swap, or add exercises as you see fit, but use exactly these split names, one line each, nothing else in this section (no extra commentary, no bullets):\nSplits to cover: ${splitNamesForSuggestion.length ? splitNamesForSuggestion.join(", ") : "(none defined yet -- omit the split lines and just give Calories/Protein)"}`);
+  }
   lines.push("");
   lines.push(`Formatting rules for the reply itself: put each section title on its own line, written exactly as "1. Overall Assessment" etc. (a number, a period, a space, then just the short title — nothing else on that line); use "* " at the start of a line for bullet points; use **double asterisks** around anything you want bolded. Don't use markdown # headers instead of the numbered titles above, and don't merge two sections onto one line.`);
   lines.push("");
@@ -15694,6 +15748,7 @@ const COACH_SECTION_TITLES = [
   "Answers to My Questions",
   "Exercise Progression Guidance",
   "Recovery & Consistency",
+  "Next Phase Suggestion",
 ];
 const HEADING_STYLE = "margin:22px 0 8px; padding-top:14px; border-top:1px solid var(--border); font-size:1.05rem; color:var(--accent2);";
 const FIRST_HEADING_STYLE = "margin:0 0 8px; padding-top:0; border-top:none; font-size:1.05rem; color:var(--accent2);";
@@ -15746,6 +15801,77 @@ function getLatestCoachAdviceForExercise(exerciseName){
   const latest = notes.slice().sort((x,y)=> new Date(y.date) - new Date(x.date))[0];
   const section = extractCoachSectionText(latest.text, "Exercise Progression Guidance");
   return findExerciseAdviceLine(section, exerciseName);
+}
+
+// --- Next Phase Suggestion (v2.06 "Evaluate current phase") -------------------------------------
+// Parses the strictly-formatted "Next Phase Suggestion" section (see buildCoachExport's evaluatePhase
+// branch above) out of a coach reply into concrete values -- calorie/protein targets and, per split,
+// which exercises the coach suggested -- so they can be stored quietly on the account and offered
+// later from Complete Phase, instead of the user having to reread the whole report and retype
+// everything by hand. Returns null if the section is missing or nothing recognizable was in it.
+function parseNextPhaseSuggestion(rawText){
+  const section = extractCoachSectionText(rawText, "Next Phase Suggestion");
+  if(!section) return null;
+  const lines = section.split("\n").map(l=>l.replace(/^[*-]\s+/, "").trim()).filter(Boolean);
+  let calorieTarget = null, proteinTarget = null;
+  const splitLines = [];
+  lines.forEach(line=>{
+    let m;
+    if((m = line.match(/^calories?\s*:\s*([\d.]+)/i))){ calorieTarget = Math.round(parseFloat(m[1])); return; }
+    if((m = line.match(/^protein\s*:\s*([\d.]+)\s*g?/i))){ proteinTarget = Math.round(parseFloat(m[1])); return; }
+    if((m = line.match(/^([^:]+):\s*(.+)$/))){
+      const splitName = m[1].trim();
+      const exercises = m[2].split(",").map(s=>s.trim()).filter(Boolean);
+      if(splitName && exercises.length) splitLines.push({splitName, exercises});
+    }
+  });
+  if(calorieTarget == null && proteinTarget == null && !splitLines.length) return null;
+  return {calorieTarget, proteinTarget, splits: splitLines, savedAt: todayStr()};
+}
+function getPendingPhaseSuggestion(){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  return (u && u.pendingPhaseSuggestion) ? u.pendingPhaseSuggestion : null;
+}
+function savePendingPhaseSuggestion(suggestion){
+  const users = getUsers();
+  if(!users[currentUserEmail]) return;
+  users[currentUserEmail].pendingPhaseSuggestion = suggestion;
+  saveUsers(users);
+}
+function clearPendingPhaseSuggestion(){
+  const users = getUsers();
+  if(!users[currentUserEmail]) return;
+  delete users[currentUserEmail].pendingPhaseSuggestion;
+  saveUsers(users);
+}
+// Best-effort category for a coach-suggested exercise name that may not exactly match anything on
+// file -- reuses whatever category an exercise with the same name already has somewhere in the
+// account's CURRENT splits (passed in separately from the copy being built, so this always sees the
+// real originals), then falls back to the COMMON_EXERCISES starter list, then "Other" (a valid
+// WORKOUT_CATEGORIES value) rather than leaving it blank.
+function guessExerciseCategory(name, currentSplits){
+  const lower = String(name).trim().toLowerCase();
+  for(const split of (currentSplits || [])){
+    const hit = (split.exercises || []).find(ex=>String(ex.name).trim().toLowerCase() === lower);
+    if(hit) return hit.category;
+  }
+  const common = COMMON_EXERCISES.find(ex=>ex.name.toLowerCase() === lower);
+  if(common) return common.category;
+  return "Other";
+}
+// Applies a saved suggestion's per-split exercise lists onto a COPY of the current splits (matching
+// by split name, case-insensitively) -- splits the suggestion didn't mention are left untouched, so
+// accepting a suggestion that only covers "Push" never silently wipes out "Pull"/"Legs".
+function applyPhaseSuggestionToSplits(suggestion, currentSplits){
+  const splits = (currentSplits || []).map(s=>({...s, exercises: (s.exercises||[]).slice()}));
+  if(!suggestion || !suggestion.splits) return splits;
+  suggestion.splits.forEach(sugg=>{
+    const target = splits.find(s=>s.name.trim().toLowerCase() === sugg.splitName.trim().toLowerCase());
+    if(!target) return;
+    target.exercises = sugg.exercises.map(name=>({name, category: guessExerciseCategory(name, currentSplits)}));
+  });
+  return splits;
 }
 
 function renderMarkdownLite(raw){
@@ -16116,15 +16242,24 @@ document.getElementById("coachAskDirectBtn").addEventListener("click", async ()=
     return;
   }
   const userNotes = document.getElementById("coachUserNotesInput").value;
+  const evaluatePhaseChecked = !!document.getElementById("coachEvaluatePhaseCheckbox").checked;
   askBtn.disabled = true;
   statusEl.textContent = "Asking your AI coach… this can take a few seconds.";
   try{
-    const text = buildCoachExport(userNotes, [], [], {directMode: true});
+    const text = buildCoachExport(userNotes, [], [], {directMode: true, evaluatePhase: evaluatePhaseChecked});
     const reply = await callAiProvider(text);
     const notes = getCoachNotes();
     notes.push({id: genCoachId(), date: todayStr(), text: reply});
     saveCoachNotesArr(notes);
     renderCoachView();
+    // v2.06: "Evaluate current phase" was ticked -- lift the Next Phase Suggestion section out of the
+    // reply and save it quietly (no toast, no extra UI right now) for Complete Phase to offer later.
+    // A reply that ignored the format (or the section genuinely came back empty) just means nothing
+    // gets saved this time -- not an error the person needs to see.
+    if(evaluatePhaseChecked){
+      const suggestion = parseNextPhaseSuggestion(reply);
+      if(suggestion) savePendingPhaseSuggestion(suggestion);
+    }
     statusEl.textContent = `Coach review ready — see it under "Past feedback" below.`;
     showToast("Coach review ready");
   } catch(e){
