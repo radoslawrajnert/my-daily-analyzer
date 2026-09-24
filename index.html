@@ -552,7 +552,12 @@
      applied while Daily view is active -- Weekly/Phase always floor at the old 720px baseline and
      must keep stretching to fill however wide the card is, unchanged, so the cap is deliberately
      NOT a permanent part of this base rule. */
-  .chart-scroll-sync{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  /* v2.11: margin-left/right:auto centers this box whenever it's narrower than its parent --
+     capped at 720px (see chart-scroll-sync-capped below) it's often narrower than the card, which
+     left it flush against the LEFT edge with a big, lopsided blank strip on the right -- "the
+     graphics should be aligned to the center" (live feedback). Harmless when it's exactly as wide
+     as the card (the un-capped Weekly/Phase case), since centering a full-width block is a no-op. */
+  .chart-scroll-sync{overflow-x:auto; -webkit-overflow-scrolling:touch; margin-left:auto; margin-right:auto;}
   .chart-scroll-sync.chart-scroll-sync-capped{max-width:720px;}
   /* v2.10: "I think 7 results it is enough at once" -- Older/Newer buttons let you page through the
      full 30-day Daily-view window 7 days at a time instead of scrolling/squeezing them all into
@@ -2000,8 +2005,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.10";
+const APP_VERSION = "2.11";
 const CHANGELOG = [
+  { version: "2.11", date: "2026-09-24", desc: "Follow-up to v2.10's Daily-view paging -- \"maybe 14 days... and the graphics should be aligned to the center\". Pages now show 14 days at a time instead of 7, and the bars/labels (and the check-in results grid) are centered in the available space instead of being pushed hard to one side, which used to leave the chart looking lopsided with a big empty gap on days with fewer than a full page's worth of data." },
   { version: "2.10", date: "2026-09-24", desc: "Follow-up to v2.09's Calories/Protein-per-day scroll fix -- \"it is too many things at once... I think 7 results it is enough at once\". Replaced scrolling through the whole 30-day Daily view with paging: the charts (and the daily check-in results grid below them) now show just 7 days at a time, with Older/Newer buttons to step back through the rest of your history. Opening Daily always starts on the most recent 7 days; Weekly and Phase views are unchanged." },
   { version: "2.09", date: "2026-09-24", desc: "Fixed the v2.07 wider Calories/Protein-per-day charts looking \"horrible\" with misaligned value labels on desktop, and added the promised scroll instead of cramming all 30 days into view. Two separate bugs: (1) the value/date labels are positioned by percentage relative to the chart's own container, but that container had no explicit width, so on a wide card it stretched past the chart's real content width and labels drifted further off-position the later into the 30-day series they were -- now fixed so the container always matches the chart's actual width exactly. (2) the chart's scrollable area had no cap on how wide it could get, so on a sufficiently wide screen it simply had room to fit all 30 bars with nothing to scroll -- now capped at a comfortable fixed width while viewing Daily, so scrolling always kicks in once there's more to see (Weekly/Phase views are unaffected either way)." },
   { version: "2.08", date: "2026-09-24", desc: "Fixed \"Evaluate current phase\" so it actually works with the real intended flow: tick the checkbox, hit \"Generate full export\" (not just \"Ask AI Coach now\"), paste it into any AI chat, ask for next-phase tips, then paste the reply back in via \"Load AI Feedback\" -- the Next Phase Suggestion is now picked up from THAT paste-back too, not only from the in-app \"Ask AI Coach now\" reply. Either way it lands in the same place: offered next time you hit \"Complete phase\" on the Target ranges tab." },
@@ -7787,7 +7793,8 @@ const NUTRITION_TREND_DAILY_DAYS = 30;
 // of showing/scrolling through all NUTRITION_TREND_DAILY_DAYS at once, the Daily view now shows one
 // DAILY_CHART_PAGE_SIZE-day-wide page at a time, with Older/Newer buttons (renderDailyChartPager) to
 // step through the full 30-day window. Weekly/Phase views are untouched -- paging only applies here.
-const DAILY_CHART_PAGE_SIZE = 7;
+// v2.11: bumped 7 -> 14 per direct follow-up feedback ("maybe 14 days").
+const DAILY_CHART_PAGE_SIZE = 14;
 // Which page is currently showing, 0 = the most recent DAILY_CHART_PAGE_SIZE days (the default),
 // counting UP as you page further into the past. Deliberately module-level plain state (not
 // persisted) -- like the Daily/Weekly/Phase view itself defaulting to "daily" on every fresh load,
@@ -7925,8 +7932,13 @@ function shiftDailyChartPage(delta){
 // a fixed width (not stretched to fill each day's slot) and the whole block sits shifted right of
 // center. v1.21: shifted further right again (90% of the leftover space on the left, 10% on the
 // right, up from v1.20's 70/30) per follow-up feedback, rather than filling the row edge-to-edge
-// or being symmetrically centered.
-const DAILY_CHART_GRID = { w: 720, pad: 24, padRight: 56, barW: 22, gap: 8, alignFrac: 0.90 };
+// or being symmetrically centered. v2.11: that reasoning applied when the row was nearly full (14,
+// later 30, real columns leaving only a little slack to shift around) -- now that Daily view always
+// pages a bounded DAILY_CHART_PAGE_SIZE window, a mostly-empty row with bars still shoved hard right
+// just looks lopsided (live feedback: "the graphics should be aligned to the center"), so this is
+// now a plain 0.5 -- bars centered in whatever slack space is left, matching the pager buttons and
+// everything else in this card.
+const DAILY_CHART_GRID = { w: 720, pad: 24, padRight: 56, barW: 22, gap: 8, alignFrac: 0.5 };
 // v2.07: the actual rendered width for a chart with n columns -- floored at DAILY_CHART_GRID.w (so
 // every existing SHORT view -- the old 14-day daily window, the ~8-12-week Weekly/Phase views --
 // keeps its current look, unchanged) but grows past it once n needs more room than that at each
