@@ -480,6 +480,15 @@
      copy -- the live site shows nothing at all here. */
   .env-test-banner{display:flex; align-items:center; justify-content:center; gap:8px; background:rgba(255,183,77,.16); border-bottom:2px solid var(--warn); padding:8px 16px; font-size:.82rem; font-weight:700; color:var(--warn); text-align:center;}
   .env-test-banner svg{width:16px; height:16px; flex:0 0 auto;}
+  /* v2.04: a newer app version installed itself in the background (see the service-worker update
+     detection in init()) but the currently-open tab is still running the OLD code until it reloads --
+     this is exactly what let a phone's browser silently keep showing stale data/behavior indefinitely
+     even after tapping reload, if the reload itself was served from a stale cache. Full-width and
+     impossible to miss, same treatment as the test-version banner above it, so a reload is never more
+     than one tap away. Shown regardless of login state (a stale tab can be stuck on the login screen too). */
+  .app-update-banner{display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap; background:rgba(124,156,255,.16); border-bottom:2px solid var(--accent2); padding:8px 16px; font-size:.82rem; font-weight:700; color:var(--accent2); text-align:center;}
+  .app-update-banner svg{width:16px; height:16px; flex:0 0 auto;}
+  .app-update-banner button{padding:4px 14px; font-size:.78rem; font-weight:700;}
   /* v2.03: always-visible cloud-sync status strip, sitting at the very top of every tab (inside
      appWrap, above the view-tabs) so it's impossible to miss whether cloud sync is up to date --
      directly in response to reports of data silently not showing up on a second device. Deliberately
@@ -761,6 +770,11 @@
   <div class="env-test-banner hidden" id="envTestBanner">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
     <span>Test version — local file, not your live data</span>
+  </div>
+  <div class="app-update-banner hidden" id="appUpdateBanner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+    <span>A newer version of the app is ready.</span>
+    <button type="button" id="appUpdateBtn">Refresh now</button>
   </div>
   <header class="top">
     <div class="topbar">
@@ -1960,8 +1974,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.03";
+const APP_VERSION = "2.04";
 const CHANGELOG = [
+  { version: "2.04", date: "2026-09-24", desc: "Found the real cause behind data still not showing up on a phone even after v2.03: on iPhone, opening the same account in Edge showed the data fine, but Safari didn't -- even after reloading. Since iOS Safari and iOS Edge share the exact same underlying engine, that pointed to Safari's tab being stuck running an old, cached copy of the app rather than a real sync problem. The app now detects when a newer version has installed itself in the background and shows an unmissable \"Refresh now\" banner at the very top of the page, and checks for updates more proactively (whenever the tab becomes visible again), so a stale tab can no longer hide silently." },
   { version: "2.03", date: "2026-09-24", desc: "Rebuilt cloud sync's startup checks after v2.02's fix still didn't fully solve data not appearing automatically on a second device. Added an always-visible \"cloud sync\" status strip at the top of every tab with a one-tap Sync now button, so it's now impossible to miss whether syncing actually happened -- instead of it silently succeeding or failing in the background with no way to tell. If the automatic connection-on-open takes more than a few seconds (which can happen on some phone browsers), the strip now switches to a clear \"tap to sync now\" prompt rather than leaving you guessing." },
   { version: "2.02", date: "2026-09-24", desc: "Fixed cloud data not showing up automatically on iPhone after being entered on another device (tapping \"Sync now\" always worked -- see v2.01 -- it just wasn't happening on its own). iOS Safari can restore an already-open tab from its \"back-forward cache\" when switching back to it, which skips the normal on-load sync entirely. The app now also syncs on that kind of restore, and a rare case where a signed-in cloud account doesn't match the active local profile is now logged instead of failing silently, so a similar report is easier to pin down in the future." },
   { version: "2.01", date: "2026-09-23", desc: "Fixed \"Sync now\" only ever pushing this device's data to the cloud, never pulling first -- so on a device that was behind (e.g. a phone that hadn't yet seen a meal just logged on the desktop), tapping \"Sync now\" couldn't bring that newer entry over, and could even silently overwrite it in the cloud with this device's older snapshot. \"Sync now\" now pulls first (safely merging in anything from other devices) and only then pushes, so it actually behaves like a two-way sync." },
@@ -16261,14 +16276,75 @@ if(typeof window !== "undefined" && typeof window.addEventListener === "function
 // install prompt) and keeps working offline once installed. Guarded for browsers that don't
 // support it (older Safari, some in-app webviews) and wrapped so a registration failure never
 // blocks the rest of the app from loading.
+//
+// v2.04: live report -- desktop had current data, iPhone Safari didn't, even after a manual reload
+// and repeated cloud "Sync now" round trips that should have brought it in. The tell: opening the
+// SAME account in Edge on the same iPhone showed the data correctly right away. iOS Safari and iOS
+// Edge both run on the exact same underlying engine (Apple requires it), so a difference between them
+// can't be a JS/API difference -- it has to be something browser-specific like cached state. Safari's
+// tab was almost certainly still running an OLD, cached copy of this app's code (and/or a stale
+// service worker still in control of the page) from before whatever fix actually mattered, and a
+// plain "reload" doesn't guarantee a browser re-fetches everything, especially on iOS. This app's own
+// service worker already updates itself in the background automatically (self.skipWaiting() +
+// clients.claim() in sw.js) -- the missing piece was that nothing ever told the ALREADY-OPEN tab that
+// a newer version had taken over, so it just kept running the old code indefinitely with no visible
+// sign anything was wrong. showUpdateBanner() below makes that visible and gives a guaranteed one-tap
+// way out, the same philosophy as the v2.03 sync banner.
+function showAppUpdateBanner(){
+  const el = document.getElementById("appUpdateBanner");
+  if(el) el.classList.remove("hidden");
+}
+window.showAppUpdateBanner = showAppUpdateBanner;
+
 if("serviceWorker" in navigator){
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {
+    navigator.serviceWorker.register("sw.js").then(reg=>{
+      if(!reg) return;
+      // A new worker could already be sitting there waiting from an update that happened while this
+      // tab was in the background -- surface it immediately rather than only reacting to the next
+      // "updatefound" (which won't fire again for a version that already finished installing).
+      if(reg.waiting && navigator.serviceWorker.controller) showAppUpdateBanner();
+      reg.addEventListener("updatefound", ()=>{
+        const newWorker = reg.installing;
+        if(!newWorker) return;
+        newWorker.addEventListener("statechange", ()=>{
+          // "installed" while something is already controlling this page means a genuine update is
+          // ready (as opposed to the very first install ever, when there's no controller yet).
+          if(newWorker.state === "installed" && navigator.serviceWorker.controller){
+            showAppUpdateBanner();
+          }
+        });
+      });
+      // The browser doesn't always check for a new service worker on its own, especially for an app
+      // left open a long time on a phone -- nudge it to check whenever the tab becomes visible again
+      // or is restored from a bfcache/backgrounded state, since that's exactly when a silently-stale
+      // tab is most likely to be looked at.
+      document.addEventListener("visibilitychange", ()=>{
+        if(document.visibilityState === "visible") reg.update().catch(()=>{});
+      });
+      window.addEventListener("pageshow", ()=>{ reg.update().catch(()=>{}); });
+    }).catch(() => {
       // Installability is a nice-to-have, not a requirement -- the app is fully usable without
       // it (this is also expected to fail harmlessly on file:// or when opened from a path other
       // than the GitHub Pages deploy, since sw.js/manifest.json only exist there).
     });
   });
+  // Reload exactly once when a new service worker actually takes control (fires after skipWaiting()
+  // completes) -- guarded so a second, unrelated controllerchange later in the session can't trigger
+  // a reload loop.
+  let reloadedForSwUpdate = false;
+  navigator.serviceWorker.addEventListener("controllerchange", ()=>{
+    if(reloadedForSwUpdate) return;
+    reloadedForSwUpdate = true;
+    window.location.reload();
+  });
+}
+// This script tag sits at the end of <body>, so the DOM (including #appUpdateBtn) is already parsed
+// by the time this line runs -- no need to wait for DOMContentLoaded, same as every other
+// getElementById(...).addEventListener(...) call in this file.
+{
+  const appUpdateBtn = document.getElementById("appUpdateBtn");
+  if(appUpdateBtn) appUpdateBtn.addEventListener("click", ()=>{ window.location.reload(); });
 }
 </script>
 </body>
