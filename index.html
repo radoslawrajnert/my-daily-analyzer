@@ -2005,8 +2005,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.20";
+const APP_VERSION = "2.21";
 const CHANGELOG = [
+  { version: "2.21", date: "2026-09-25", desc: "The v2.20 fix helped but wasn't the whole story -- the same reading vanished again after further use, confirmed live with the exact same old delete-marker timestamps reappearing. Root cause: v2.20 only cleared the marker on the one device that re-added the reading -- but sync always keeps a copy of every marker ever seen on ANY device, forever, specifically so a real deletion always reaches every device. That meant the still-uncleared copy sitting in the cloud (from before this was fixed, or from another open tab) kept quietly reappearing on every sync and re-deleting the reading each time, no matter how many times it was cleared on just one device. Properly fixed now: every reading remembers exactly when it was last saved, and a delete-marker can only ever suppress a reading OLDER than itself -- so a genuinely new save now always wins, regardless of what any other device still thinks. Also added a small internal diagnostic log (synced quietly in the background, invisible in the app) to help pin down anything else still slipping through, including the separate \"picture cannot be displayed\" photo error also reported." },
   { version: "2.20", date: "2026-09-25", desc: "Found the ACTUAL root cause of the recurring scale-log vanishing bug, by reproducing it directly on the live site after yet another report: \"It is not working!!! All the time the entry is deleted automatically.\" Deleting a reading (or v2.18's confirm-gated date-move) records a small marker -- a \"tombstone\" -- so a later sync can't quietly bring a deleted reading back from an older cloud snapshot. That part was correct. What was missing: nothing ever CLEARED that marker once a date was genuinely used again for a brand new reading. So the sequence was: delete a reading for a date -> weeks later, log a fresh new reading for that exact same date -> it saves and displays completely normally -- until the next sync (which a plain page refresh triggers), which saw the old leftover marker and quietly deleted the brand new reading too, mistaking it for the same old deleted one. v2.19's safety net from earlier today didn't catch this specific case because, from its point of view, the marker made the deletion look intentional. Saving a reading now always clears any old marker for that exact date first." },
   { version: "2.19", date: "2026-09-25", desc: "Found a THIRD, different way a scale-log reading could vanish, after v2.17 and v2.18 -- reported again, live, with a new detail: \"I entered data 24.09. Then for a short moment the picture appeared in the photo timeline. I refresh and then it disappeared.\" That detail (a successful, visible save, only to vanish on refresh) doesn't match v2.17/v2.18's stuck-Edit-mode bug -- it points at cloud sync instead. Investigation found a real gap: when a reading pulled down from the cloud is merged with what's already on the device, the app already had a safety net that refuses the merge and keeps your on-device data if it would have shrunk your nutrition or workout logs by more than any deletions on record explain -- but that same safety net was never checking scale-log readings, so a sync merge could silently drop one with nothing to catch it. Scale-log readings are now covered by that same protection." },
   { version: "2.18", date: "2026-09-25", desc: "Found a SECOND, separate way a scale-log reading could vanish after v2.17's fix -- reported again, live, right after: \"I entered again 24.09 and was automatically deleted again.\" v2.17 covered closing the Edit form with \"− Hide form\"; this covers the more common trigger -- clicking Edit on a reading, then switching to a totally different tab (Nutrition Log, Workout Log, etc.) instead of closing the form at all, then coming back to Scale Log later. The form used to stay silently locked onto that old entry across the tab switch, so typing a new date into it (not realizing it was still in Edit mode) silently deleted the old reading and could overwrite whatever was already saved under the new date. Switching to any other tab now always exits Edit mode first, the same as closing the form already did. On top of that, as a last line of defense against any similar bug still to be found: changing a reading's date while editing it now always asks for confirmation first, spelling out exactly what will be deleted or overwritten, before anything happens -- so this specific failure mode can never again happen silently." },
@@ -3232,11 +3233,28 @@ async function syncScaleLogPhotosToCloud(email, scaleLogs){
 // yet, so it's filtered out of both sides before the union below ever runs. Without this, a pull
 // from a cloud snapshot still holding the old reading (pushed by another device, or by this same
 // device before its own delete finished syncing) would silently bring it right back.
+// v2.21: a tombstone must not be able to out-live a genuinely newer entry saved under that same
+// date -- see clearDeletedScaleDate's comment above for why relying on the tombstone being cleared
+// everywhere in time isn't reliable (mergeTombstoneMaps unions forever, across every device). Instead,
+// each entry now carries its own updatedAt (set whenever the log form saves it -- see the submit
+// handler), and a tombstone only suppresses an entry that's OLDER than the tombstone itself. An entry
+// with no updatedAt at all (data saved before this field existed) is treated as arbitrarily old, so a
+// tombstone still correctly suppresses it -- this only changes behavior for entries saved from here on.
+function scaleLogEntrySurvivesTombstone(item, tombstones){
+  const ts = tombstones[item.date];
+  if(ts == null) return true;
+  return (item.updatedAt || 0) > ts;
+}
 function mergeScaleLogPhotos(cloudArr, localArr, deletedDates){
   const tombstones = deletedDates || {};
-  const localList = (Array.isArray(localArr) ? localArr : []).filter(item=>!tombstones[item.date]);
+  (Array.isArray(localArr) ? localArr : []).forEach(item=>{
+    if(tombstones[item.date] != null && !scaleLogEntrySurvivesTombstone(item, tombstones)){
+      dlog("tombstone_suppressed_local_entry", {date: item.date, entryUpdatedAt: item.updatedAt || null, tombstoneTs: tombstones[item.date]});
+    }
+  });
+  const localList = (Array.isArray(localArr) ? localArr : []).filter(item=>scaleLogEntrySurvivesTombstone(item, tombstones));
   if(!Array.isArray(cloudArr)) return localList;
-  const cloudArrLive = cloudArr.filter(item=>!tombstones[item.date]);
+  const cloudArrLive = cloudArr.filter(item=>scaleLogEntrySurvivesTombstone(item, tombstones));
   const localByDate = new Map(localList.map(item=>[item.date, item]));
   const cloudDates = new Set(cloudArrLive.map(item=>item.date));
   const fields = ["photoFront","photoBack","photo"];
@@ -3385,6 +3403,25 @@ function recordDeletedId(id){
   u.deletedIds[id] = Date.now();
   saveUsers(users);
 }
+// v2.21 TEMP DIAGNOSTIC: a small, capped, synced log of exactly what sync/tombstone/photo events
+// happen and when, added specifically to chase the recurring scale-log-vanishes reports once and for
+// all -- the fixes so far (v2.17-v2.20) each closed one real, confirmed mechanism, but the reports
+// kept recurring, meaning something is still slipping through that hasn't been directly observed in
+// the act. This rides along in the normal cloud push (it's just another field on the account, same as
+// anything else) so it can be read back from any device/session without the user needing to copy
+// anything -- remove this whole block (and its call sites) once the mystery is actually resolved.
+function dlog(event, data){
+  try{
+    if(!currentUserEmail) return;
+    const users = getUsers();
+    const u = users[currentUserEmail];
+    if(!u) return;
+    if(!Array.isArray(u.debugLog)) u.debugLog = [];
+    u.debugLog.push({t: Date.now(), iso: new Date().toISOString(), event, data: data===undefined?null:data});
+    if(u.debugLog.length > 80) u.debugLog = u.debugLog.slice(-80);
+    saveUsers(users);
+  } catch(e){}
+}
 function getDeletedScaleDates(){
   const u = getUsers()[currentUserEmail];
   return pruneTombstones(u && u.deletedScaleDates);
@@ -3397,6 +3434,7 @@ function recordDeletedScaleDate(date){
   u.deletedScaleDates = pruneTombstones(u.deletedScaleDates);
   u.deletedScaleDates[date] = Date.now();
   saveUsers(users);
+  dlog("tombstone_set", {date});
 }
 // v2.20: THE actual root cause of scale-log readings vanishing after a refresh, found live --
 // recordDeletedScaleDate's tombstone was never being cleared once a date was genuinely re-added.
@@ -3411,6 +3449,20 @@ function recordDeletedScaleDate(date){
 // disappeared." v2.19's catastrophic-wipe safety net didn't catch this either, because the entry
 // dropping IS "explained" by a tombstone as far as that check can tell -- the tombstone itself is the
 // bug. Fix: clear a date's tombstone the moment a live entry is actually saved under it.
+// v2.21: v2.20 above cleared the tombstone LOCALLY, on whichever single device/session ran the
+// re-add -- but that's not enough by itself. mergeTombstoneMaps (used by pullFromCloud) unions a
+// device's local tombstones with the cloud's and keeps BOTH sides forever (by design, so a genuine
+// deletion always reaches every device) -- so if the CLOUD copy of deletedScaleDates still has the
+// old entry (e.g. it was pushed before this fix existed, or another open tab/device pushed its own
+// still-stale local copy after this one cleared it locally), the very next pull merges that old
+// tombstone right back in, undoing the local clear and re-deleting the just-re-added reading all
+// over again -- confirmed live: cleared it, it survived one sync cycle, then came back with its
+// EXACT original timestamp after further activity on another tab. Local-only clearing can never
+// fully win against a forever-unioned tombstone. The actual fix is in mergeScaleLogPhotos below:
+// entries now carry their own updatedAt, and a tombstone only suppresses an entry OLDER than it --
+// a genuinely newer save always wins regardless of what any stale copy of the tombstone still says.
+// clearDeletedScaleDate is kept as a courtesy/cleanup (shrinks the tombstone list over time) but is
+// no longer what actually prevents the bug.
 function clearDeletedScaleDate(date){
   if(!date || !currentUserEmail) return;
   const users = getUsers();
@@ -3420,6 +3472,7 @@ function clearDeletedScaleDate(date){
   if(date in u.deletedScaleDates){
     delete u.deletedScaleDates[date];
     saveUsers(users);
+    dlog("tombstone_cleared", {date});
   }
 }
 
@@ -3584,6 +3637,7 @@ async function performCloudPush(force){
       const photoNote = oversized.label === "profile/settings data" ? ", even with exercise-reference photos trimmed to nothing" : "";
       updateCloudSyncStatus(`Sync error: your ${oversized.label} (${Math.round(oversized.bytes/1024)}KB) no longer fits under the cloud's 1MB-per-document limit${photoNote}. Largest parts: ${topFields || "(none over 1KB individually)"}. This is not something you did wrong -- please tell the developer these numbers.`);
       showToast("Cloud sync couldn't fit your data under the 1MB limit — see Settings → Cloud Sync");
+      dlog("push_rejected_oversized", {label: oversized.label, bytes: oversized.bytes});
       return;
     }
     // Both documents are written as a single atomic batch -- either both land or neither does, so a
@@ -3596,8 +3650,10 @@ async function performCloudPush(force){
     await batch.commit();
     saveLastPushEntryCount(currentUserEmail, newCount);
     updateCloudSyncStatus("Synced " + new Date().toLocaleTimeString());
+    dlog("push_success", {mainSizeBytes, logsSizeBytes, scaleLogsCount: (u.scaleLogs||[]).length, tombstoneDates: Object.keys(u.deletedScaleDates||{})});
   } catch(err){
     updateCloudSyncStatus("Sync error: " + err.message);
+    dlog("push_error", {message: err && err.message});
   }
 }
 
@@ -3686,18 +3742,39 @@ async function pullFromCloud(email){
     // own comments), but unlike foodLog/workoutLog above, nothing was actually checking that it held
     // true, so any bug in it -- or any way `local` here ends up not reflecting the truly latest
     // on-device data -- could silently shrink scaleLogs with zero safety net catching it.
+    // v2.21: "tombstoned" here must use the same updatedAt-aware rule as the merge itself
+    // (scaleLogEntrySurvivesTombstone) -- otherwise this backstop would treat a legitimately
+    // surviving re-added entry as "explained by a tombstone" and let it get silently dropped anyway.
     const localScaleLogsList = Array.isArray(local.scaleLogs) ? local.scaleLogs : [];
-    const localScaleLogsTombstonedCount = localScaleLogsList.filter(l=>deletedScaleDates[l.date]).length;
+    const localScaleLogsTombstonedCount = localScaleLogsList.filter(l=>deletedScaleDates[l.date] != null && !scaleLogEntrySurvivesTombstone(l, deletedScaleDates)).length;
     const expectedMinScaleLogs = localScaleLogsList.length - localScaleLogsTombstonedCount;
     const mergedScaleLogsList = Array.isArray(merged.scaleLogs) ? merged.scaleLogs : [];
+    // v2.21 TEMP DIAGNOSTIC: appended straight onto `merged` (rather than via the generic dlog()
+    // helper) because dlog's own read-getUsers/write-saveUsers round-trip would get clobbered a few
+    // lines down by this function's own writeUsersDirect(users) call, which still holds the `users`
+    // object as it was BEFORE dlog's write -- see dlog's own comment for why this rides along in the
+    // synced data at all.
+    const pullDebugEntry = { t: Date.now(), iso: new Date().toISOString(), event: "pull_merge_result", data: {
+      cloudTombstoneDates: Object.keys(cloudData.deletedScaleDates || {}),
+      localTombstoneDates: Object.keys(local.deletedScaleDates || {}),
+      mergedTombstoneDates: Object.keys(deletedScaleDates || {}),
+      localScaleLogsDates: localScaleLogsList.map(l=>({date:l.date, updatedAt:l.updatedAt||null})),
+      cloudScaleLogsDates: (Array.isArray(cloudData.scaleLogs)?cloudData.scaleLogs:[]).map(l=>({date:l.date, updatedAt:l.updatedAt||null})),
+      mergedScaleLogsDates: mergedScaleLogsList.map(l=>l.date),
+    }};
+    merged.debugLog = Array.isArray(local.debugLog) ? local.debugLog.slice() : [];
+    merged.debugLog.push(pullDebugEntry);
     if(mergedScaleLogsList.length < expectedMinScaleLogs){
       console.error("Cloud pull rejected: merge would have reduced scale-log readings beyond what known deletions explain", {
         localCount: localScaleLogsList.length, mergedCount: mergedScaleLogsList.length, localScaleLogsTombstonedCount,
         localDates: localScaleLogsList.map(l=>l.date), mergedDates: mergedScaleLogsList.map(l=>l.date),
       });
+      merged.debugLog.push({ t: Date.now(), iso: new Date().toISOString(), event: "pull_scale_log_backstop_tripped",
+        data: {localCount: localScaleLogsList.length, mergedCount: mergedScaleLogsList.length} });
       merged.scaleLogs = local.scaleLogs;
       showToast("Cloud sync issue detected — kept your on-device scale-log readings safe. Please tell the developer.");
     }
+    if(merged.debugLog.length > 80) merged.debugLog = merged.debugLog.slice(-80);
     users[email] = merged;
     writeUsersDirect(users); // direct write — avoids re-triggering a push of what we just pulled (see writeUsersDirect above)
     return true;
@@ -5010,14 +5087,17 @@ function setupPhotoDropzone(prefix, maxDim, quality){
     if(!file || !file.type || !file.type.startsWith("image/")){ showToast("That doesn't look like an image"); return; }
     try{
       const dataUrl = await resizeImageFile(file, maxDim, quality);
+      dlog("photo_resize_ok", {prefix, fileType: file.type, fileSizeBytes: file.size, dataUrlLength: dataUrl ? dataUrl.length : 0});
       show(dataUrl);
     }catch(err){
+      dlog("photo_resize_error", {prefix, fileType: file.type, fileSizeBytes: file.size, message: err && err.message});
       showToast("Couldn't load that image");
     }
   }
 
   input.addEventListener("change", (e)=>{ handleFile(e.target.files[0]); });
   preview.addEventListener("error", ()=>{
+    dlog("photo_preview_error", {prefix, currentLength: current ? current.length : 0});
     showToast("Couldn't display that photo");
   });
   removeBtn.addEventListener("click", (e)=>{ e.preventDefault(); e.stopPropagation(); clear(); });
@@ -5154,12 +5234,17 @@ document.getElementById("logForm").addEventListener("submit", (e)=>{
     recordDeletedScaleDate(editingLogDate);
   }
   const idx = logs.findIndex(l=>l.date===date);
-  const entry = {date, weightKg, bodyFatPct, musclePct, visceralFat, chestCm, waistCm, hipCm, thighCm, calfCm, photoFront, photoBack};
+  // v2.21: updatedAt is what actually protects this entry from a stale tombstone during a merge --
+  // see scaleLogEntrySurvivesTombstone's comment. Every save (add or edit) stamps the current time.
+  const entry = {date, weightKg, bodyFatPct, musclePct, visceralFat, chestCm, waistCm, hipCm, thighCm, calfCm, photoFront, photoBack, updatedAt: Date.now()};
   const wasEditing = !!editingLogDate;
   if(idx>=0) logs[idx] = entry; else logs.push(entry);
   saveScaleLogs(logs);
+  dlog("scale_log_saved", {date, wasEditing, hadPhotoFront: !!photoFront, hadPhotoBack: !!photoBack, updatedAt: entry.updatedAt});
   // v2.20: this date now has a real, live entry -- clear any old tombstone for it (see
   // clearDeletedScaleDate's comment) so a later cloud pull's merge doesn't silently strip it back out.
+  // v2.21: kept as a courtesy cleanup -- the updatedAt stamp above is what actually protects the
+  // entry now, since a local-only clear can't reliably beat a tombstone the cloud still remembers.
   clearDeletedScaleDate(date);
 
   e.target.reset();
