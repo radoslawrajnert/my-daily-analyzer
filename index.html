@@ -2005,8 +2005,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.15";
+const APP_VERSION = "2.16";
 const CHANGELOG = [
+  { version: "2.16", date: "2026-09-25", desc: "Real fix for saves silently failing once your account's local storage filled up (see v2.15): moved where your account data actually lives from the browser's local storage -- a hard cap of around 5-10MB in most browsers, easy to hit with a long history of progress photos -- to IndexedDB, which is typically sized as hundreds of MB up to a few GB. Nothing is deleted to make this work: your existing photos and history are automatically carried over into the new storage the first time you open the app after this update, with no old data ever removed. Falls back to the exact previous behavior if IndexedDB isn't available at all." },
   { version: "2.15", date: "2026-09-25", desc: "Two fixes/changes: (1) a save (e.g. a new scale-log reading with photos) that failed because the browser's local storage was full used to fail completely silently -- no error, the entry just never actually got saved, and refreshing made it look like it had \"disappeared\". Direct live report: \"I enter data, pictures. I refresh the website and they are gone.\" Now a failed save shows a clear on-screen message explaining what happened and that the entry was NOT saved, instead of failing invisibly. (2) The Weight trend chart's dashed \"Target\" line used to only ever show the CURRENT phase's target weight, so starting a new phase with a different goal made the previous one's target line disappear. Direct follow-up feedback: \"show target 1 and target 2, so I can see progress per target.\" Every phase's own target weight now gets its own labeled line on the chart." },
   { version: "2.14", date: "2026-09-24", desc: "Fixed deleted entries (nutrition log, workout log, habit log, scale-log readings, commitments, AI Coach notes) sometimes reappearing -- or showing up doubled -- after a sync. Direct live report: \"sometimes the synchronization is happening and my values are doubled...! if I delete the position it should not come back again because of any synchronisation.\" Root cause: cloud sync has always merged data as a strict union that never drops anything it doesn't recognize (a deliberate earlier fix for entries silently vanishing) -- which meant a genuine deletion looked identical to \"hasn't synced yet\", so pulling a cloud snapshot from before the deletion (another device, or this device's own not-yet-landed push) quietly brought the deleted entry back. Deletions are now recorded as their own small \"this was deleted on purpose\" markers that travel with the sync data, so a pull can tell the two apart and a deletion sticks everywhere, including on other devices." },
   { version: "2.13", date: "2026-09-24", desc: "Fixed a saved AI Coach next-phase suggestion getting silently thrown away if you opened \"Complete phase\", saw the offer to use it, and then closed the form (X/Cancel, or declining the confirm) without actually finishing -- reopening \"Complete phase\" later no longer showed the offer at all. The suggestion is now only cleared once a phase is actually completed, so backing out of the form never loses it and you'll be asked again next time." },
@@ -2705,31 +2706,126 @@ let currentUserEmail = null;
 /* ---------------------------------------------------------
    LOGIN / USER MANAGEMENT (local-only, not real auth)
 --------------------------------------------------------- */
+// v2.16: everything below (usersCache, IndexedDB helpers, hydrateUsersCache) exists to move where
+// the account data actually lives from localStorage (a hard ~5-10MB-per-origin ceiling in most
+// browsers) to IndexedDB (typically hundreds of MB to multiple GB, since it's sized as a share of
+// free disk space). Direct live reports of both: (a) a new scale-log reading with photos silently
+// failing to save because storage was full ("I enter data, pictures. I refresh the website and
+// they are gone"), and (b) not wanting to delete any existing photos to free up room -- the real
+// fix is giving the app more room, not trimming what's already there.
+//
+// getUsers()/saveUsers() are the ONE chokepoint every read/write in the whole app already goes
+// through (confirmed by grep -- nothing else touches USERS_KEY directly except the two "direct
+// write" spots in pullFromCloud() and the login handler, both updated below to use
+// writeUsersDirect()), so this swap only needs to happen here: every other function in the app
+// keeps reading/writing `users` objects exactly as before, synchronously, with no changes.
+//
+// The trick for staying synchronous everywhere else despite IndexedDB itself being async: keep a
+// plain in-memory `usersCache` that IS the live, authoritative copy for the rest of the running
+// session (read and written synchronously, same as localStorage always was), and treat IndexedDB
+// purely as the durable backing store -- hydrated into usersCache once at app boot (see
+// hydrateUsersCache(), awaited before the init() IIFE at the bottom of this file does anything
+// else), and written back out in the background on every save. If IndexedDB isn't available at all
+// (very old browser, or the Node-based sandbox this app's automated tests run under, which never
+// defines a global `indexedDB`), usersCache simply stays null and every function below falls back
+// to the exact previous localStorage-only behavior, unchanged.
+const IDB_DB_NAME = "bodyAnalyzerDB";
+const IDB_STORE_NAME = "kv";
+const IDB_USERS_KEY = "users";
+let usersCache = null; // non-null only once IndexedDB has been hydrated (or confirmed unavailable and we're intentionally NOT using it)
+let idbDb = null;
+function indexedDbAvailable(){
+  return typeof indexedDB !== "undefined" && indexedDB !== null;
+}
+function openIdb(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(IDB_DB_NAME, 1);
+    req.onupgradeneeded = ()=>{ req.result.createObjectStore(IDB_STORE_NAME); };
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+function idbGet(key){
+  return new Promise((resolve, reject)=>{
+    const tx = idbDb.transaction(IDB_STORE_NAME, "readonly");
+    const req = tx.objectStore(IDB_STORE_NAME).get(key);
+    req.onsuccess = ()=> resolve(req.result);
+    req.onerror = ()=> reject(req.error);
+  });
+}
+function idbPut(key, value){
+  return new Promise((resolve, reject)=>{
+    const tx = idbDb.transaction(IDB_STORE_NAME, "readwrite");
+    tx.objectStore(IDB_STORE_NAME).put(value, key);
+    tx.oncomplete = ()=> resolve();
+    tx.onerror = ()=> reject(tx.error);
+  });
+}
+// Called once, awaited before anything else runs (see the init() IIFE at the bottom of this file).
+// Migrates any existing localStorage data across the FIRST time this runs on a given device, so
+// upgrading to this version never looks like existing history vanished.
+async function hydrateUsersCache(){
+  if(!indexedDbAvailable()) return; // getUsers()/saveUsers() stay on localStorage, unchanged
+  try{
+    idbDb = await openIdb();
+    const stored = await idbGet(IDB_USERS_KEY);
+    if(stored !== undefined){ usersCache = stored; return; }
+    const legacy = localStorage.getItem(USERS_KEY);
+    usersCache = legacy ? JSON.parse(legacy) : {};
+    await idbPut(IDB_USERS_KEY, usersCache);
+  } catch(err){
+    console.error("hydrateUsersCache failed -- falling back to localStorage for this session", err);
+    usersCache = null;
+  }
+}
 function getUsers(){
+  if(usersCache != null) return JSON.parse(JSON.stringify(usersCache)); // same "fresh clone every call" contract localStorage always gave callers
   return JSON.parse(localStorage.getItem(USERS_KEY) || "{}");
 }
+function showStorageWriteFailedToast(err){
+  console.error("Storage write failed", err);
+  const isQuota = err && (err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED" || /quota/i.test(err.message || ""));
+  if(typeof showToast === "function"){
+    showToast(isQuota
+      ? "Save failed — your browser's storage is full. This entry was NOT saved. Please tell the developer."
+      : "Save failed — your browser blocked local storage. This entry was NOT saved. Please tell the developer.", 9000);
+  }
+}
+// Used by callers that build the full merged `users` object themselves and want to write it
+// straight through without saveUsers()'s pushToCloud() side effect -- pullFromCloud() (data that
+// just CAME from the cloud, pushing it right back would be redundant) and the brand-new-local-
+// account path in the login handler (nothing to push yet). Same underlying storage as saveUsers().
+function writeUsersDirect(users){
+  if(usersCache != null){
+    usersCache = JSON.parse(JSON.stringify(users));
+    idbPut(IDB_USERS_KEY, usersCache).catch(err=> console.error("writeUsersDirect: IndexedDB write failed", err));
+    return;
+  }
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
 function saveUsers(users){
-  // v2.15: this write throwing (almost always a full local-storage quota -- QuotaExceededError)
-  // used to propagate as a silent, uncaught exception. Every save in the app goes through this one
-  // function, so ANY save (a scale-log reading + photos, a food entry, a workout set, anything)
-  // could fail with no visible sign at all: the throw aborted the rest of that save's handler (so
-  // no "Reading added" toast, the table never re-rendered) but nothing told the user why, and
-  // because the write is atomic, NONE of that save's data ever reached storage -- refreshing then
-  // showed exactly what was there before, looking like the entry had silently vanished. Direct live
-  // report: "I enter data, pictures. I refresh the website and they are gone." Surface this loudly
-  // instead, and still re-throw so callers keep treating the save as failed (unchanged behavior --
-  // this only adds the missing visible feedback).
-  try{
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
-  } catch(err){
-    console.error("saveUsers: localStorage.setItem failed", err);
-    const isQuota = err && (err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED" || /quota/i.test(err.message || ""));
-    if(typeof showToast === "function"){
-      showToast(isQuota
-        ? "Save failed — your browser's storage is full. This entry was NOT saved. Try deleting some old progress photos (Scale Log → History), then try again."
-        : "Save failed — your browser blocked local storage. This entry was NOT saved. Please tell the developer.", 9000);
+  // v2.15: this write throwing (almost always a full local-storage quota -- QuotaExceededError,
+  // back when localStorage was the only place this data lived) used to propagate as a silent,
+  // uncaught exception. Every save in the app goes through this one function, so ANY save (a
+  // scale-log reading + photos, a food entry, a workout set, anything) could fail with no visible
+  // sign at all. Direct live report: "I enter data, pictures. I refresh the website and they are
+  // gone." Surfaced loudly since, and v2.16 (above) additionally moves the actual storage to
+  // IndexedDB wherever available, which should make hitting this at all far rarer.
+  if(usersCache != null){
+    // IndexedDB path: update the synchronous in-memory cache immediately (so a getUsers() called
+    // right after this, in the same handler, sees the just-saved data -- the same guarantee the
+    // localStorage path always gave), persist to IndexedDB in the background. A failure here can't
+    // synchronously abort the caller the way the localStorage path's throw does, but IndexedDB's
+    // much larger quota should make that failure mode rare.
+    usersCache = JSON.parse(JSON.stringify(users));
+    idbPut(IDB_USERS_KEY, usersCache).catch(showStorageWriteFailedToast);
+  } else {
+    try{
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    } catch(err){
+      showStorageWriteFailedToast(err);
+      throw err;
     }
-    throw err;
   }
   if(isCloudSyncConfigured()) pushToCloud();
 }
@@ -3557,7 +3653,7 @@ async function pullFromCloud(email){
       showToast("Cloud sync issue detected — kept your on-device workout/nutrition entries safe. Please tell the developer.");
     }
     users[email] = merged;
-    localStorage.setItem(USERS_KEY, JSON.stringify(users)); // direct write — avoids re-triggering a push of what we just pulled
+    writeUsersDirect(users); // direct write — avoids re-triggering a push of what we just pulled (see writeUsersDirect above)
     return true;
   } catch(err){
     console.error("Cloud pull failed", err);
@@ -4065,7 +4161,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e)=>{
       const users = getUsers();
       if(!users[email]){
         users[email] = {name: name || email.split("@")[0], email, answers: {}, lastReportJson: null, firstSeenAt: Date.now()};
-        localStorage.setItem(USERS_KEY, JSON.stringify(users));
+        writeUsersDirect(users);
       }
       await pullFromCloud(email);
       // Force the legacy-activity migration to re-run even if it already ran on this device once
@@ -16881,18 +16977,31 @@ window.initialCloudSync = initialCloudSync;
 
 (function init(){
   renderEnvBanner();
-  const savedSession = localStorage.getItem(SESSION_KEY);
-  const users = getUsers();
-  if(savedSession && users[savedSession]){
-    enterApp(savedSession);
-  } else {
-    showLoginScreen();
+  function proceedWithInit(){
+    const savedSession = localStorage.getItem(SESSION_KEY);
+    const users = getUsers();
+    if(savedSession && users[savedSession]){
+      enterApp(savedSession);
+    } else {
+      showLoginScreen();
+    }
+    // Restore the Firebase session and refresh this device's copy from the cloud in the background
+    // -- never blocks first paint or offline use, the app is already usable with whatever's on the
+    // device by the time this resolves. See initialCloudSync() above.
+    initialCloudSync();
   }
-
-  // Restore the Firebase session and refresh this device's copy from the cloud in the background --
-  // never blocks first paint or offline use, the app is already usable with whatever's on the device
-  // by the time this resolves. See initialCloudSync() above.
-  initialCloudSync();
+  // v2.16: hydrate the IndexedDB-backed usersCache (see the block above saveUsers()) before
+  // anything below touches getUsers() -- this is the ONE place that gate has to happen, since every
+  // other read in the app goes through getUsers() afterward and just sees whatever's already in
+  // usersCache. When IndexedDB isn't available at all (very old browser, or this app's Node-based
+  // automated tests), skip straight to proceedWithInit() with the exact same synchronous timing
+  // this always had -- there's nothing to hydrate, and no reason to introduce even a one-microtask
+  // delay on that path.
+  if(!indexedDbAvailable()){
+    proceedWithInit();
+    return;
+  }
+  hydrateUsersCache().then(proceedWithInit);
 })();
 
 // See syncFromCloudAndRefresh() above -- re-pulls on regaining focus, not just on first load, so a
