@@ -2005,8 +2005,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.16";
+const APP_VERSION = "2.17";
 const CHANGELOG = [
+  { version: "2.17", date: "2026-09-25", desc: "Found and fixed the actual cause of a reading disappearing after being entered and the page refreshed -- the v2.15/v2.16 fixes covered storage running out, but this was a different bug. Direct live report: \"I entered reading for 24.09 and after refreshing the website the data is gone.\" Clicking Edit on a reading, then closing the form with \"− Hide form\" instead of Cancel, silently left the form remembering it was still editing that old entry. Reopening the form later via \"+ Add a reading\" to log a completely different date continued in that stale, invisible edit state -- so submitting the new date was treated as moving the OLD reading to the new date, deleting the old one and overwriting whatever was already saved under the new date. Hiding the form now always properly exits edit mode, the same as clicking Cancel already did, so reopening it is always a clean, honest \"Add a reading\"." },
   { version: "2.16", date: "2026-09-25", desc: "Real fix for saves silently failing once your account's local storage filled up (see v2.15): moved where your account data actually lives from the browser's local storage -- a hard cap of around 5-10MB in most browsers, easy to hit with a long history of progress photos -- to IndexedDB, which is typically sized as hundreds of MB up to a few GB. Nothing is deleted to make this work: your existing photos and history are automatically carried over into the new storage the first time you open the app after this update, with no old data ever removed. Falls back to the exact previous behavior if IndexedDB isn't available at all." },
   { version: "2.15", date: "2026-09-25", desc: "Two fixes/changes: (1) a save (e.g. a new scale-log reading with photos) that failed because the browser's local storage was full used to fail completely silently -- no error, the entry just never actually got saved, and refreshing made it look like it had \"disappeared\". Direct live report: \"I enter data, pictures. I refresh the website and they are gone.\" Now a failed save shows a clear on-screen message explaining what happened and that the entry was NOT saved, instead of failing invisibly. (2) The Weight trend chart's dashed \"Target\" line used to only ever show the CURRENT phase's target weight, so starting a new phase with a different goal made the previous one's target line disappear. Direct follow-up feedback: \"show target 1 and target 2, so I can see progress per target.\" Every phase's own target weight now gets its own labeled line on the chart." },
   { version: "2.14", date: "2026-09-24", desc: "Fixed deleted entries (nutrition log, workout log, habit log, scale-log readings, commitments, AI Coach notes) sometimes reappearing -- or showing up doubled -- after a sync. Direct live report: \"sometimes the synchronization is happening and my values are doubled...! if I delete the position it should not come back again because of any synchronisation.\" Root cause: cloud sync has always merged data as a strict union that never drops anything it doesn't recognize (a deliberate earlier fix for entries silently vanishing) -- which meant a genuine deletion looked identical to \"hasn't synced yet\", so pulling a cloud snapshot from before the deletion (another device, or this device's own not-yet-landed push) quietly brought the deleted entry back. Deletions are now recorded as their own small \"this was deleted on purpose\" markers that travel with the sync data, so a pull can tell the two apart and a deletion sticks everywhere, including on other devices." },
@@ -4992,6 +4993,17 @@ function showLogForm(){
 function hideLogForm(){
   document.getElementById("logFormWrap").classList.add("hidden");
   document.getElementById("logFormToggleBtn").textContent = "+ Add a reading";
+  // v2.17: hiding the form (the "− Hide form" toggle, not Cancel) used to leave editingLogDate set
+  // to whatever entry was last opened via Edit -- so clicking "+ Add a reading" again later silently
+  // reopened in that STALE edit state instead of a fresh "Add". Typing a genuinely new date into that
+  // stale form then submitted as "move this old entry to the new date": the OLD date got deleted
+  // (tombstoned) and the new data landed on top of whatever entry already existed under the typed
+  // date -- explaining a reading for one date vanishing after what looked like adding a completely
+  // different date's reading. Direct live report: "I entered reading for 24.09 and after refreshing
+  // the website the data is gone." Hiding the form now always exits edit mode and clears it, exactly
+  // like Cancel already does, so reopening it is always a clean, honest "Add a reading".
+  document.getElementById("logForm").reset();
+  exitLogEditMode();
 }
 function toggleLogForm(){
   if(isLogFormOpen()) hideLogForm(); else showLogForm();
