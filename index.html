@@ -2005,8 +2005,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.19";
+const APP_VERSION = "2.20";
 const CHANGELOG = [
+  { version: "2.20", date: "2026-09-25", desc: "Found the ACTUAL root cause of the recurring scale-log vanishing bug, by reproducing it directly on the live site after yet another report: \"It is not working!!! All the time the entry is deleted automatically.\" Deleting a reading (or v2.18's confirm-gated date-move) records a small marker -- a \"tombstone\" -- so a later sync can't quietly bring a deleted reading back from an older cloud snapshot. That part was correct. What was missing: nothing ever CLEARED that marker once a date was genuinely used again for a brand new reading. So the sequence was: delete a reading for a date -> weeks later, log a fresh new reading for that exact same date -> it saves and displays completely normally -- until the next sync (which a plain page refresh triggers), which saw the old leftover marker and quietly deleted the brand new reading too, mistaking it for the same old deleted one. v2.19's safety net from earlier today didn't catch this specific case because, from its point of view, the marker made the deletion look intentional. Saving a reading now always clears any old marker for that exact date first." },
   { version: "2.19", date: "2026-09-25", desc: "Found a THIRD, different way a scale-log reading could vanish, after v2.17 and v2.18 -- reported again, live, with a new detail: \"I entered data 24.09. Then for a short moment the picture appeared in the photo timeline. I refresh and then it disappeared.\" That detail (a successful, visible save, only to vanish on refresh) doesn't match v2.17/v2.18's stuck-Edit-mode bug -- it points at cloud sync instead. Investigation found a real gap: when a reading pulled down from the cloud is merged with what's already on the device, the app already had a safety net that refuses the merge and keeps your on-device data if it would have shrunk your nutrition or workout logs by more than any deletions on record explain -- but that same safety net was never checking scale-log readings, so a sync merge could silently drop one with nothing to catch it. Scale-log readings are now covered by that same protection." },
   { version: "2.18", date: "2026-09-25", desc: "Found a SECOND, separate way a scale-log reading could vanish after v2.17's fix -- reported again, live, right after: \"I entered again 24.09 and was automatically deleted again.\" v2.17 covered closing the Edit form with \"− Hide form\"; this covers the more common trigger -- clicking Edit on a reading, then switching to a totally different tab (Nutrition Log, Workout Log, etc.) instead of closing the form at all, then coming back to Scale Log later. The form used to stay silently locked onto that old entry across the tab switch, so typing a new date into it (not realizing it was still in Edit mode) silently deleted the old reading and could overwrite whatever was already saved under the new date. Switching to any other tab now always exits Edit mode first, the same as closing the form already did. On top of that, as a last line of defense against any similar bug still to be found: changing a reading's date while editing it now always asks for confirmation first, spelling out exactly what will be deleted or overwritten, before anything happens -- so this specific failure mode can never again happen silently." },
   { version: "2.17", date: "2026-09-25", desc: "Found and fixed the actual cause of a reading disappearing after being entered and the page refreshed -- the v2.15/v2.16 fixes covered storage running out, but this was a different bug. Direct live report: \"I entered reading for 24.09 and after refreshing the website the data is gone.\" Clicking Edit on a reading, then closing the form with \"− Hide form\" instead of Cancel, silently left the form remembering it was still editing that old entry. Reopening the form later via \"+ Add a reading\" to log a completely different date continued in that stale, invisible edit state -- so submitting the new date was treated as moving the OLD reading to the new date, deleting the old one and overwriting whatever was already saved under the new date. Hiding the form now always properly exits edit mode, the same as clicking Cancel already did, so reopening it is always a clean, honest \"Add a reading\"." },
@@ -3396,6 +3397,30 @@ function recordDeletedScaleDate(date){
   u.deletedScaleDates = pruneTombstones(u.deletedScaleDates);
   u.deletedScaleDates[date] = Date.now();
   saveUsers(users);
+}
+// v2.20: THE actual root cause of scale-log readings vanishing after a refresh, found live --
+// recordDeletedScaleDate's tombstone was never being cleared once a date was genuinely re-added.
+// mergeScaleLogPhotos (see its own comment) filters BOTH the cloud array AND the local array by
+// `!tombstones[item.date]` unconditionally -- it has no way to tell "this date is still deleted" apart
+// from "this date WAS deleted once, a while ago, but has a brand new live entry sitting under it right
+// now". So: delete 2026-09-24 -> tombstone recorded (correct) -> weeks later, add a FRESH reading for
+// 2026-09-24 again -> saves fine, renders fine, everything looks normal -- right up until the next
+// cloud pull (a plain refresh triggers one), which runs mergeScaleLogPhotos, which silently strips the
+// brand new entry right back out because its date still matches that old, stale tombstone. This is
+// exactly the reported pattern: "the picture appeared in the photo timeline... I refresh and then it
+// disappeared." v2.19's catastrophic-wipe safety net didn't catch this either, because the entry
+// dropping IS "explained" by a tombstone as far as that check can tell -- the tombstone itself is the
+// bug. Fix: clear a date's tombstone the moment a live entry is actually saved under it.
+function clearDeletedScaleDate(date){
+  if(!date || !currentUserEmail) return;
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  if(!u || !u.deletedScaleDates || !(date in u.deletedScaleDates)) return;
+  u.deletedScaleDates = pruneTombstones(u.deletedScaleDates);
+  if(date in u.deletedScaleDates){
+    delete u.deletedScaleDates[date];
+    saveUsers(users);
+  }
 }
 
 function updateCloudSyncStatus(text){
@@ -5133,6 +5158,9 @@ document.getElementById("logForm").addEventListener("submit", (e)=>{
   const wasEditing = !!editingLogDate;
   if(idx>=0) logs[idx] = entry; else logs.push(entry);
   saveScaleLogs(logs);
+  // v2.20: this date now has a real, live entry -- clear any old tombstone for it (see
+  // clearDeletedScaleDate's comment) so a later cloud pull's merge doesn't silently strip it back out.
+  clearDeletedScaleDate(date);
 
   e.target.reset();
   exitLogEditMode();
