@@ -2005,8 +2005,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.18";
+const APP_VERSION = "2.19";
 const CHANGELOG = [
+  { version: "2.19", date: "2026-09-25", desc: "Found a THIRD, different way a scale-log reading could vanish, after v2.17 and v2.18 -- reported again, live, with a new detail: \"I entered data 24.09. Then for a short moment the picture appeared in the photo timeline. I refresh and then it disappeared.\" That detail (a successful, visible save, only to vanish on refresh) doesn't match v2.17/v2.18's stuck-Edit-mode bug -- it points at cloud sync instead. Investigation found a real gap: when a reading pulled down from the cloud is merged with what's already on the device, the app already had a safety net that refuses the merge and keeps your on-device data if it would have shrunk your nutrition or workout logs by more than any deletions on record explain -- but that same safety net was never checking scale-log readings, so a sync merge could silently drop one with nothing to catch it. Scale-log readings are now covered by that same protection." },
   { version: "2.18", date: "2026-09-25", desc: "Found a SECOND, separate way a scale-log reading could vanish after v2.17's fix -- reported again, live, right after: \"I entered again 24.09 and was automatically deleted again.\" v2.17 covered closing the Edit form with \"− Hide form\"; this covers the more common trigger -- clicking Edit on a reading, then switching to a totally different tab (Nutrition Log, Workout Log, etc.) instead of closing the form at all, then coming back to Scale Log later. The form used to stay silently locked onto that old entry across the tab switch, so typing a new date into it (not realizing it was still in Edit mode) silently deleted the old reading and could overwrite whatever was already saved under the new date. Switching to any other tab now always exits Edit mode first, the same as closing the form already did. On top of that, as a last line of defense against any similar bug still to be found: changing a reading's date while editing it now always asks for confirmation first, spelling out exactly what will be deleted or overwritten, before anything happens -- so this specific failure mode can never again happen silently." },
   { version: "2.17", date: "2026-09-25", desc: "Found and fixed the actual cause of a reading disappearing after being entered and the page refreshed -- the v2.15/v2.16 fixes covered storage running out, but this was a different bug. Direct live report: \"I entered reading for 24.09 and after refreshing the website the data is gone.\" Clicking Edit on a reading, then closing the form with \"− Hide form\" instead of Cancel, silently left the form remembering it was still editing that old entry. Reopening the form later via \"+ Add a reading\" to log a completely different date continued in that stale, invisible edit state -- so submitting the new date was treated as moving the OLD reading to the new date, deleting the old one and overwriting whatever was already saved under the new date. Hiding the form now always properly exits edit mode, the same as clicking Cancel already did, so reopening it is always a clean, honest \"Add a reading\"." },
   { version: "2.16", date: "2026-09-25", desc: "Real fix for saves silently failing once your account's local storage filled up (see v2.15): moved where your account data actually lives from the browser's local storage -- a hard cap of around 5-10MB in most browsers, easy to hit with a long history of progress photos -- to IndexedDB, which is typically sized as hundreds of MB up to a few GB. Nothing is deleted to make this work: your existing photos and history are automatically carried over into the new storage the first time you open the app after this update, with no old data ever removed. Falls back to the exact previous behavior if IndexedDB isn't available at all." },
@@ -3653,6 +3654,24 @@ async function pullFromCloud(email){
       merged.foodLog = local.foodLog;
       merged.workoutLog = local.workoutLog;
       showToast("Cloud sync issue detected — kept your on-device workout/nutrition entries safe. Please tell the developer.");
+    }
+    // v2.19: the exact same backstop as above, but for scaleLogs -- which never had one. Repeated
+    // live reports of a scale-log reading (with photos) vanishing specifically after a refresh
+    // pointed straight at this gap: mergeScaleLogPhotos is ALSO meant to be a strict union (see its
+    // own comments), but unlike foodLog/workoutLog above, nothing was actually checking that it held
+    // true, so any bug in it -- or any way `local` here ends up not reflecting the truly latest
+    // on-device data -- could silently shrink scaleLogs with zero safety net catching it.
+    const localScaleLogsList = Array.isArray(local.scaleLogs) ? local.scaleLogs : [];
+    const localScaleLogsTombstonedCount = localScaleLogsList.filter(l=>deletedScaleDates[l.date]).length;
+    const expectedMinScaleLogs = localScaleLogsList.length - localScaleLogsTombstonedCount;
+    const mergedScaleLogsList = Array.isArray(merged.scaleLogs) ? merged.scaleLogs : [];
+    if(mergedScaleLogsList.length < expectedMinScaleLogs){
+      console.error("Cloud pull rejected: merge would have reduced scale-log readings beyond what known deletions explain", {
+        localCount: localScaleLogsList.length, mergedCount: mergedScaleLogsList.length, localScaleLogsTombstonedCount,
+        localDates: localScaleLogsList.map(l=>l.date), mergedDates: mergedScaleLogsList.map(l=>l.date),
+      });
+      merged.scaleLogs = local.scaleLogs;
+      showToast("Cloud sync issue detected — kept your on-device scale-log readings safe. Please tell the developer.");
     }
     users[email] = merged;
     writeUsersDirect(users); // direct write — avoids re-triggering a push of what we just pulled (see writeUsersDirect above)
