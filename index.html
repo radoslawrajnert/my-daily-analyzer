@@ -217,6 +217,10 @@
   table.log-table col.thumb-col{width:90px;}
   table.log-table col.date-col{width:80px;}
   table.log-table .log-date-cell{white-space:nowrap;}
+  /* v2.22: new Phase column, right after the photo column -- same small fixed width treatment as
+     Date so it doesn't steal the leftover space the Photo column is meant to absorb (see above). */
+  table.log-table col.phase-col{width:76px;}
+  table.log-table .phase-cell{white-space:nowrap; color:var(--muted); font-size:.78rem;}
   /* v1.39 follow-up: the header labels (WEIGHT, BMI, ...) were left-aligned like every other
      table.log-table header in the app, but the values below them are centered chips (.range-chip
      text-align:center) -- so each title sat to the left of its own column of values instead of
@@ -406,6 +410,9 @@
   .trend-swatch-raw{background:var(--accent2); opacity:.45;}
   .trend-swatch-avg{background:var(--accent);}
   .trend-chart-inner{position:relative;}
+  .trend-value-legend{display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:8px;}
+  .trend-value-legend-item{display:flex; align-items:center; gap:5px; font-size:.74rem; color:var(--muted);}
+  .trend-value-swatch{display:inline-block; width:10px; height:10px; border-radius:2px; flex:none;}
   /* v1.42: replaced the v1.41 colored timeline strip (style "C") with a badge + divider lines
      (style "D") per a follow-up preference change -- .phase-badge names the phase the most recent
      reading belongs to, right next to the chart's own title; the divider lines themselves are
@@ -2005,8 +2012,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.21";
+const APP_VERSION = "2.22";
 const CHANGELOG = [
+  { version: "2.22", date: "2026-09-25", desc: "Two follow-up requests on the Scale Log screen. First, the weight trend chart's zone/target labels (\"Overweight\", \"Normal\", \"Target 1\", \"Target 2\", ...) used to be squeezed into a narrow margin on the right edge of the chart, where they could overlap the measurement cards sitting right next to it -- they're now a plain legend shown below the chart instead. Second, the History table now shows which phase each reading belongs to (\"Phase 1\", \"Phase 2\", ...) in a new column right after the photo." },
   { version: "2.21", date: "2026-09-25", desc: "The v2.20 fix helped but wasn't the whole story -- the same reading vanished again after further use, confirmed live with the exact same old delete-marker timestamps reappearing. Root cause: v2.20 only cleared the marker on the one device that re-added the reading -- but sync always keeps a copy of every marker ever seen on ANY device, forever, specifically so a real deletion always reaches every device. That meant the still-uncleared copy sitting in the cloud (from before this was fixed, or from another open tab) kept quietly reappearing on every sync and re-deleting the reading each time, no matter how many times it was cleared on just one device. Properly fixed now: every reading remembers exactly when it was last saved, and a delete-marker can only ever suppress a reading OLDER than itself -- so a genuinely new save now always wins, regardless of what any other device still thinks. Also added a small internal diagnostic log (synced quietly in the background, invisible in the app) to help pin down anything else still slipping through, including the separate \"picture cannot be displayed\" photo error also reported." },
   { version: "2.20", date: "2026-09-25", desc: "Found the ACTUAL root cause of the recurring scale-log vanishing bug, by reproducing it directly on the live site after yet another report: \"It is not working!!! All the time the entry is deleted automatically.\" Deleting a reading (or v2.18's confirm-gated date-move) records a small marker -- a \"tombstone\" -- so a later sync can't quietly bring a deleted reading back from an older cloud snapshot. That part was correct. What was missing: nothing ever CLEARED that marker once a date was genuinely used again for a brand new reading. So the sequence was: delete a reading for a date -> weeks later, log a fresh new reading for that exact same date -> it saves and displays completely normally -- until the next sync (which a plain page refresh triggers), which saw the old leftover marker and quietly deleted the brand new reading too, mistaking it for the same old deleted one. v2.19's safety net from earlier today didn't catch this specific case because, from its point of view, the marker made the deletion look intentional. Saving a reading now always clears any old marker for that exact date first." },
   { version: "2.19", date: "2026-09-25", desc: "Found a THIRD, different way a scale-log reading could vanish, after v2.17 and v2.18 -- reported again, live, with a new detail: \"I entered data 24.09. Then for a short moment the picture appeared in the photo timeline. I refresh and then it disappeared.\" That detail (a successful, visible save, only to vanish on refresh) doesn't match v2.17/v2.18's stuck-Edit-mode bug -- it points at cloud sync instead. Investigation found a real gap: when a reading pulled down from the cloud is merged with what's already on the device, the app already had a safety net that refuses the merge and keeps your on-device data if it would have shrunk your nutrition or workout logs by more than any deletions on record explain -- but that same safety net was never checking scale-log readings, so a sync merge could silently drop one with nothing to catch it. Scale-log readings are now covered by that same protection." },
@@ -5283,7 +5291,13 @@ function renderTrendChart(logs){
     wrap.innerHTML = "";
     return;
   }
-  const w = 720, h = 160, pad = 24, padRight = 84;
+  // v2.22: the BMI-zone and target-line labels used to be drawn as SVG <text> in a reserved right-
+  // hand margin (padRight) -- on narrower/mobile widths they'd overlap the "OTHER MEASUREMENTS" cards
+  // next to the chart ("Legend to target 1, 2 bellow the graphic, not the right site"). They're now a
+  // regular HTML legend below the chart instead, so the chart itself no longer needs that reserved
+  // margin and can use nearly the full width.
+  const w = 720, h = 160, pad = 24, padRight = 24;
+  const legendItems = [];
   const weights = logs.map(l=>l.weightKg);
   const min = Math.min(...weights), max = Math.max(...weights);
   const dataRange = (max - min) || 2;
@@ -5342,9 +5356,7 @@ function renderTrendChart(logs){
       const bandH = yBottom - yTop;
       if(bandH < 0.5) return;
       bands += `<rect x="${pad}" y="${yTop.toFixed(1)}" width="${chartRight-pad}" height="${bandH.toFixed(1)}" fill="${fillFor[z.cls]}"></rect>`;
-      if(bandH >= 12){
-        bands += `<text x="${chartRight+6}" y="${(yTop+bandH/2+3).toFixed(1)}" font-size="9" fill="${lineFor[z.cls]}">${z.label}</text>`;
-      }
+      legendItems.push({label: z.label, color: lineFor[z.cls]});
       if(isFinite(z.from) && z.from > lo && z.from < hi){
         const yLine = yFor(z.from);
         bands += `<line x1="${pad}" y1="${yLine.toFixed(1)}" x2="${chartRight}" y2="${yLine.toFixed(1)}" stroke="var(--border)" stroke-width="1" stroke-dasharray="3 3"></line>`;
@@ -5380,7 +5392,7 @@ function renderTrendChart(logs){
       lastLabelY = labelY;
       bands += `<rect x="${pad}" y="${(yCenter-bandH/2).toFixed(1)}" width="${chartRight-pad}" height="${bandH.toFixed(1)}" fill="${fill}"></rect>`;
       bands += `<line x1="${pad}" y1="${yCenter.toFixed(1)}" x2="${chartRight}" y2="${yCenter.toFixed(1)}" stroke="${color}" stroke-width="1" stroke-dasharray="3 3"></line>`;
-      bands += `<text x="${chartRight+6}" y="${labelY.toFixed(1)}" font-size="9" fill="${color}">${t.label} ${t.targetWeightKg.toFixed(1)}kg</text>`;
+      legendItems.push({label: `${t.label} ${t.targetWeightKg.toFixed(1)}kg`, color});
     });
 
   // Space points along X by actual elapsed time between log dates, not just by entry index --
@@ -5468,6 +5480,7 @@ function renderTrendChart(logs){
       </svg>
       ${goalReached ? `<div class="trend-goal-reached-badge" title="You've reached your target weight!">${smileyPhotoImg(84, "Target weight reached!")}</div>` : ""}
     </div>
+    ${legendItems.length ? `<div class="trend-value-legend">${legendItems.map(li=>`<span class="trend-value-legend-item"><span class="trend-value-swatch" style="background:${li.color}"></span>${li.label}</span>`).join("")}</div>` : ""}
     ${goalReached ? `<div class="trend-goal-reached-note">${ICON_SMILEY}You've reached your target weight of ${activeTargetKg.toFixed(1)}kg!</div>` : ""}
     ${!th ? `<div class="goal-progress-note">Add your height in Body Profile to see BMI zone bands here.</div>` : ""}
   `;
@@ -6392,6 +6405,7 @@ function renderLogView(){
     const thumbField = ownThumb ? scalePhotoFieldName(l) : carried.frontField;
     return `<tr>
       <td>${thumb ? `<img class="pkg-thumb${repeated?" pkg-thumb-repeated":""}" src="${thumb}" alt="${repeated?"Repeated from an earlier reading":"Progress photo"}, ${formatShortDate(l.date)}" title="${repeated?"No photo logged this reading — showing the most recent one":"Progress photo"}" onerror="healBrokenScalePhoto(this,'${thumbDate}','${thumbField}')">` : `<span class="pkg-thumb-placeholder"></span>`}</td>
+      <td class="phase-cell">${rowPhase ? rowPhase.name : "—"}</td>
       <td class="log-date-cell" onclick="editLogEntry('${l.date}')" title="Click to edit this reading">${formatFullDate(l.date)}</td>
       <td class="chip-td">${rangeChip(l.weightKg.toFixed(1)+" kg", weightCat)}</td>
       <td class="chip-td">${bmi!=null ? rangeChip(bmi.toFixed(1), bmiCat) : "—"}</td>
@@ -6409,12 +6423,12 @@ function renderLogView(){
     <div class="table-scroll">
       <table class="log-table">
         <colgroup>
-          <col class="thumb-col"><col class="date-col">
+          <col class="thumb-col"><col class="phase-col"><col class="date-col">
           <col class="chip-col"><col class="chip-col"><col class="chip-col"><col class="chip-col">
           <col class="chip-col"><col class="chip-col"><col class="chip-col"><col class="chip-col">
           <col class="chip-col"><col class="chip-col">
         </colgroup>
-        <thead><tr><th></th><th>Date</th><th class="chip-th">Weight</th><th class="chip-th">BMI</th><th class="chip-th">Body fat</th><th class="chip-th">Muscle</th><th class="chip-th">Visc. fat</th><th class="chip-th">Chest</th><th class="chip-th">Waist</th><th class="chip-th">Hip</th><th class="chip-th">Thigh</th><th class="chip-th">Calf</th></tr></thead>
+        <thead><tr><th></th><th>Phase</th><th>Date</th><th class="chip-th">Weight</th><th class="chip-th">BMI</th><th class="chip-th">Body fat</th><th class="chip-th">Muscle</th><th class="chip-th">Visc. fat</th><th class="chip-th">Chest</th><th class="chip-th">Waist</th><th class="chip-th">Hip</th><th class="chip-th">Thigh</th><th class="chip-th">Calf</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
