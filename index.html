@@ -2005,8 +2005,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.14";
+const APP_VERSION = "2.15";
 const CHANGELOG = [
+  { version: "2.15", date: "2026-09-25", desc: "Two fixes/changes: (1) a save (e.g. a new scale-log reading with photos) that failed because the browser's local storage was full used to fail completely silently -- no error, the entry just never actually got saved, and refreshing made it look like it had \"disappeared\". Direct live report: \"I enter data, pictures. I refresh the website and they are gone.\" Now a failed save shows a clear on-screen message explaining what happened and that the entry was NOT saved, instead of failing invisibly. (2) The Weight trend chart's dashed \"Target\" line used to only ever show the CURRENT phase's target weight, so starting a new phase with a different goal made the previous one's target line disappear. Direct follow-up feedback: \"show target 1 and target 2, so I can see progress per target.\" Every phase's own target weight now gets its own labeled line on the chart." },
   { version: "2.14", date: "2026-09-24", desc: "Fixed deleted entries (nutrition log, workout log, habit log, scale-log readings, commitments, AI Coach notes) sometimes reappearing -- or showing up doubled -- after a sync. Direct live report: \"sometimes the synchronization is happening and my values are doubled...! if I delete the position it should not come back again because of any synchronisation.\" Root cause: cloud sync has always merged data as a strict union that never drops anything it doesn't recognize (a deliberate earlier fix for entries silently vanishing) -- which meant a genuine deletion looked identical to \"hasn't synced yet\", so pulling a cloud snapshot from before the deletion (another device, or this device's own not-yet-landed push) quietly brought the deleted entry back. Deletions are now recorded as their own small \"this was deleted on purpose\" markers that travel with the sync data, so a pull can tell the two apart and a deletion sticks everywhere, including on other devices." },
   { version: "2.13", date: "2026-09-24", desc: "Fixed a saved AI Coach next-phase suggestion getting silently thrown away if you opened \"Complete phase\", saw the offer to use it, and then closed the form (X/Cancel, or declining the confirm) without actually finishing -- reopening \"Complete phase\" later no longer showed the offer at all. The suggestion is now only cleared once a phase is actually completed, so backing out of the form never loses it and you'll be asked again next time." },
   { version: "2.12", date: "2026-09-24", desc: "\"Evaluate current phase\" now prefills the WHOLE Complete Phase form, not just calories, protein and exercises -- target weight, planned duration, and every aesthetic measure (Body fat %, Muscle %, Visceral fat, Chest, Waist, Hip, Thigh, Calf) are covered too, per direct follow-up feedback (\"the system should already pre-filled-in all the information ... how many calories, protein for a day, hip size etc\"). Works the same whichever path you used to evaluate the phase -- \"Ask AI Coach now\", \"Generate full export\" + \"Load AI Feedback\", doesn't matter." },
@@ -2708,7 +2709,28 @@ function getUsers(){
   return JSON.parse(localStorage.getItem(USERS_KEY) || "{}");
 }
 function saveUsers(users){
-  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  // v2.15: this write throwing (almost always a full local-storage quota -- QuotaExceededError)
+  // used to propagate as a silent, uncaught exception. Every save in the app goes through this one
+  // function, so ANY save (a scale-log reading + photos, a food entry, a workout set, anything)
+  // could fail with no visible sign at all: the throw aborted the rest of that save's handler (so
+  // no "Reading added" toast, the table never re-rendered) but nothing told the user why, and
+  // because the write is atomic, NONE of that save's data ever reached storage -- refreshing then
+  // showed exactly what was there before, looking like the entry had silently vanished. Direct live
+  // report: "I enter data, pictures. I refresh the website and they are gone." Surface this loudly
+  // instead, and still re-throw so callers keep treating the save as failed (unchanged behavior --
+  // this only adds the missing visible feedback).
+  try{
+    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+  } catch(err){
+    console.error("saveUsers: localStorage.setItem failed", err);
+    const isQuota = err && (err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED" || /quota/i.test(err.message || ""));
+    if(typeof showToast === "function"){
+      showToast(isQuota
+        ? "Save failed — your browser's storage is full. This entry was NOT saved. Try deleting some old progress photos (Scale Log → History), then try again."
+        : "Save failed — your browser blocked local storage. This entry was NOT saved. Please tell the developer.", 9000);
+    }
+    throw err;
+  }
   if(isCloudSyncConfigured()) pushToCloud();
 }
 function normEmail(e){
@@ -5006,17 +5028,34 @@ function renderTrendChart(logs){
 
   let lo = min - basePad, hi = max + basePad;
   const th = bmiWeightThresholds();
-  const targetKg = answers.targetWeightKg;
+  // v2.15: used to be a single target line (answers.targetWeightKg, which completePhase() silently
+  // overwrites to whatever the CURRENT phase's target is -- see completePhase()) -- so starting a
+  // new phase with a different target weight made the previous phase's target line disappear
+  // entirely, even though it might still be worth comparing against. Direct follow-up feedback:
+  // "Can you please on this graph show target 1 and target 2. So I can see progress per target."
+  // Now every phase's own target weight gets its own labeled line ("Target 1", "Target 2", ... in
+  // chronological phase order), so switching phases no longer erases earlier milestones from view.
+  // Consecutive phases sharing the exact same target collapse into one line rather than drawing two
+  // identical overlapping ones.
   const NEARBY_KG = 10;
+  const targetLines = [];
+  getPhases().forEach(p=>{
+    if(p.targetWeightKg == null) return;
+    const prev = targetLines[targetLines.length-1];
+    if(prev && prev.targetWeightKg === p.targetWeightKg) return;
+    targetLines.push({targetWeightKg: p.targetWeightKg, label: `Target ${targetLines.length+1}`});
+  });
   const nearbyThresholds = th ? [th.underweight, th.overweight, th.obese].filter(v => v >= min - NEARBY_KG && v <= max + NEARBY_KG) : [];
   nearbyThresholds.forEach(v => { lo = Math.min(lo, v - 2); hi = Math.max(hi, v + 2); });
-  // Same "pull the visible domain out to include it" treatment as the BMI thresholds above, so the
-  // Target band doesn't get clipped off just because today's weight happens to be a bit further
-  // from goal than the BMI zones are.
-  if(targetKg != null && targetKg >= min - NEARBY_KG && targetKg <= max + NEARBY_KG){
-    lo = Math.min(lo, targetKg - 2);
-    hi = Math.max(hi, targetKg + 2);
-  }
+  // Same "pull the visible domain out to include it" treatment as the BMI thresholds above, so a
+  // target band doesn't get clipped off just because today's weight happens to be a bit further
+  // from goal than the BMI zones are -- now applied to every target line, not just one.
+  targetLines.forEach(t=>{
+    if(t.targetWeightKg >= min - NEARBY_KG && t.targetWeightKg <= max + NEARBY_KG){
+      lo = Math.min(lo, t.targetWeightKg - 2);
+      hi = Math.max(hi, t.targetWeightKg + 2);
+    }
+  });
   const domainRange = (hi - lo) || 1;
 
   const yFor = (weight) => h - pad - ((weight - lo) / domainRange) * (h - pad*2);
@@ -5053,19 +5092,33 @@ function renderTrendChart(logs){
     });
   }
 
-  // Target weight -- drawn the same way as the BMI zone bands above (a shaded rect spanning the
-  // chart width plus a matching-colored label on the right), just in yellow to keep it visually
-  // distinct from the BMI zones' green/amber/red. Independent of height/BMI data being present.
-  if(targetKg != null && targetKg >= lo && targetKg <= hi){
-    const TARGET_FILL = "rgba(244,208,63,.16)", TARGET_LINE = "#f4d03f";
-    const bandHalfKg = Math.max(domainRange * 0.012, 0.15);
-    const yTop = yFor(Math.min(targetKg + bandHalfKg, hi)), yBottom = yFor(Math.max(targetKg - bandHalfKg, lo));
-    const bandH = Math.max(yBottom - yTop, 3);
-    const yCenter = yFor(targetKg);
-    bands += `<rect x="${pad}" y="${(yCenter-bandH/2).toFixed(1)}" width="${chartRight-pad}" height="${bandH.toFixed(1)}" fill="${TARGET_FILL}"></rect>`;
-    bands += `<line x1="${pad}" y1="${yCenter.toFixed(1)}" x2="${chartRight}" y2="${yCenter.toFixed(1)}" stroke="${TARGET_LINE}" stroke-width="1" stroke-dasharray="3 3"></line>`;
-    bands += `<text x="${chartRight+6}" y="${(yCenter+3).toFixed(1)}" font-size="9" fill="${TARGET_LINE}">Target ${targetKg.toFixed(1)}kg</text>`;
-  }
+  // Target weight lines -- drawn the same way as the BMI zone bands above (a shaded rect spanning
+  // the chart width plus a matching-colored label on the right), in shades of yellow/gold to stay
+  // visually distinct from the BMI zones' green/amber/red while still reading as "these are all
+  // targets". Independent of height/BMI data being present. v2.15: now one per phase (see the
+  // targetLines comment above) instead of a single line, with labels nudged apart vertically so two
+  // targets close in value don't overlap illegibly.
+  const TARGET_COLORS = ["#f4d03f", "#e67e22", "#f7dc6f", "#d68910"];
+  const TARGET_FILLS = ["rgba(244,208,63,.16)", "rgba(230,126,34,.16)", "rgba(247,220,111,.16)", "rgba(214,137,16,.16)"];
+  const MIN_LABEL_GAP_PX = 11;
+  let lastLabelY = -Infinity;
+  targetLines
+    .filter(t => t.targetWeightKg >= lo && t.targetWeightKg <= hi)
+    .sort((a,b) => yFor(b.targetWeightKg) - yFor(a.targetWeightKg)) // top-to-bottom so label-stacking below reads in order
+    .forEach((t, idx)=>{
+      const color = TARGET_COLORS[idx % TARGET_COLORS.length];
+      const fill = TARGET_FILLS[idx % TARGET_FILLS.length];
+      const bandHalfKg = Math.max(domainRange * 0.012, 0.15);
+      const yTop = yFor(Math.min(t.targetWeightKg + bandHalfKg, hi)), yBottom = yFor(Math.max(t.targetWeightKg - bandHalfKg, lo));
+      const bandH = Math.max(yBottom - yTop, 3);
+      const yCenter = yFor(t.targetWeightKg);
+      let labelY = yCenter + 3;
+      if(labelY - lastLabelY < MIN_LABEL_GAP_PX) labelY = lastLabelY + MIN_LABEL_GAP_PX;
+      lastLabelY = labelY;
+      bands += `<rect x="${pad}" y="${(yCenter-bandH/2).toFixed(1)}" width="${chartRight-pad}" height="${bandH.toFixed(1)}" fill="${fill}"></rect>`;
+      bands += `<line x1="${pad}" y1="${yCenter.toFixed(1)}" x2="${chartRight}" y2="${yCenter.toFixed(1)}" stroke="${color}" stroke-width="1" stroke-dasharray="3 3"></line>`;
+      bands += `<text x="${chartRight+6}" y="${labelY.toFixed(1)}" font-size="9" fill="${color}">${t.label} ${t.targetWeightKg.toFixed(1)}kg</text>`;
+    });
 
   // Space points along X by actual elapsed time between log dates, not just by entry index --
   // otherwise a gap of 1 day and a gap of 3 weeks look identical on the chart.
@@ -5110,9 +5163,15 @@ function renderTrendChart(logs){
   // as you're at/past your goal.
   const isLossGoal = answers.goalType === "Lose fat";
   const isGainGoal = answers.goalType === "Gain muscle / weight";
-  const goalReached = targetKg != null && (
-    isLossGoal ? last.weightKg <= targetKg :
-    isGainGoal ? last.weightKg >= targetKg :
+  // v2.15: targetKg used to come from answers.targetWeightKg, which completePhase() keeps synced to
+  // whatever the ACTIVE phase's target is -- now that the chart can show every phase's target line
+  // (see targetLines above), the goal-reached badge still only cares about the current/active one,
+  // same as before.
+  const activePhaseForGoal = getActivePhase();
+  const activeTargetKg = (activePhaseForGoal && activePhaseForGoal.targetWeightKg != null) ? activePhaseForGoal.targetWeightKg : answers.targetWeightKg;
+  const goalReached = activeTargetKg != null && (
+    isLossGoal ? last.weightKg <= activeTargetKg :
+    isGainGoal ? last.weightKg >= activeTargetKg :
     false
   );
 
@@ -5146,7 +5205,7 @@ function renderTrendChart(logs){
       </svg>
       ${goalReached ? `<div class="trend-goal-reached-badge" title="You've reached your target weight!">${smileyPhotoImg(84, "Target weight reached!")}</div>` : ""}
     </div>
-    ${goalReached ? `<div class="trend-goal-reached-note">${ICON_SMILEY}You've reached your target weight of ${targetKg.toFixed(1)}kg!</div>` : ""}
+    ${goalReached ? `<div class="trend-goal-reached-note">${ICON_SMILEY}You've reached your target weight of ${activeTargetKg.toFixed(1)}kg!</div>` : ""}
     ${!th ? `<div class="goal-progress-note">Add your height in Body Profile to see BMI zone bands here.</div>` : ""}
   `;
 }
