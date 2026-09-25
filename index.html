@@ -2005,8 +2005,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.17";
+const APP_VERSION = "2.18";
 const CHANGELOG = [
+  { version: "2.18", date: "2026-09-25", desc: "Found a SECOND, separate way a scale-log reading could vanish after v2.17's fix -- reported again, live, right after: \"I entered again 24.09 and was automatically deleted again.\" v2.17 covered closing the Edit form with \"− Hide form\"; this covers the more common trigger -- clicking Edit on a reading, then switching to a totally different tab (Nutrition Log, Workout Log, etc.) instead of closing the form at all, then coming back to Scale Log later. The form used to stay silently locked onto that old entry across the tab switch, so typing a new date into it (not realizing it was still in Edit mode) silently deleted the old reading and could overwrite whatever was already saved under the new date. Switching to any other tab now always exits Edit mode first, the same as closing the form already did. On top of that, as a last line of defense against any similar bug still to be found: changing a reading's date while editing it now always asks for confirmation first, spelling out exactly what will be deleted or overwritten, before anything happens -- so this specific failure mode can never again happen silently." },
   { version: "2.17", date: "2026-09-25", desc: "Found and fixed the actual cause of a reading disappearing after being entered and the page refreshed -- the v2.15/v2.16 fixes covered storage running out, but this was a different bug. Direct live report: \"I entered reading for 24.09 and after refreshing the website the data is gone.\" Clicking Edit on a reading, then closing the form with \"− Hide form\" instead of Cancel, silently left the form remembering it was still editing that old entry. Reopening the form later via \"+ Add a reading\" to log a completely different date continued in that stale, invisible edit state -- so submitting the new date was treated as moving the OLD reading to the new date, deleting the old one and overwriting whatever was already saved under the new date. Hiding the form now always properly exits edit mode, the same as clicking Cancel already did, so reopening it is always a clean, honest \"Add a reading\"." },
   { version: "2.16", date: "2026-09-25", desc: "Real fix for saves silently failing once your account's local storage filled up (see v2.15): moved where your account data actually lives from the browser's local storage -- a hard cap of around 5-10MB in most browsers, easy to hit with a long history of progress photos -- to IndexedDB, which is typically sized as hundreds of MB up to a few GB. Nothing is deleted to make this work: your existing photos and history are automatically carried over into the new storage the first time you open the app after this update, with no old data ever removed. Falls back to the exact previous behavior if IndexedDB isn't available at all." },
   { version: "2.15", date: "2026-09-25", desc: "Two fixes/changes: (1) a save (e.g. a new scale-log reading with photos) that failed because the browser's local storage was full used to fail completely silently -- no error, the entry just never actually got saved, and refreshing made it look like it had \"disappeared\". Direct live report: \"I enter data, pictures. I refresh the website and they are gone.\" Now a failed save shows a clear on-screen message explaining what happened and that the entry was NOT saved, instead of failing invisibly. (2) The Weight trend chart's dashed \"Target\" line used to only ever show the CURRENT phase's target weight, so starting a new phase with a different goal made the previous one's target line disappear. Direct follow-up feedback: \"show target 1 and target 2, so I can see progress per target.\" Every phase's own target weight now gets its own labeled line on the chart." },
@@ -4375,6 +4376,18 @@ document.getElementById("helpOverlay").addEventListener("click", (e)=>{
 function switchView(view){
   renderMissingDataWarningBanner();
   saveLastView(view);
+  // v2.18: leaving Scale Log for a different tab while the "Add a reading" form was open mid-Edit
+  // used to leave it silently stuck in that edit state -- editingLogDate is a plain variable with no
+  // connection to which tab is even visible, so coming back to Scale Log later (however much later)
+  // found the form exactly as it was, still quietly bound to whatever entry was last being edited.
+  // Typing a new date into it then (thinking it's a fresh "Add a reading", since that's what it
+  // looks like if you don't notice the "Edit..."/"Update reading" title/button text) submitted as
+  // "move that old entry to this new date" -- silently deleting the old one and overwriting whatever
+  // was already saved under the typed date. Direct live report, TWICE: "I entered again 24.09 and
+  // was automatically deleted again." Navigating to any other tab now always exits edit mode and
+  // hides the form first, the same as hideLogForm() already does -- so coming back to Scale Log is
+  // always a clean slate, never a silently-resumed edit from however long ago.
+  if(view!=="log" && isLogFormOpen()) hideLogForm();
   document.getElementById("viewTabLog").classList.toggle("active", view==="log");
   document.getElementById("viewTabFood").classList.toggle("active", view==="food");
   document.getElementById("viewTabRecipes").classList.toggle("active", view==="recipes");
@@ -5080,6 +5093,16 @@ document.getElementById("logForm").addEventListener("submit", (e)=>{
   let logs = getScaleLogs();
   // if editing and the date changed, drop the old dated entry so we don't end up with two
   if(editingLogDate && editingLogDate !== date){
+    // v2.18: this branch is inherently destructive -- it deletes the OLD date's reading outright and
+    // silently overwrites anything already saved under the NEW date -- so it now always asks first,
+    // as a last line of defense on top of the v2.17/v2.18 fixes for editingLogDate going stale
+    // behind the scenes. Direct live report, more than once, of a reading vanishing this exact way
+    // with no warning at all: "I entered again 24.09 and was automatically deleted again."
+    const targetHasExisting = logs.some(l=>l.date===date);
+    const confirmMsg = `Move this reading from ${formatShortDate(editingLogDate)} to ${formatShortDate(date)}?`
+      + (targetHasExisting ? ` This will DELETE the reading already saved on ${formatShortDate(date)}.` : ` The ${formatShortDate(editingLogDate)} reading will no longer exist under that date.`)
+      + `\n\nIf you meant to add a brand new reading instead, tap Cancel, then Cancel the edit and use "+ Add a reading" fresh.`;
+    if(!confirm(confirmMsg)) return;
     logs = logs.filter(l=>l.date!==editingLogDate);
     // v2.14: this drops the old date the same way an outright delete does -- without a tombstone, a
     // pull from a cloud snapshot still holding the old-dated reading would bring back exactly the
