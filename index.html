@@ -1125,7 +1125,7 @@
       <div id="planGroupNutrition" class="hidden">
         <div class="card">
           <h2>Daily physical condition questions</h2>
-          <div class="step-desc" style="margin-top:0;">Turn on the yes/no check-ins you want to answer each day in Nutrition Log. Whichever ones are on (except Good Sleep and Stomach problems, each asked once via a popup instead) show up there together as one small card — each question disappears from the card as soon as you answer it, with a red warning if any of the last 7 days is still missing an answer — and their results build up into a heatmap under Protein per day.</div>
+          <div class="step-desc" style="margin-top:0;">Turn on the yes/no check-ins you want to answer each day in Nutrition Log. Whichever ones are on show up there together as one small card — each question disappears from the card as soon as you answer it, with a red warning if any of the last 7 days is still missing an answer — and their results build up into a heatmap under Protein per day.</div>
           <div class="field" style="display:flex; flex-direction:column; gap:10px;">
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_creatine" style="width:auto;"> Creatine <span style="color:var(--muted); font-weight:400;">— "Did you take Creatine 3g?"</span></label>
             <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer;"><input type="checkbox" id="dqEnabledCb_sleep" style="width:auto;"> Good Sleep <span style="color:var(--muted); font-weight:400;">— "Did you sleep well?"</span></label>
@@ -2012,8 +2012,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.22";
+const APP_VERSION = "2.23";
 const CHANGELOG = [
+  { version: "2.23", date: "2026-09-26", desc: "Direct feedback: \"For cretatine, coffeine etc. I get a hint with a question. Please do the same logic for good sleep and stomach problem. Now there is a separate logic for that.\" Good Sleep and Stomach problems used to work differently from the other four daily check-in questions -- instead of appearing on the Nutrition Log card with the same inline Yes/No buttons and warning banner, they only ever surfaced through a once-a-day popup. They now use the exact same card logic as Creatine, Water, Caffeine and Alcohol: shown right on the card until answered, folded into the same combined warning banner, and gone once answered. The automatic popup itself is now dormant (nothing is left that fires it), though the underlying modal still works for editing any past answer from the heatmap." },
   { version: "2.22", date: "2026-09-25", desc: "Two follow-up requests on the Scale Log screen. First, the weight trend chart's zone/target labels (\"Overweight\", \"Normal\", \"Target 1\", \"Target 2\", ...) used to be squeezed into a narrow margin on the right edge of the chart, where they could overlap the measurement cards sitting right next to it -- they're now a plain legend shown below the chart instead. Second, the History table now shows which phase each reading belongs to (\"Phase 1\", \"Phase 2\", ...) in a new column right after the photo." },
   { version: "2.21", date: "2026-09-25", desc: "The v2.20 fix helped but wasn't the whole story -- the same reading vanished again after further use, confirmed live with the exact same old delete-marker timestamps reappearing. Root cause: v2.20 only cleared the marker on the one device that re-added the reading -- but sync always keeps a copy of every marker ever seen on ANY device, forever, specifically so a real deletion always reaches every device. That meant the still-uncleared copy sitting in the cloud (from before this was fixed, or from another open tab) kept quietly reappearing on every sync and re-deleting the reading each time, no matter how many times it was cleared on just one device. Properly fixed now: every reading remembers exactly when it was last saved, and a delete-marker can only ever suppress a reading OLDER than itself -- so a genuinely new save now always wins, regardless of what any other device still thinks. Also added a small internal diagnostic log (synced quietly in the background, invisible in the app) to help pin down anything else still slipping through, including the separate \"picture cannot be displayed\" photo error also reported." },
   { version: "2.20", date: "2026-09-25", desc: "Found the ACTUAL root cause of the recurring scale-log vanishing bug, by reproducing it directly on the live site after yet another report: \"It is not working!!! All the time the entry is deleted automatically.\" Deleting a reading (or v2.18's confirm-gated date-move) records a small marker -- a \"tombstone\" -- so a later sync can't quietly bring a deleted reading back from an older cloud snapshot. That part was correct. What was missing: nothing ever CLEARED that marker once a date was genuinely used again for a brand new reading. So the sequence was: delete a reading for a date -> weeks later, log a fresh new reading for that exact same date -> it saves and displays completely normally -- until the next sync (which a plain page refresh triggers), which saw the old leftover marker and quietly deleted the brand new reading too, mistaking it for the same old deleted one. v2.19's safety net from earlier today didn't catch this specific case because, from its point of view, the marker made the deletion look intentional. Saving a reading now always clears any old marker for that exact date first." },
@@ -6656,13 +6657,19 @@ const DAILY_CONDITION_QUESTIONS = [
   { id: "caffeine", settingLabel: "High Caffeine Intake", question: "Did you have high caffeine intake?", goodValue: false },
   { id: "alcohol",  settingLabel: "Alcohol Intake",       question: "Did you drink alcohol?",              goodValue: false },
 ];
-// Creatine, Water, Caffeine and Alcohol live on the Nutrition Log card. v1.51 moved Stomach problems
-// there too (grouping it with Water); v1.61 moved it back to the popup-only set at the user's request,
-// matching Good Sleep -- both are asked once via an automatic popup the first time anything is logged
-// that day (see maybeShowDailyQuestionsPopup) rather than as an inline card row, and can always be
-// changed afterward from the heatmap.
-const NUTRITION_CARD_QUESTION_IDS = ["creatine", "water", "caffeine", "alcohol"];
-const POPUP_QUESTION_IDS = ["sleep", "stomach"];
+// v2.23: Good Sleep and Stomach problems now use the exact same card logic as every other question
+// (Creatine, Water, Caffeine, Alcohol) -- a row on the Nutrition Log card with its own Yes/No
+// buttons and the same 7-day-lookback warning banner -- instead of a separate once-a-day popup.
+// Direct follow-up feedback: "For creatine, coffeine etc. I get a hint with a question. Please do
+// the same logic for good sleep and stomach problem. Now there is a separate logic for that." This
+// is actually the third swing on this: v1.09 launched all of them on the card together, v1.12 moved
+// Good Sleep + Stomach problems off it to a popup, v1.51 briefly brought Stomach problems back before
+// v1.61 sent it to the popup again alongside Good Sleep -- this settles it back on the card for good.
+// POPUP_QUESTION_IDS is left in place (now empty) rather than removed, since the popup/edit-modal
+// machinery itself (maybeShowDailyQuestionsPopup, openDailyQuestionEditModal) is still exactly what
+// lets you answer or change any question -- card ones included -- for a past date via the heatmap.
+const NUTRITION_CARD_QUESTION_IDS = ["creatine", "water", "caffeine", "alcohol", "sleep", "stomach"];
+const POPUP_QUESTION_IDS = [];
 function getDailyQuestionsEnabled(){
   const users = getUsers();
   const u = users[currentUserEmail];
@@ -6754,10 +6761,11 @@ function markDailyQuestionsPopupShownToday(){
 }
 
 // Called at the end of the Scale Log / Nutrition Log / Workout Log submit handlers -- i.e. whenever
-// the person logs *something* for the day. If Good Sleep and/or Stomach problems are turned on and
-// still unanswered for today, and the popup hasn't already fired today, ask about them once. Dismissing
-// without answering still marks it shown for today -- the heatmap's click-to-edit (see
-// openDailyQuestionEditModal) covers answering late or changing an answer afterward.
+// the person logs *something* for the day. Asks about any question in POPUP_QUESTION_IDS that's
+// turned on and still unanswered for today, once per day. v2.23: that list is currently empty --
+// every question now lives on the Nutrition Log card instead (see NUTRITION_CARD_QUESTION_IDS) -- so
+// this is effectively a no-op today, kept in place in case a future question ever wants the
+// popup-only treatment again rather than a permanent card row.
 function maybeShowDailyQuestionsPopup(){
   if(typeof document === "undefined" || !document.getElementById("dailyQuestionsPopupOverlay")) return;
   if(wasDailyQuestionsPopupShownToday()) return;
@@ -6940,9 +6948,9 @@ function openDailyQuestionsPopup(questions, date, title){
   renderDailyQuestionsPopupBody(questions, date);
   overlay.classList.remove("hidden");
 }
-// Entry point for clicking a heatmap cell -- lets Good Sleep / Stomach problems (which no longer live
-// on the always-visible Nutrition Log card) be answered late or changed for any date, and works just
-// as well for Creatine/Water if someone wants to fix an earlier day from the heatmap too.
+// Entry point for clicking a heatmap cell -- lets any question (Good Sleep, Stomach problems,
+// Creatine, Water, ...) be answered late or changed for any past date straight from the heatmap,
+// regardless of whether it currently also shows as a live row on the Nutrition Log card.
 function openDailyQuestionEditModal(qid, date){
   const q = DAILY_CONDITION_QUESTIONS.find(q => q.id === qid);
   if(!q) return;
