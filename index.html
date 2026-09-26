@@ -2014,8 +2014,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.25";
+const APP_VERSION = "2.26";
 const CHANGELOG = [
+  { version: "2.26", date: "2026-09-26", desc: "Follow-up fix, reported with a screenshot with arrows pointing at the daily check-in results heatmap's row labels: they were rendering cut off to 4-6 characters (\"Creati\", \"Good\", \"Stoma\", \"Water\", \"High C\", \"Alcoh\"). Root cause: v2.25's wider bars ate almost all of the small margin the row-label column's width was derived from, leaving barely 19px of room. Fixed with two changes: the heatmap now shows a short label (\"Sleep\", \"Stomach\", \"Caffeine\", ...) instead of the longer Settings wording, and the reserved space before the first day's bar grew enough to comfortably fit it. The Calorie/Protein charts and heatmap are very slightly wider as a result (still well within normal card width on most screens)." },
   { version: "2.25", date: "2026-09-26", desc: "Direct feedback on the Phase view of Nutrition Trends (with a screenshot pointing at the \"Phase 2 - Cut to 73kg\" badge): \"in daily please optically take the reference from weekly, and phase.\" Investigation found the badge, legend and \"Average X/day...\" line already matched across Daily/Weekly/Phase -- the real difference was that Weekly/Phase show a few, wide, generously-spaced bars while Daily's 14-day page packed many thinner bars closer together, reading visually busier. Asked directly which fix was wanted and went with \"wider bars + more spacing\": the Daily view's Calorie/Protein charts and the check-in results heatmap below them now render with noticeably wider bars and gaps than before, while Weekly and Phase are completely unchanged." },
   { version: "2.24", date: "2026-09-26", desc: "Two follow-up requests. First (with a screenshot of the OTHER MEASUREMENTS mini-cards): \"change the order fat, muscle, visceral fat, chest, waist, hip, thigh, calf\" -- reordered from the previous Body fat/Chest/Waist/Hip/Thigh/Calf/Muscle/Visceral fat sequence to exactly that. Second (with a screenshot of the Calorie/Protein charts and daily check-in heatmap): \"I really like how it looks like... Just if we might increase that the elements would be a bit bigger would be perfect\" -- the Calorie/Protein bar charts grew taller again (192 -> 224px, same step size as the earlier v1.22 bump), and the check-in results heatmap below them grew to match (rows/cells 20px -> 24px, icons and text sized up a step throughout), so the whole section reads a bit bigger together." },
   { version: "2.23", date: "2026-09-26", desc: "Direct feedback: \"For cretatine, coffeine etc. I get a hint with a question. Please do the same logic for good sleep and stomach problem. Now there is a separate logic for that.\" Good Sleep and Stomach problems used to work differently from the other four daily check-in questions -- instead of appearing on the Nutrition Log card with the same inline Yes/No buttons and warning banner, they only ever surfaced through a once-a-day popup. They now use the exact same card logic as Creatine, Water, Caffeine and Alcohol: shown right on the card until answered, folded into the same combined warning banner, and gone once answered. The automatic popup itself is now dormant (nothing is left that fires it), though the underlying modal still works for editing any past answer from the heatmap." },
@@ -6652,16 +6653,23 @@ function getFoodDayNote(date){
 // is phrased the other way around (a Yes means something went wrong), so it's the one question that
 // needs goodValue:false -- a No there ("I did NOT have stomach problems") is the good answer and
 // should render as a green checkmark, not an orange cross, even though the raw stored value is false.
+// v2.26: heatLabel is a short, heatmap-row-only display label -- the heatmap's row-label column is
+// tight by design (see renderDailyQuestionsHeatmap's firstColPct comment), and got much tighter once
+// v2.25 widened the bars/gaps it shares its geometry with, which left barely any room and caused the
+// full settingLabel text to render truncated to 4-6 characters ("Creati", "Good", "Stoma", ...) --
+// reported directly via a screenshot with arrows pointing at the cut-off row labels. settingLabel
+// itself is unchanged and still used everywhere else (Settings toggles, Nutrition Log card rows, CSV
+// export headers, Coach export) where there's ample room for the full, descriptive wording.
 const DAILY_CONDITION_QUESTIONS = [
-  { id: "creatine", settingLabel: "Creatine",        question: "Did you take Creatine 3g?" },
-  { id: "sleep",    settingLabel: "Good Sleep",       question: "Did you sleep well?" },
-  { id: "stomach",  settingLabel: "Stomach problems", question: "Did you have stomach problems?", goodValue: false },
-  { id: "water",    settingLabel: "Water intake",     question: "Did you drink enough water?" },
+  { id: "creatine", settingLabel: "Creatine",        heatLabel: "Creatine", question: "Did you take Creatine 3g?" },
+  { id: "sleep",    settingLabel: "Good Sleep",       heatLabel: "Sleep",    question: "Did you sleep well?" },
+  { id: "stomach",  settingLabel: "Stomach problems", heatLabel: "Stomach",  question: "Did you have stomach problems?", goodValue: false },
+  { id: "water",    settingLabel: "Water intake",     heatLabel: "Water",    question: "Did you drink enough water?" },
   // v1.50: like Stomach problems, Yes is the BAD outcome for both of these -- high caffeine intake
   // and drinking alcohol both count against you, so they need goodValue:false too (a No renders the
   // green checkmark in the heatmap/history, a Yes the warn-colored cross).
-  { id: "caffeine", settingLabel: "High Caffeine Intake", question: "Did you have high caffeine intake?", goodValue: false },
-  { id: "alcohol",  settingLabel: "Alcohol Intake",       question: "Did you drink alcohol?",              goodValue: false },
+  { id: "caffeine", settingLabel: "High Caffeine Intake", heatLabel: "Caffeine", question: "Did you have high caffeine intake?", goodValue: false },
+  { id: "alcohol",  settingLabel: "Alcohol Intake",       heatLabel: "Alcohol",  question: "Did you drink alcohol?",              goodValue: false },
 ];
 // v2.23: Good Sleep and Stomach problems now use the exact same card logic as every other question
 // (Creatine, Water, Caffeine, Alcohol) -- a row on the Nutrition Log card with its own Yes/No
@@ -7046,7 +7054,8 @@ function renderDailyQuestionsHeatmap(){
       const pct = dailyChartBarCenterPct(days, i, DAILY_CHART_GRID_WIDE).toFixed(3);
       return `<div id="dqHeatCell_${q.id}_${d}" style="position:absolute; left:${pct}%; top:0; transform:translateX(-50%); height:24px; border-radius:3px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center;" title="${escAttr(q.question)} — ${d}: ${title} (click to change)">${icon}</div>`;
     }).join("");
-    return rowHtml(q.settingLabel, cellsHtml, " margin-bottom:6px;");
+    // v2.26: heatLabel (short form), not settingLabel -- see DAILY_CONDITION_QUESTIONS' comment.
+    return rowHtml(q.heatLabel, cellsHtml, " margin-bottom:6px;");
   }).join("");
 
   // Dates now live in one row underneath every category instead of a header repeated above each
@@ -8403,10 +8412,18 @@ const DAILY_CHART_GRID = { w: 720, pad: 24, padRight: 56, barW: 22, gap: 8, alig
 // v2.25: Weekly/Phase already read as bold and spacious (few, wide bars) -- direct feedback asked
 // for Daily to "optically take the reference from weekly, and phase" instead of packing its 14-day
 // page into thin, cramped columns. Daily now renders with its own wider bar/gap geometry
-// (DAILY_CHART_GRID_WIDE) while Weekly/Phase keep using the original DAILY_CHART_GRID unchanged --
-// same w/pad/padRight/alignFrac, so a 14-column Daily page still comfortably floors at the same
-// 720-unit baseline (no new horizontal scrolling forced), it just fills much more of that space.
-const DAILY_CHART_GRID_WIDE = { w: 720, pad: 24, padRight: 56, barW: 30, gap: 14, alignFrac: 0.5 };
+// (DAILY_CHART_GRID_WIDE) while Weekly/Phase keep using the original DAILY_CHART_GRID unchanged.
+// v2.26: pad grew again, 24 -> 90. renderDailyQuestionsHeatmap's row-label column width is derived
+// from this grid's own "pad + centering slack before the first bar" (see its firstColPct comment) --
+// v2.25's wider bars ate almost all of that slack (only ~19px of label room left), which cut the
+// heatmap's row labels down to 4-6 visible characters ("Creati", "Good", "Stoma", ...), reported
+// directly via a screenshot with arrows pointing at the truncated text. A pad of 90 gives the row
+// labels a real, readable column again (~84px, comfortably fits the short heatLabel strings even
+// with the widest, "Caffeine"/"Creatine"/"Stomach" at 8 characters). Content (14 wide columns) now
+// slightly exceeds the old 720-unit floor -- 90+602+56=748 -- so Daily's charts/heatmap render at
+// 748px and rely on the existing horizontal-scroll mechanism for the little bit of extra width, the
+// same established pattern already used whenever content needs more room than the floor allows.
+const DAILY_CHART_GRID_WIDE = { w: 720, pad: 90, padRight: 56, barW: 30, gap: 14, alignFrac: 0.5 };
 // v2.07: the actual rendered width for a chart with n columns -- floored at the grid's own w (so
 // every existing SHORT view -- the old 14-day daily window, the ~8-12-week Weekly/Phase views --
 // keeps its current look, unchanged) but grows past it once n needs more room than that at each
