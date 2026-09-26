@@ -2014,8 +2014,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.26";
+const APP_VERSION = "2.27";
 const CHANGELOG = [
+  { version: "2.27", date: "2026-09-26", desc: "Follow-up fix, reported with a screenshot: \"horrible now the slopes are very tiny\". Root cause: v2.26's row-label fix widened DAILY_CHART_GRID_WIDE's horizontal pad (24 -> 90) to make room for the heatmap's labels, but the Calorie/Protein bar charts were reusing that SAME value as their vertical (top/bottom) margin too, so it silently crushed the usable bar height from about 176px down to about 44px. The vertical margin is now its own fixed value, independent of whatever the horizontal one needs -- bars are back to their proper height. Also asked for 10 visual style proposals for the bars and got a pick: bars now fill with a soft top-to-bottom gradient tint instead of a flat color." },
   { version: "2.26", date: "2026-09-26", desc: "Follow-up fix, reported with a screenshot with arrows pointing at the daily check-in results heatmap's row labels: they were rendering cut off to 4-6 characters (\"Creati\", \"Good\", \"Stoma\", \"Water\", \"High C\", \"Alcoh\"). Root cause: v2.25's wider bars ate almost all of the small margin the row-label column's width was derived from, leaving barely 19px of room. Fixed with two changes: the heatmap now shows a short label (\"Sleep\", \"Stomach\", \"Caffeine\", ...) instead of the longer Settings wording, and the reserved space before the first day's bar grew enough to comfortably fit it. The Calorie/Protein charts and heatmap are very slightly wider as a result (still well within normal card width on most screens)." },
   { version: "2.25", date: "2026-09-26", desc: "Direct feedback on the Phase view of Nutrition Trends (with a screenshot pointing at the \"Phase 2 - Cut to 73kg\" badge): \"in daily please optically take the reference from weekly, and phase.\" Investigation found the badge, legend and \"Average X/day...\" line already matched across Daily/Weekly/Phase -- the real difference was that Weekly/Phase show a few, wide, generously-spaced bars while Daily's 14-day page packed many thinner bars closer together, reading visually busier. Asked directly which fix was wanted and went with \"wider bars + more spacing\": the Daily view's Calorie/Protein charts and the check-in results heatmap below them now render with noticeably wider bars and gaps than before, while Weekly and Phase are completely unchanged." },
   { version: "2.24", date: "2026-09-26", desc: "Two follow-up requests. First (with a screenshot of the OTHER MEASUREMENTS mini-cards): \"change the order fat, muscle, visceral fat, chest, waist, hip, thigh, calf\" -- reordered from the previous Body fat/Chest/Waist/Hip/Thigh/Calf/Muscle/Visceral fat sequence to exactly that. Second (with a screenshot of the Calorie/Protein charts and daily check-in heatmap): \"I really like how it looks like... Just if we might increase that the elements would be a bit bigger would be perfect\" -- the Calorie/Protein bar charts grew taller again (192 -> 224px, same step size as the earlier v1.22 bump), and the check-in results heatmap below them grew to match (rows/cells 20px -> 24px, icons and text sized up a step throughout), so the whole section reads a bit bigger together." },
@@ -8507,7 +8508,15 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   const h = isMobileViewport() ? 224 * 0.85 : 224;
   const chartRight = w - padRight;
   const maxVal = Math.max(targetValue || 0, ...series.map(s=>s.value), 1) * 1.15;
-  const yFor = v => h - pad - (v/maxVal)*(h - pad*2);
+  // v2.27: the chart's vertical (top/bottom) margin used to just reuse the grid's own `pad` -- fine
+  // when that was a small, purely-horizontal left-margin value, but v2.26 grew DAILY_CHART_GRID_WIDE's
+  // pad to 90 (to fix truncated heatmap row labels, which share this same grid for x-alignment), and
+  // that same 90 silently became the TOP and BOTTOM margin here too, crushing the usable bar height
+  // from ~176px down to ~44px -- direct feedback, with a screenshot: "horrible now the slopes are very
+  // tiny". Decoupled: padY is its own small, fixed vertical margin (matches the original 24 that both
+  // grids used before v2.26), independent of whatever `pad` the active grid needs for its x-axis.
+  const padY = 24;
+  const yFor = v => h - padY - (v/maxVal)*(h - padY*2);
 
   // History on this one -- v1.14 (50%), v1.16 (60%), and v1.18 (82%) each tried a visually-narrower
   // bar centered in its own full-width day-slot; each read as either too much gap or not what was
@@ -8523,14 +8532,24 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   // font-size number. Plain HTML text has no such distortion, so labels here now use the exact same
   // font-size/color as that date row (.68rem, var(--muted)) and finally match everywhere. The SVG
   // itself now only draws the bars and the dashed target line -- geometry, not text.
+  // v2.27: bars now fill with a soft top-to-bottom gradient (lighter at the top, full color at the
+  // bottom) instead of a flat color, per direct visual sign-off among 10 proposed styles. Three shared
+  // gradients (one per status color) live in <defs>, keyed by wrapId so multiple charts on the same
+  // page (Calorie + Protein) never collide over the same gradient id.
+  const gradPrefix = `dailyBarGrad_${wrapId}`;
+  const gradDefs = `<defs>
+    <linearGradient id="${gradPrefix}_accent" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--accent)" stop-opacity="0.55"></stop><stop offset="100%" stop-color="var(--accent)" stop-opacity="1"></stop></linearGradient>
+    <linearGradient id="${gradPrefix}_warn" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--warn)" stop-opacity="0.55"></stop><stop offset="100%" stop-color="var(--warn)" stop-opacity="1"></stop></linearGradient>
+    <linearGradient id="${gradPrefix}_border" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--border)" stop-opacity="0.55"></stop><stop offset="100%" stop-color="var(--border)" stop-opacity="1"></stop></linearGradient>
+  </defs>`;
   let bars = "", valueLabels = "", dateLabels = "";
   series.forEach((s,i)=>{
     const x = dailyChartBarX(n, i, grid);
     const y = yFor(s.value);
-    const barH = Math.max(h - pad - y, 0);
+    const barH = Math.max(h - padY - y, 0);
     const hit = targetValue ? hitTest(s.value, targetValue) : true;
-    const color = !s.logged ? "var(--border)" : (hit ? "var(--accent)" : "var(--warn)");
-    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(barW,1).toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${opts.tooltipDatePrefix||""}${formatShortDate(s.date)}: ${Math.round(s.value)}${opts.unit}</title></rect>`;
+    const colorKey = !s.logged ? "border" : (hit ? "accent" : "warn");
+    bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(barW,1).toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="url(#${gradPrefix}_${colorKey})"><title>${opts.tooltipDatePrefix||""}${formatShortDate(s.date)}: ${Math.round(s.value)}${opts.unit}</title></rect>`;
     const pct = dailyChartBarCenterPct(n, i, grid).toFixed(3);
     // Value label above each logged bar; skip unlogged (empty) days to avoid clutter. The SVG's
     // height style matches its viewBox height exactly (no vertical stretch), so a plain px offset
@@ -8542,7 +8561,7 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
     // Date label below each bar (day.month) — clickable to jump the whole app to that date. In
     // weekly view, s.date is that bar's Monday -- jumping there still lands you on a real,
     // meaningful day (the start of that week) rather than doing nothing.
-    dateLabels += `<div class="chart-date-label" style="left:${pct}%; top:${(h-pad+8).toFixed(1)}px;" onclick="jumpToDate('${s.date}')" title="${opts.tooltipDatePrefix||""}Switch the whole app to ${formatShortDate(s.date)}">${formatShortDate(s.date)}</div>`;
+    dateLabels += `<div class="chart-date-label" style="left:${pct}%; top:${(h-padY+8).toFixed(1)}px;" onclick="jumpToDate('${s.date}')" title="${opts.tooltipDatePrefix||""}Switch the whole app to ${formatShortDate(s.date)}">${formatShortDate(s.date)}</div>`;
   });
 
   let targetLine = "", targetLabel = "";
@@ -8565,6 +8584,7 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
     ${targetValue ? `<div class="trend-legend"><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--accent);"></span>${opts.hitSwatchLabel||"Hit target"}</span><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--warn);"></span>${opts.missSwatchLabel||"Under target"}</span></div>` : ""}
     <div style="position:relative; width:${w > grid.w ? w+"px" : "100%"}; height:${h}px;">
       <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%; height:${h}px; display:block;">
+        ${gradDefs}
         ${bars}
         ${targetLine}
       </svg>
