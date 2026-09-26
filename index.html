@@ -2014,8 +2014,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.24";
+const APP_VERSION = "2.25";
 const CHANGELOG = [
+  { version: "2.25", date: "2026-09-26", desc: "Direct feedback on the Phase view of Nutrition Trends (with a screenshot pointing at the \"Phase 2 - Cut to 73kg\" badge): \"in daily please optically take the reference from weekly, and phase.\" Investigation found the badge, legend and \"Average X/day...\" line already matched across Daily/Weekly/Phase -- the real difference was that Weekly/Phase show a few, wide, generously-spaced bars while Daily's 14-day page packed many thinner bars closer together, reading visually busier. Asked directly which fix was wanted and went with \"wider bars + more spacing\": the Daily view's Calorie/Protein charts and the check-in results heatmap below them now render with noticeably wider bars and gaps than before, while Weekly and Phase are completely unchanged." },
   { version: "2.24", date: "2026-09-26", desc: "Two follow-up requests. First (with a screenshot of the OTHER MEASUREMENTS mini-cards): \"change the order fat, muscle, visceral fat, chest, waist, hip, thigh, calf\" -- reordered from the previous Body fat/Chest/Waist/Hip/Thigh/Calf/Muscle/Visceral fat sequence to exactly that. Second (with a screenshot of the Calorie/Protein charts and daily check-in heatmap): \"I really like how it looks like... Just if we might increase that the elements would be a bit bigger would be perfect\" -- the Calorie/Protein bar charts grew taller again (192 -> 224px, same step size as the earlier v1.22 bump), and the check-in results heatmap below them grew to match (rows/cells 20px -> 24px, icons and text sized up a step throughout), so the whole section reads a bit bigger together." },
   { version: "2.23", date: "2026-09-26", desc: "Direct feedback: \"For cretatine, coffeine etc. I get a hint with a question. Please do the same logic for good sleep and stomach problem. Now there is a separate logic for that.\" Good Sleep and Stomach problems used to work differently from the other four daily check-in questions -- instead of appearing on the Nutrition Log card with the same inline Yes/No buttons and warning banner, they only ever surfaced through a once-a-day popup. They now use the exact same card logic as Creatine, Water, Caffeine and Alcohol: shown right on the card until answered, folded into the same combined warning banner, and gone once answered. The automatic popup itself is now dormant (nothing is left that fires it), though the underlying modal still works for editing any past answer from the heatmap." },
   { version: "2.22", date: "2026-09-25", desc: "Two follow-up requests on the Scale Log screen. First, the weight trend chart's zone/target labels (\"Overweight\", \"Normal\", \"Target 1\", \"Target 2\", ...) used to be squeezed into a narrow margin on the right edge of the chart, where they could overlap the measurement cards sitting right next to it -- they're now a plain legend shown below the chart instead. Second, the History table now shows which phase each reading belongs to (\"Phase 1\", \"Phase 2\", ...) in a new column right after the photo." },
@@ -7000,10 +7001,13 @@ function renderDailyQuestionsHeatmap(){
   clampDailyChartPage(fullDays);
   const dateList = dailyChartPageSlice(fullDateList, dailyChartPage);
   const days = dateList.length;
-  // Floors (and, past the DAILY_CHART_GRID.w baseline, actually widens) this wrap to the exact same
-  // width as the bar charts above it, via the same dailyChartGridWidth(n) math, so all three keep
-  // their day columns aligned while scrolling together -- see .chart-scroll-sync.
-  const gridW = dailyChartGridWidth(days);
+  // Floors (and, past the grid's own w baseline, actually widens) this wrap to the exact same width
+  // as the bar charts above it, via the same dailyChartGridWidth(n) math, so all three keep their day
+  // columns aligned while scrolling together -- see .chart-scroll-sync. v2.25: this heatmap only ever
+  // renders for Daily view (see renderNutritionTrendViewToggle), which now renders its bars with
+  // DAILY_CHART_GRID_WIDE -- so this must use the exact same grid, not the plain DAILY_CHART_GRID, or
+  // its columns would drift out of alignment with the wider bars above it.
+  const gridW = dailyChartGridWidth(days, DAILY_CHART_GRID_WIDE);
   wrap.style.minWidth = gridW + "px";
   const shortDate = (d)=>{ const [,mm,dd] = d.split("-"); return `${dd}.${mm}`; };
 
@@ -7016,7 +7020,7 @@ function renderDailyQuestionsHeatmap(){
   // v2.24: rows/cells sized up a step (20px -> 24px, label/date text and icons up to match) per
   // direct positive feedback asking for this section to read "a bit bigger", alongside the taller
   // Calorie/Protein charts right above it -- same layout/positioning math throughout, just bigger.
-  const firstColPct = (dailyChartBarX(days, 0) / gridW * 100).toFixed(3);
+  const firstColPct = (dailyChartBarX(days, 0, DAILY_CHART_GRID_WIDE) / gridW * 100).toFixed(3);
   const rowHtml = (labelHtml, cellsHtml, extraStyle)=> `<div style="position:relative; height:24px;${extraStyle||""}"><div style="position:absolute; left:0; top:0; width:calc(${firstColPct}% - 6px); height:24px; display:flex; align-items:center; font-size:.84rem; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${labelHtml}</div>${cellsHtml}</div>`;
 
   // Cells are a fixed, compact size and absolutely positioned, so they stay small and consistent
@@ -7039,7 +7043,7 @@ function renderDailyQuestionsHeatmap(){
           ? `<span style="color:var(--accent); font-size:16px; font-weight:700; line-height:1;">&#10003;</span>`
           : `<span style="color:var(--warn); font-size:16px; font-weight:700; line-height:1;">&#10005;</span>`;
       }
-      const pct = dailyChartBarCenterPct(days, i).toFixed(3);
+      const pct = dailyChartBarCenterPct(days, i, DAILY_CHART_GRID_WIDE).toFixed(3);
       return `<div id="dqHeatCell_${q.id}_${d}" style="position:absolute; left:${pct}%; top:0; transform:translateX(-50%); height:24px; border-radius:3px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center;" title="${escAttr(q.question)} — ${d}: ${title} (click to change)">${icon}</div>`;
     }).join("");
     return rowHtml(q.settingLabel, cellsHtml, " margin-bottom:6px;");
@@ -7049,7 +7053,7 @@ function renderDailyQuestionsHeatmap(){
   // one -- the label box is left blank here so the dates still land exactly under their day's
   // column via the same dailyChartBarCenterPct positions.
   const dateCellsHtml = dateList.map((d,i)=>{
-    const pct = dailyChartBarCenterPct(days, i).toFixed(3);
+    const pct = dailyChartBarCenterPct(days, i, DAILY_CHART_GRID_WIDE).toFixed(3);
     return `<div style="position:absolute; left:${pct}%; top:0; transform:translateX(-50%); text-align:center; font-size:.74rem; color:var(--muted); white-space:nowrap;">${shortDate(d)}</div>`;
   }).join("");
   const dateRow = rowHtml("", dateCellsHtml, " height:16px; margin-top:3px;");
@@ -8396,24 +8400,36 @@ function shiftDailyChartPage(delta){
 // now a plain 0.5 -- bars centered in whatever slack space is left, matching the pager buttons and
 // everything else in this card.
 const DAILY_CHART_GRID = { w: 720, pad: 24, padRight: 56, barW: 22, gap: 8, alignFrac: 0.5 };
-// v2.07: the actual rendered width for a chart with n columns -- floored at DAILY_CHART_GRID.w (so
+// v2.25: Weekly/Phase already read as bold and spacious (few, wide bars) -- direct feedback asked
+// for Daily to "optically take the reference from weekly, and phase" instead of packing its 14-day
+// page into thin, cramped columns. Daily now renders with its own wider bar/gap geometry
+// (DAILY_CHART_GRID_WIDE) while Weekly/Phase keep using the original DAILY_CHART_GRID unchanged --
+// same w/pad/padRight/alignFrac, so a 14-column Daily page still comfortably floors at the same
+// 720-unit baseline (no new horizontal scrolling forced), it just fills much more of that space.
+const DAILY_CHART_GRID_WIDE = { w: 720, pad: 24, padRight: 56, barW: 30, gap: 14, alignFrac: 0.5 };
+// v2.07: the actual rendered width for a chart with n columns -- floored at the grid's own w (so
 // every existing SHORT view -- the old 14-day daily window, the ~8-12-week Weekly/Phase views --
 // keeps its current look, unchanged) but grows past it once n needs more room than that at each
 // bar's normal size (the new, longer NUTRITION_TREND_DAILY_DAYS window). renderDailyBarChart and
 // renderDailyQuestionsHeatmap both render at exactly this pixel width instead of stretching to fill
 // the card once it exceeds the floor, so extra columns make the whole chart wider than the card and
 // the shared .chart-scroll-sync ancestor scrolls horizontally for them -- same mechanism the mobile
-// fix already relied on, just no longer limited to narrow screens.
-function dailyChartGridWidth(n){
-  const { pad, padRight, barW, gap } = DAILY_CHART_GRID;
-  return Math.max(DAILY_CHART_GRID.w, pad + n*barW + (n-1)*gap + padRight);
+// fix already relied on, just no longer limited to narrow screens. v2.25: takes an optional grid
+// param (defaults to DAILY_CHART_GRID, so every existing caller -- Weekly/Phase, and any test that
+// calls this directly -- is unaffected) so Daily can pass DAILY_CHART_GRID_WIDE instead.
+function dailyChartGridWidth(n, grid){
+  grid = grid || DAILY_CHART_GRID;
+  const { pad, padRight, barW, gap } = grid;
+  return Math.max(grid.w, pad + n*barW + (n-1)*gap + padRight);
 }
-// Left-x (in DAILY_CHART_GRID viewBox units) of day i's fixed-width bar, for a chart with n total
-// days. Both renderDailyBarChart and renderDailyQuestionsHeatmap call this (the latter via
-// dailyChartBarCenterPct) so they always agree on where day i's column sits.
-function dailyChartBarX(n, i){
-  const { pad, padRight, barW, gap, alignFrac } = DAILY_CHART_GRID;
-  const w = dailyChartGridWidth(n);
+// Left-x (in the grid's viewBox units) of day i's fixed-width bar, for a chart with n total days.
+// Both renderDailyBarChart and renderDailyQuestionsHeatmap call this (the latter via
+// dailyChartBarCenterPct) so they always agree on where day i's column sits -- as long as they're
+// both passing the SAME grid (see the v2.25 comment above dailyChartGridWidth).
+function dailyChartBarX(n, i, grid){
+  grid = grid || DAILY_CHART_GRID;
+  const { pad, padRight, barW, gap, alignFrac } = grid;
+  const w = dailyChartGridWidth(n, grid);
   const chartRight = w - padRight;
   const contentAvail = chartRight - pad;
   const content = n*barW + (n-1)*gap;
@@ -8424,10 +8440,10 @@ function dailyChartBarX(n, i){
 // Horizontal CENTER of day i's column, as a percentage of dailyChartGridWidth(n) -- what the
 // check-in heatmap (plain CSS, not an SVG viewBox) needs to position its absolutely-placed cells/
 // labels.
-function dailyChartBarCenterPct(n, i){
-  const { barW } = DAILY_CHART_GRID;
-  const w = dailyChartGridWidth(n);
-  return (dailyChartBarX(n, i) + barW/2) / w * 100;
+function dailyChartBarCenterPct(n, i, grid){
+  grid = grid || DAILY_CHART_GRID;
+  const w = dailyChartGridWidth(n, grid);
+  return (dailyChartBarX(n, i, grid) + grid.barW/2) / w * 100;
 }
 // v1.29: true for a narrow (phone) viewport -- used to trim the Calorie/Protein bar charts'
 // height a bit on mobile only. `window.innerWidth` is undefined in the Node test harness, and
@@ -8450,13 +8466,17 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   }
   const hitTest = opts.hitTest || ((v,t)=> v >= t);
 
-  const { pad, padRight, barW } = DAILY_CHART_GRID;
+  // v2.25: Daily passes opts.wide (see renderCalorieTrendChart/renderProteinTrendChart) to get the
+  // wider, more-spacious DAILY_CHART_GRID_WIDE bar/gap geometry -- Weekly/Phase omit it and keep
+  // rendering with the original DAILY_CHART_GRID, unchanged.
+  const grid = opts.wide ? DAILY_CHART_GRID_WIDE : DAILY_CHART_GRID;
+  const { pad, padRight, barW } = grid;
   const n = series.length;
-  // v2.07: was always DAILY_CHART_GRID.w (720) -- now grows past that floor once n needs more room
+  // v2.07: was always the grid's own w (720) -- now grows past that floor once n needs more room
   // at each bar's normal size (see dailyChartGridWidth). Still floors this wrap at its native
   // (desktop) width either way so bars/labels never shrink on a narrow phone -- see the
   // .chart-scroll-sync comment in the stylesheet for the full mechanism.
-  const w = dailyChartGridWidth(n);
+  const w = dailyChartGridWidth(n, grid);
   wrap.style.minWidth = w + "px";
   // v1.22: 20% taller than the original 160, per follow-up feedback -- taller columns, same
   // width/position. v1.29: 15% shorter again, but ONLY on a narrow (phone) viewport -- the mobile
@@ -8488,13 +8508,13 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   // itself now only draws the bars and the dashed target line -- geometry, not text.
   let bars = "", valueLabels = "", dateLabels = "";
   series.forEach((s,i)=>{
-    const x = dailyChartBarX(n, i);
+    const x = dailyChartBarX(n, i, grid);
     const y = yFor(s.value);
     const barH = Math.max(h - pad - y, 0);
     const hit = targetValue ? hitTest(s.value, targetValue) : true;
     const color = !s.logged ? "var(--border)" : (hit ? "var(--accent)" : "var(--warn)");
     bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${Math.max(barW,1).toFixed(1)}" height="${barH.toFixed(1)}" rx="2" fill="${color}"><title>${opts.tooltipDatePrefix||""}${formatShortDate(s.date)}: ${Math.round(s.value)}${opts.unit}</title></rect>`;
-    const pct = dailyChartBarCenterPct(n, i).toFixed(3);
+    const pct = dailyChartBarCenterPct(n, i, grid).toFixed(3);
     // Value label above each logged bar; skip unlogged (empty) days to avoid clutter. The SVG's
     // height style matches its viewBox height exactly (no vertical stretch), so a plain px offset
     // lines up with the bar underneath it without any percentage math.
@@ -8526,7 +8546,7 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   wrap.innerHTML = `
     <div class="trend-label">Average ${Math.round(avgVal)}${opts.unit}/day over ${loggedSeries.length} logged ${periodLabel(loggedSeries.length)}${targetValue?` · ${opts.hitLabel||"Hit target"} ${daysHitTarget}/${loggedSeries.length} ${periodLabel(loggedSeries.length)}`:""}</div>
     ${targetValue ? `<div class="trend-legend"><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--accent);"></span>${opts.hitSwatchLabel||"Hit target"}</span><span class="trend-legend-item"><span class="trend-swatch" style="background:var(--warn);"></span>${opts.missSwatchLabel||"Under target"}</span></div>` : ""}
-    <div style="position:relative; width:${w > DAILY_CHART_GRID.w ? w+"px" : "100%"}; height:${h}px;">
+    <div style="position:relative; width:${w > grid.w ? w+"px" : "100%"}; height:${h}px;">
       <svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%; height:${h}px; display:block;">
         ${bars}
         ${targetLine}
@@ -8579,6 +8599,8 @@ function renderProteinTrendChart(){
     hitLabel: "Hit target", hitSwatchLabel: "Hit target", missSwatchLabel: "Under target",
     periodNoun: (weekly || phase) ? "week" : "day",
     tooltipDatePrefix: (weekly || phase) ? "Week of " : "",
+    // v2.25: only Daily uses the wider bar/gap geometry -- see DAILY_CHART_GRID_WIDE.
+    wide: !weekly && !phase,
   });
 }
 
@@ -8605,6 +8627,8 @@ function renderCalorieTrendChart(){
     hitLabel: "On track", hitSwatchLabel: "Close to target (±10%)", missSwatchLabel: "Off target",
     periodNoun: (weekly || phase) ? "week" : "day",
     tooltipDatePrefix: (weekly || phase) ? "Week of " : "",
+    // v2.25: only Daily uses the wider bar/gap geometry -- see DAILY_CHART_GRID_WIDE.
+    wide: !weekly && !phase,
   });
 }
 
