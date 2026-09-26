@@ -342,9 +342,11 @@
   .ai-match-badge.ai-match-none{background:rgba(240,184,84,.14); color:var(--warn); border-color:rgba(240,184,84,.3);}
   /* v1.23: bar-chart value/date labels are plain absolutely-positioned HTML now (not SVG <text>),
      so they render at the exact size/color of the check-in results date row instead of being
-     stretched wider by the chart SVG's non-uniform scaling. */
-  .bar-value-label{position:absolute; transform:translate(-50%,-100%); font-size:.68rem; color:var(--muted); white-space:nowrap; pointer-events:none;}
-  .chart-date-label{position:absolute; transform:translateX(-50%); font-size:.68rem; color:var(--muted); white-space:nowrap; cursor:pointer;}
+     stretched wider by the chart SVG's non-uniform scaling. v2.24: sized up a step (.68rem -> .74rem)
+     along with the taller chart itself and the check-in heatmap below -- "the elements would be a
+     bit bigger" -- so labels keep the same visual weight as everything around them. */
+  .bar-value-label{position:absolute; transform:translate(-50%,-100%); font-size:.74rem; color:var(--muted); white-space:nowrap; pointer-events:none;}
+  .chart-date-label{position:absolute; transform:translateX(-50%); font-size:.74rem; color:var(--muted); white-space:nowrap; cursor:pointer;}
   .chart-date-label:hover{color:var(--accent2) !important; font-weight:600;}
   .user-name-pill{display:flex; align-items:center; gap:8px;}
   .user-avatar{
@@ -405,7 +407,7 @@
   .trend-wrap{margin-top:18px;}
   .trend-wrap .trend-label{color:var(--muted); font-size:.8rem; margin-bottom:6px;}
   .trend-legend{display:flex; gap:14px; margin-bottom:8px;}
-  .trend-legend-item{display:flex; align-items:center; gap:5px; font-size:.74rem; color:var(--muted);}
+  .trend-legend-item{display:flex; align-items:center; gap:5px; font-size:.8rem; color:var(--muted);}
   .trend-swatch{display:inline-block; width:14px; height:3px; border-radius:2px;}
   .trend-swatch-raw{background:var(--accent2); opacity:.45;}
   .trend-swatch-avg{background:var(--accent);}
@@ -2012,8 +2014,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.23";
+const APP_VERSION = "2.24";
 const CHANGELOG = [
+  { version: "2.24", date: "2026-09-26", desc: "Two follow-up requests. First (with a screenshot of the OTHER MEASUREMENTS mini-cards): \"change the order fat, muscle, visceral fat, chest, waist, hip, thigh, calf\" -- reordered from the previous Body fat/Chest/Waist/Hip/Thigh/Calf/Muscle/Visceral fat sequence to exactly that. Second (with a screenshot of the Calorie/Protein charts and daily check-in heatmap): \"I really like how it looks like... Just if we might increase that the elements would be a bit bigger would be perfect\" -- the Calorie/Protein bar charts grew taller again (192 -> 224px, same step size as the earlier v1.22 bump), and the check-in results heatmap below them grew to match (rows/cells 20px -> 24px, icons and text sized up a step throughout), so the whole section reads a bit bigger together." },
   { version: "2.23", date: "2026-09-26", desc: "Direct feedback: \"For cretatine, coffeine etc. I get a hint with a question. Please do the same logic for good sleep and stomach problem. Now there is a separate logic for that.\" Good Sleep and Stomach problems used to work differently from the other four daily check-in questions -- instead of appearing on the Nutrition Log card with the same inline Yes/No buttons and warning banner, they only ever surfaced through a once-a-day popup. They now use the exact same card logic as Creatine, Water, Caffeine and Alcohol: shown right on the card until answered, folded into the same combined warning banner, and gone once answered. The automatic popup itself is now dormant (nothing is left that fires it), though the underlying modal still works for editing any past answer from the heatmap." },
   { version: "2.22", date: "2026-09-25", desc: "Two follow-up requests on the Scale Log screen. First, the weight trend chart's zone/target labels (\"Overweight\", \"Normal\", \"Target 1\", \"Target 2\", ...) used to be squeezed into a narrow margin on the right edge of the chart, where they could overlap the measurement cards sitting right next to it -- they're now a plain legend shown below the chart instead. Second, the History table now shows which phase each reading belongs to (\"Phase 1\", \"Phase 2\", ...) in a new column right after the photo." },
   { version: "2.21", date: "2026-09-25", desc: "The v2.20 fix helped but wasn't the whole story -- the same reading vanished again after further use, confirmed live with the exact same old delete-marker timestamps reappearing. Root cause: v2.20 only cleared the marker on the one device that re-added the reading -- but sync always keeps a copy of every marker ever seen on ANY device, forever, specifically so a real deletion always reaches every device. That meant the still-uncleared copy sitting in the cloud (from before this was fixed, or from another open tab) kept quietly reappearing on every sync and re-deleting the reading each time, no matter how many times it was cleared on just one device. Properly fixed now: every reading remembers exactly when it was last saved, and a delete-marker can only ever suppress a reading OLDER than itself -- so a genuinely new save now always wins, regardless of what any other device still thinks. Also added a small internal diagnostic log (synced quietly in the background, invisible in the app) to help pin down anything else still slipping through, including the separate \"picture cannot be displayed\" photo error also reported." },
@@ -5487,15 +5490,17 @@ function renderTrendChart(logs){
   `;
 }
 
+// Order requested directly: "change the order fat, muscle, visceral fat, chest, waist, hip, thigh,
+// calf" (v2.24) -- was previously Body fat/Chest/Waist/Hip/Thigh/Calf/Muscle/Visceral fat.
 const MINI_TREND_METRICS = [
   {key:"bodyFatPct", label:"Body fat %", unit:"%", decimals:1, judge:true},
+  {key:"musclePct", label:"Muscle %", unit:"%", decimals:1, judge:false},
+  {key:"visceralFat", label:"Visceral fat", unit:"", decimals:0, judge:true},
   {key:"chestCm", label:"Chest", unit:"cm", decimals:1, judge:false},
   {key:"waistCm", label:"Waist", unit:"cm", decimals:1, judge:true},
   {key:"hipCm", label:"Hip", unit:"cm", decimals:1, judge:false},
   {key:"thighCm", label:"Thigh", unit:"cm", decimals:1, judge:false},
   {key:"calfCm", label:"Calf", unit:"cm", decimals:1, judge:false},
-  {key:"musclePct", label:"Muscle %", unit:"%", decimals:1, judge:false},
-  {key:"visceralFat", label:"Visceral fat", unit:"", decimals:0, judge:true},
 ];
 
 // Shared "is this value in a good place relative to its target range" check, used by the Hero
@@ -7008,15 +7013,18 @@ function renderDailyQuestionsHeatmap(){
   // SAME x the bar charts above use for that day, so a column lines up across calories/protein/
   // check-in no matter which one you're looking at. The label's own box is capped at that same
   // left boundary so it can never overlap the first day's column.
+  // v2.24: rows/cells sized up a step (20px -> 24px, label/date text and icons up to match) per
+  // direct positive feedback asking for this section to read "a bit bigger", alongside the taller
+  // Calorie/Protein charts right above it -- same layout/positioning math throughout, just bigger.
   const firstColPct = (dailyChartBarX(days, 0) / gridW * 100).toFixed(3);
-  const rowHtml = (labelHtml, cellsHtml, extraStyle)=> `<div style="position:relative; height:20px;${extraStyle||""}"><div style="position:absolute; left:0; top:0; width:calc(${firstColPct}% - 6px); height:20px; display:flex; align-items:center; font-size:.78rem; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${labelHtml}</div>${cellsHtml}</div>`;
+  const rowHtml = (labelHtml, cellsHtml, extraStyle)=> `<div style="position:relative; height:24px;${extraStyle||""}"><div style="position:absolute; left:0; top:0; width:calc(${firstColPct}% - 6px); height:24px; display:flex; align-items:center; font-size:.84rem; color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${labelHtml}</div>${cellsHtml}</div>`;
 
   // Cells are a fixed, compact size and absolutely positioned, so they stay small and consistent
   // regardless of card width. Each cell gets a stable id so it can be wired up as a click target to
   // edit that day's answer, the same way the Nutrition Log card's Yes/No buttons are. A day with no
   // answer yet renders a small hollow circle (not nothing, not a filled placeholder box) -- reads as
   // "open" rather than blank or answered; it's still clickable to go answer it.
-  const notAnsweredIcon = `<span style="width:9px; height:9px; border-radius:50%; border:1px solid var(--border); display:inline-block;"></span>`;
+  const notAnsweredIcon = `<span style="width:11px; height:11px; border-radius:50%; border:1px solid var(--border); display:inline-block;"></span>`;
   const strips = active.map(q=>{
     const cellsHtml = dateList.map((d,i)=>{
       let title = "Not answered", icon = notAnsweredIcon;
@@ -7028,11 +7036,11 @@ function renderDailyQuestionsHeatmap(){
         // (goodValue:false), so a No there is the positive answer and gets the green check.
         const isGood = q.goodValue === false ? !val : val;
         icon = isGood
-          ? `<span style="color:var(--accent); font-size:14px; font-weight:700; line-height:1;">&#10003;</span>`
-          : `<span style="color:var(--warn); font-size:14px; font-weight:700; line-height:1;">&#10005;</span>`;
+          ? `<span style="color:var(--accent); font-size:16px; font-weight:700; line-height:1;">&#10003;</span>`
+          : `<span style="color:var(--warn); font-size:16px; font-weight:700; line-height:1;">&#10005;</span>`;
       }
       const pct = dailyChartBarCenterPct(days, i).toFixed(3);
-      return `<div id="dqHeatCell_${q.id}_${d}" style="position:absolute; left:${pct}%; top:0; transform:translateX(-50%); height:20px; border-radius:3px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center;" title="${escAttr(q.question)} — ${d}: ${title} (click to change)">${icon}</div>`;
+      return `<div id="dqHeatCell_${q.id}_${d}" style="position:absolute; left:${pct}%; top:0; transform:translateX(-50%); height:24px; border-radius:3px; background:transparent; cursor:pointer; display:flex; align-items:center; justify-content:center;" title="${escAttr(q.question)} — ${d}: ${title} (click to change)">${icon}</div>`;
     }).join("");
     return rowHtml(q.settingLabel, cellsHtml, " margin-bottom:6px;");
   }).join("");
@@ -7042,17 +7050,17 @@ function renderDailyQuestionsHeatmap(){
   // column via the same dailyChartBarCenterPct positions.
   const dateCellsHtml = dateList.map((d,i)=>{
     const pct = dailyChartBarCenterPct(days, i).toFixed(3);
-    return `<div style="position:absolute; left:${pct}%; top:0; transform:translateX(-50%); text-align:center; font-size:.68rem; color:var(--muted); white-space:nowrap;">${shortDate(d)}</div>`;
+    return `<div style="position:absolute; left:${pct}%; top:0; transform:translateX(-50%); text-align:center; font-size:.74rem; color:var(--muted); white-space:nowrap;">${shortDate(d)}</div>`;
   }).join("");
-  const dateRow = rowHtml("", dateCellsHtml, " height:14px; margin-top:2px;");
+  const dateRow = rowHtml("", dateCellsHtml, " height:16px; margin-top:3px;");
 
   wrap.innerHTML = `
     ${strips}
     ${dateRow}
     <div style="display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-top:14px;">
-      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="color:var(--accent); font-size:14px; font-weight:700; line-height:1;">&#10003;</span>Yes</span>
-      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="color:var(--warn); font-size:14px; font-weight:700; line-height:1;">&#10005;</span>No</span>
-      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.78rem; color:var(--muted);"><span style="display:inline-block; width:9px; height:9px; border-radius:50%; border:1px solid var(--border);"></span>Not answered</span>
+      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.84rem; color:var(--muted);"><span style="color:var(--accent); font-size:16px; font-weight:700; line-height:1;">&#10003;</span>Yes</span>
+      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.84rem; color:var(--muted);"><span style="color:var(--warn); font-size:16px; font-weight:700; line-height:1;">&#10005;</span>No</span>
+      <span style="display:inline-flex; align-items:center; gap:5px; font-size:.84rem; color:var(--muted);"><span style="display:inline-block; width:11px; height:11px; border-radius:50%; border:1px solid var(--border);"></span>Not answered</span>
     </div>
   `;
   active.forEach(q=>{
@@ -8455,8 +8463,11 @@ function renderDailyBarChart(wrapId, series, targetValue, opts){
   // scroll fix (see .chart-scroll-sync) already keeps bars/labels at their full native width and
   // readable there, this just trims how tall they stand on a small screen. Desktop is unaffected:
   // every other pixel value in this function (bar width, label size, chart width) already stays
-  // identical between mobile and desktop, so this is the one deliberate difference.
-  const h = isMobileViewport() ? 192 * 0.85 : 192;
+  // identical between mobile and desktop, so this is the one deliberate difference. v2.24: another
+  // step up (192 -> 224) per direct positive feedback asking for the Calorie/Protein charts (and the
+  // check-in heatmap below, sized to match) to read "a bit bigger" -- the mobile 15%-shorter factor
+  // still applies on top of this new base height, same as before.
+  const h = isMobileViewport() ? 224 * 0.85 : 224;
   const chartRight = w - padRight;
   const maxVal = Math.max(targetValue || 0, ...series.map(s=>s.value), 1) * 1.15;
   const yFor = v => h - pad - (v/maxVal)*(h - pad*2);
