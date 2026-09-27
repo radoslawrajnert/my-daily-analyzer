@@ -866,6 +866,7 @@
       <button type="button" id="viewTabCommitments"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>Commitment Log</button>
       <button type="button" id="viewTabAiLog"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><path d="M12 17v5"/><path d="M9 22h6"/></svg>AI Log</button>
       <button type="button" id="viewTabCoach"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 1 5 5v2a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5z"/><path d="M4 21c0-4 3.5-7 8-7s8 3 8 7"/></svg>Coach</button>
+      <button type="button" id="viewTabSyncLog"><svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5a2 2 0 0 1 2-2h8l6 6v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><path d="M14 3v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/></svg>Sync Log</button>
     </div>
 
     <div id="missingDataWarningWrap"></div>
@@ -949,6 +950,11 @@
               <button type="button" id="cloudSyncSaveBtn">Save & connect</button>
             </span>
           </div>
+
+          <h3 style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>Sync Log (troubleshooting)</span></h3>
+          <div class="step-desc" style="margin-top:0;">Keeps a plain-English timeline on THIS device of when data is saved and when it syncs -- handy for tracking down a problem like a reading not showing up on another device. Off by default; turn it on only while you're actively troubleshooting, then check the Sync Log tab. Never sent to the cloud -- stays on this device only, so each device keeps its own independent timeline.</div>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; margin-top:10px;"><input type="checkbox" id="activityLogEnabledCb" style="width:auto;"> Keep a Sync Log on this device</label>
+          <div class="field" style="margin-top:10px;"><label>This device's name (shown next to each entry)</label><input type="text" id="deviceNameInput" placeholder="e.g. My iPhone, Work PC"></div>
 
           <h3 style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>Version</span></h3>
           <div class="step-desc" style="margin-top:0;">Which build of the app you're currently running, and a history of what's changed -- handy for confirming a re-publish actually took effect.</div>
@@ -1761,6 +1767,28 @@
   </div>
 </div>
 
+<div id="syncLogView" class="hidden">
+  <div class="card">
+    <h2>Sync Log</h2>
+    <div class="step-desc" style="margin-top:0;">A plain-English timeline of saves and sync activity on THIS device -- useful when tracking down a problem like a reading not showing up on another device. Local to this device only, never sent to the cloud.</div>
+    <div id="syncLogOffNotice" class="hidden" style="margin:10px 0;">
+      <div class="step-desc" style="margin-top:0;">The Sync Log is currently off.</div>
+      <button type="button" id="syncLogEnableFromTabBtn">Turn on Sync Log</button>
+    </div>
+    <div id="syncLogOnControls" class="hidden">
+      <div class="nav" style="justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <span style="font-size:.85rem; color:var(--muted);" id="syncLogDeviceLabel"></span>
+        <span style="display:flex; gap:8px;">
+          <button type="button" class="secondary" id="syncLogCopyBtn">Copy log</button>
+          <button type="button" class="secondary" id="syncLogClearBtn">Clear</button>
+          <button type="button" class="secondary" id="syncLogDisableBtn">Turn off</button>
+        </span>
+      </div>
+      <div id="syncLogEntries"></div>
+    </div>
+  </div>
+</div>
+
 <div class="site-footer-version" id="siteFooterVersionTag"></div>
 
 <div class="toast" id="toast"></div>
@@ -2014,8 +2042,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.28";
+const APP_VERSION = "2.29";
 const CHANGELOG = [
+  { version: "2.29", date: "2026-09-27", desc: "New \"Sync Log\" tab, requested directly while chasing the v2.28 sync bug: \"create a new tab called Log... so it would be easier to investigate the problem... you write that I save data at this time, then is synchronized, etc.\" Off by default (turn it on in Settings -> Sync Log, or right from the new tab) -- once on, it keeps a plain-English, timestamped timeline on THIS device of every save (Nutrition/Workout/Habit/Commitment/Scale Log) and every sync event (queued, sent, succeeded, failed, checked the cloud), each line tagged with a name for this device (auto-detected, editable in Settings) so two devices' timelines can be compared side by side -- exactly what's needed to tell \"did the phone actually push?\" from \"did the PC actually pull?\". Deliberately local-only: never uploaded to the cloud, and a sync can never overwrite it, so each device keeps its own independent history. Includes Copy (for pasting into a bug report) and Clear." },
   { version: "2.28", date: "2026-09-27", desc: "Direct, frustrated live report: a scale reading logged on an iPhone (Edge) never reached the PC, and tapping \"Sync now\" didn't fix it. Confirmed live: the PC's cloud copy genuinely didn't have the reading -- it never made it off the phone. Root cause, already half-documented in the code but never actually closed: pushToCloud() waits 1.5s before pushing, and the push itself takes real network time (uploading any new photo, then writing to Firestore) -- on iOS, locking the phone or switching apps can suspend the browser tab before that work finishes, silently killing the push mid-flight with no error and nothing left on-device to show it failed. Two fixes: (1) saving a scale reading now skips the 1.5s wait and pushes immediately, shrinking the window backgrounding has to interrupt it; (2) every push now leaves a small marker the instant it's scheduled, only cleared once Firestore actually confirms the write landed -- so if a push does get killed mid-flight, the very next time this device's app is opened, brought back to the foreground, or restored from Safari's background cache, it retries that push immediately, before anything else, rather than silently waiting for some unrelated future save to trigger another attempt." },
   { version: "2.27", date: "2026-09-26", desc: "Follow-up fix, reported with a screenshot: \"horrible now the slopes are very tiny\". Root cause: v2.26's row-label fix widened DAILY_CHART_GRID_WIDE's horizontal pad (24 -> 90) to make room for the heatmap's labels, but the Calorie/Protein bar charts were reusing that SAME value as their vertical (top/bottom) margin too, so it silently crushed the usable bar height from about 176px down to about 44px. The vertical margin is now its own fixed value, independent of whatever the horizontal one needs -- bars are back to their proper height. Also asked for 10 visual style proposals for the bars and got a pick: bars now fill with a soft top-to-bottom gradient tint instead of a flat color." },
   { version: "2.26", date: "2026-09-26", desc: "Follow-up fix, reported with a screenshot with arrows pointing at the daily check-in results heatmap's row labels: they were rendering cut off to 4-6 characters (\"Creati\", \"Good\", \"Stoma\", \"Water\", \"High C\", \"Alcoh\"). Root cause: v2.25's wider bars ate almost all of the small margin the row-label column's width was derived from, leaving barely 19px of room. Fixed with two changes: the heatmap now shows a short label (\"Sleep\", \"Stomach\", \"Caffeine\", ...) instead of the longer Settings wording, and the reserved space before the first day's bar grew enough to comfortably fit it. The Calorie/Protein charts and heatmap are very slightly wider as a result (still well within normal card width on most screens)." },
@@ -3048,6 +3077,9 @@ function sizeBreakdownByField(obj){
 function sanitizeForCloud(u){
   const clone = JSON.parse(JSON.stringify(u || {}));
   delete clone.password;
+  // v2.29: the Sync Log is deliberately local-only, per-device (see the comment above dlog()) --
+  // never upload it, so each device's own independent timeline stays exactly that.
+  delete clone.debugLog;
   if(Array.isArray(clone.scaleLogs)){
     clone.scaleLogs = clone.scaleLogs.map(l=>{
       const rest = Object.assign({}, l);
@@ -3452,34 +3484,185 @@ function recordDeletedId(id){
   u.deletedIds[id] = Date.now();
   saveUsers(users);
 }
-// v2.21 TEMP DIAGNOSTIC: a small, capped, synced log of exactly what sync/tombstone/photo events
-// happen and when, added specifically to chase the recurring scale-log-vanishes reports once and for
-// all -- the fixes so far (v2.17-v2.20) each closed one real, confirmed mechanism, but the reports
-// kept recurring, meaning something is still slipping through that hasn't been directly observed in
-// the act. This rides along in the normal cloud push (it's just another field on the account, same as
-// anything else) so it can be read back from any device/session without the user needing to copy
-// anything -- remove this whole block (and its call sites) once the mystery is actually resolved.
+// v2.29: "Sync Log" -- a plain-English, on-device timeline of saves and sync activity, built
+// directly on top of the diagnostic dlog() mechanism that already existed here (originally added as
+// a one-off v2.21 tool to chase the recurring scale-log-vanishes reports, now promoted into a real,
+// user-facing feature per direct request: "create a new tab called Log... so it would be easier to
+// investigate the problem... you write that I save data at this time, then is synchronized, etc.").
+//
+// Off by default (ACTIVITY_LOG_ENABLED_KEY) -- turn it on in Settings -> Sync Log only when actually
+// troubleshooting a sync problem. Deliberately LOCAL-ONLY, per-device: the whole point is to see each
+// device's own independent timeline (did THIS phone's push actually happen? did THIS PC's pull
+// actually find anything?) side by side, so merging the two into one shared cloud copy would defeat
+// the purpose -- see sanitizeForCloud (strips debugLog before it ever reaches Firestore) and
+// pullFromCloud (always keeps this device's own debugLog, never overwrites it from the cloud).
+const ACTIVITY_LOG_ENABLED_KEY = "bodyAnalyzer.activityLogEnabled.v1";
+const ACTIVITY_LOG_MAX_ENTRIES = 300;
+function isActivityLogEnabled(){
+  try{ return localStorage.getItem(ACTIVITY_LOG_ENABLED_KEY) === "1"; } catch(e){ return false; }
+}
+function setActivityLogEnabled(on){
+  try{ localStorage.setItem(ACTIVITY_LOG_ENABLED_KEY, on ? "1" : "0"); } catch(e){}
+}
+
+// A name for THIS device/browser, shown next to each entry -- essential once you're comparing two
+// devices' logs side by side (e.g. "did the iPhone actually push?" vs "did the PC actually pull?").
+// Auto-detected once from the user agent as a reasonable default, then editable in Settings ->
+// Sync Log; always local to this device/browser, never synced.
+const DEVICE_NAME_KEY = "bodyAnalyzer.deviceName.v1";
+function detectDefaultDeviceName(){
+  try{
+    const ua = (typeof navigator !== "undefined" && navigator.userAgent) || "";
+    let platform = "Device";
+    if(/iPad/.test(ua)) platform = "iPad";
+    else if(/iPhone/.test(ua)) platform = "iPhone";
+    else if(/Android/.test(ua)) platform = "Android";
+    else if(/Macintosh/.test(ua)) platform = "Mac";
+    else if(/Windows/.test(ua)) platform = "Windows PC";
+    else if(/Linux/.test(ua)) platform = "Linux";
+    let browser = "";
+    if(/EdgiOS|Edg\//.test(ua)) browser = "Edge";
+    else if(/CriOS|Chrome\//.test(ua)) browser = "Chrome";
+    else if(/FxiOS|Firefox\//.test(ua)) browser = "Firefox";
+    else if(/Safari/.test(ua)) browser = "Safari";
+    return browser ? `${platform} (${browser})` : platform;
+  } catch(e){ return "Device"; }
+}
+function getDeviceName(){
+  try{
+    const stored = localStorage.getItem(DEVICE_NAME_KEY);
+    if(stored) return stored;
+    const detected = detectDefaultDeviceName();
+    localStorage.setItem(DEVICE_NAME_KEY, detected);
+    return detected;
+  } catch(e){ return "Device"; }
+}
+function setDeviceName(name){
+  try{ localStorage.setItem(DEVICE_NAME_KEY, (name||"").trim() || detectDefaultDeviceName()); } catch(e){}
+}
+
+// Records one Sync Log entry -- a no-op whenever the toggle above is off, so there's no cost at all
+// to leaving this wired into every save/sync codepath below.
 function dlog(event, data){
   try{
     if(!currentUserEmail) return;
+    if(!isActivityLogEnabled()) return;
     const users = getUsers();
     const u = users[currentUserEmail];
     if(!u) return;
     if(!Array.isArray(u.debugLog)) u.debugLog = [];
-    u.debugLog.push({t: Date.now(), iso: new Date().toISOString(), event, data: data===undefined?null:data});
-    if(u.debugLog.length > 80) u.debugLog = u.debugLog.slice(-80);
-    // v2.28: writeUsersDirect, not saveUsers -- this diagnostic breadcrumb is meant to just "ride
-    // along" whenever the next real push happens (see the comment on pullFromCloud's own inline
-    // pullDebugEntry), not trigger a dedicated push of its own. It's called FROM performCloudPush
-    // itself on every push (dlog("push_success"/"push_error", ...)) -- saveUsers() here would
-    // re-schedule another debounced pushToCloud() every single time, which on landing would call
-    // dlog() again, which would schedule another push again, forever, for as long as a tab with
-    // Cloud Sync configured stays open. It would also mean PENDING_CLOUD_PUSH_KEY (see above) almost
-    // never reads as truly idle, since this self-triggered push would constantly re-mark it pending
-    // moments after every real push clears it.
+    u.debugLog.push({t: Date.now(), iso: new Date().toISOString(), device: getDeviceName(), event, data: data===undefined?null:data});
+    if(u.debugLog.length > ACTIVITY_LOG_MAX_ENTRIES) u.debugLog = u.debugLog.slice(-ACTIVITY_LOG_MAX_ENTRIES);
+    // writeUsersDirect, not saveUsers -- this is a local-only diagnostic breadcrumb, not data that
+    // should trigger (or ride along in) a cloud push at all. saveUsers() here would also re-schedule
+    // another debounced pushToCloud() every single time, which on landing would call dlog() again,
+    // which would schedule another push again, forever, for as long as a tab stayed open.
     writeUsersDirect(users);
   } catch(e){}
 }
+
+// Turns one {event, data} entry into a plain-English line for the Sync Log tab. Unknown/future event
+// names fall back to something readable rather than a blank line, so this never needs to be kept in
+// perfect lockstep with every dlog() call site above.
+function describeActivityLogEntry(entry){
+  const d = entry && entry.data || {};
+  const ev = entry && entry.event;
+  switch(ev){
+    case "scale_log_saved":
+      return (d.wasEditing ? "Updated scale reading for " : "Saved scale reading for ") + formatShortDate(d.date) + (d.hadPhotoFront || d.hadPhotoBack ? " (with photo)" : "");
+    case "food_log_saved": return "Saved Nutrition Log (" + (d.totalEntries != null ? d.totalEntries + " entries total" : "changes saved") + ")";
+    case "food_entry_deleted": return "Deleted a Nutrition Log entry from " + formatShortDate(d.date);
+    case "workout_log_saved": return "Saved Workout Log (" + (d.totalEntries != null ? d.totalEntries + " entries total" : "changes saved") + ")";
+    case "workout_entry_deleted": return "Deleted a Workout Log entry from " + formatShortDate(d.date);
+    case "habit_log_saved": return "Saved Good Habits Log";
+    case "commitments_saved": return "Saved Commitment Log (" + (d.count != null ? d.count + " commitments" : "changes saved") + ")";
+    case "push_scheduled": return "Save queued to sync to the cloud";
+    case "push_flushed": return "Sending queued save to the cloud now (not waiting)";
+    case "push_success": return "Synced successfully to the cloud";
+    case "push_error": return "Sync FAILED: " + (d.message || "unknown error");
+    case "push_rejected_oversized": return "Sync FAILED: " + (d.label || "your data") + " is too large for the cloud";
+    case "push_retried_on_resume": return "Retrying a save that never got confirmed as synced";
+    case "pull_started": return "Checking the cloud for newer data";
+    case "pull_merge_result": return "Checked the cloud for newer data";
+    case "pull_scale_log_backstop_tripped": return "Sync safety net stepped in to protect scale-log readings on this device";
+    case "tombstone_set": return "Marked " + formatShortDate(d.date) + " as deleted (so it won't come back on sync)";
+    case "tombstone_cleared": return "Cleared the old delete-marker for " + formatShortDate(d.date);
+    case "tombstone_suppressed_local_entry": return "Sync hid an entry for " + formatShortDate(d.date) + " because it was deleted elsewhere";
+    case "photo_resize_ok": return "Processed a photo for upload";
+    case "photo_resize_error": return "Photo processing FAILED: " + (d.message || "unknown error");
+    case "photo_preview_error": return "Couldn't preview a selected photo";
+    default: return ev ? ev.replace(/_/g, " ") : "Activity";
+  }
+}
+
+// Renders the newest N entries (across this account, on this device) as plain-text lines, e.g. for
+// the "Copy log" button -- easy to paste into a bug report or chat.
+function activityLogAsText(limit){
+  const u = getUsers()[currentUserEmail];
+  const entries = (u && Array.isArray(u.debugLog)) ? u.debugLog.slice(-(limit || ACTIVITY_LOG_MAX_ENTRIES)).reverse() : [];
+  if(entries.length === 0) return "(Sync Log is empty)";
+  return entries.map(e=>{
+    const when = e.iso ? e.iso.replace("T"," ").replace("Z","") : "";
+    return `[${when}] (${e.device || "Device"}) ${describeActivityLogEntry(e)}`;
+  }).join("\n");
+}
+
+// The Sync Log tab itself -- shows the on/off state, a "Turn on" shortcut when it's off (so you
+// don't have to hunt through Settings while mid-troubleshooting), and the newest-first entry list
+// when it's on.
+function renderSyncLogView(){
+  const wrap = document.getElementById("syncLogView");
+  if(!wrap) return;
+  const on = isActivityLogEnabled();
+  document.getElementById("syncLogOffNotice").classList.toggle("hidden", on);
+  document.getElementById("syncLogOnControls").classList.toggle("hidden", !on);
+  if(!on) return;
+  document.getElementById("syncLogDeviceLabel").textContent = "This device: " + getDeviceName();
+  const u = getUsers()[currentUserEmail];
+  const entries = (u && Array.isArray(u.debugLog)) ? u.debugLog.slice().reverse() : [];
+  const entriesWrap = document.getElementById("syncLogEntries");
+  if(entries.length === 0){
+    entriesWrap.innerHTML = `<div class="empty-note">Nothing logged yet -- entries will appear here as you save data and as sync runs.</div>`;
+    return;
+  }
+  entriesWrap.innerHTML = entries.map(e=>{
+    const when = e.iso ? e.iso.replace("T"," ").slice(0,19) : "";
+    const isError = /FAILED|error/i.test(e.event||"");
+    return `<div style="padding:8px 0; border-bottom:1px solid var(--border); font-size:.85rem;">
+      <span style="color:var(--muted);">${when}</span>
+      <span style="color:var(--muted);"> · ${e.device || "Device"}</span>
+      <div style="${isError ? "color:var(--warn);" : ""}">${describeActivityLogEntry(e)}</div>
+    </div>`;
+  }).join("");
+}
+document.getElementById("syncLogEnableFromTabBtn").addEventListener("click", ()=>{
+  setActivityLogEnabled(true);
+  document.getElementById("activityLogEnabledCb").checked = true;
+  renderSyncLogView();
+  showToast("Sync Log turned on");
+});
+document.getElementById("syncLogDisableBtn").addEventListener("click", ()=>{
+  setActivityLogEnabled(false);
+  document.getElementById("activityLogEnabledCb").checked = false;
+  renderSyncLogView();
+});
+document.getElementById("syncLogCopyBtn").addEventListener("click", async ()=>{
+  const text = activityLogAsText();
+  try{
+    await navigator.clipboard.writeText(text);
+    showToast("Sync Log copied");
+  } catch(e){
+    showToast("Couldn't copy — your browser may need a permission for clipboard access");
+  }
+});
+document.getElementById("syncLogClearBtn").addEventListener("click", ()=>{
+  const users = getUsers();
+  if(users[currentUserEmail]){
+    users[currentUserEmail].debugLog = [];
+    writeUsersDirect(users);
+  }
+  renderSyncLogView();
+});
 function getDeletedScaleDates(){
   const u = getUsers()[currentUserEmail];
   return pruneTombstones(u && u.deletedScaleDates);
@@ -3635,6 +3818,7 @@ function looksLikeCatastrophicWipe(previousCount, newCount){
 function pushToCloud(){
   if(!fbUser || !fbDb || !currentUserEmail) return;
   markCloudPushPending(currentUserEmail);
+  dlog("push_scheduled");
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer = setTimeout(()=>{
     cloudSyncTimer = null;
@@ -3650,6 +3834,7 @@ function flushPendingCloudPush(){
   if(cloudSyncTimer == null) return;
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer = null;
+  dlog("push_flushed");
   performCloudPush();
 }
 
@@ -3740,6 +3925,7 @@ if(typeof window !== "undefined" && typeof window.addEventListener === "function
 async function retryPendingCloudPushIfAny(){
   if(!fbUser || !fbDb || !currentUserEmail) return;
   if(!hasCloudPushPending(currentUserEmail)) return;
+  dlog("push_retried_on_resume");
   await performCloudPush(true);
 }
 
@@ -3821,32 +4007,37 @@ async function pullFromCloud(email){
     const localScaleLogsTombstonedCount = localScaleLogsList.filter(l=>deletedScaleDates[l.date] != null && !scaleLogEntrySurvivesTombstone(l, deletedScaleDates)).length;
     const expectedMinScaleLogs = localScaleLogsList.length - localScaleLogsTombstonedCount;
     const mergedScaleLogsList = Array.isArray(merged.scaleLogs) ? merged.scaleLogs : [];
-    // v2.21 TEMP DIAGNOSTIC: appended straight onto `merged` (rather than via the generic dlog()
-    // helper) because dlog's own read-getUsers/write-saveUsers round-trip would get clobbered a few
-    // lines down by this function's own writeUsersDirect(users) call, which still holds the `users`
-    // object as it was BEFORE dlog's write -- see dlog's own comment for why this rides along in the
-    // synced data at all.
-    const pullDebugEntry = { t: Date.now(), iso: new Date().toISOString(), event: "pull_merge_result", data: {
-      cloudTombstoneDates: Object.keys(cloudData.deletedScaleDates || {}),
-      localTombstoneDates: Object.keys(local.deletedScaleDates || {}),
-      mergedTombstoneDates: Object.keys(deletedScaleDates || {}),
-      localScaleLogsDates: localScaleLogsList.map(l=>({date:l.date, updatedAt:l.updatedAt||null})),
-      cloudScaleLogsDates: (Array.isArray(cloudData.scaleLogs)?cloudData.scaleLogs:[]).map(l=>({date:l.date, updatedAt:l.updatedAt||null})),
-      mergedScaleLogsDates: mergedScaleLogsList.map(l=>l.date),
-    }};
+    // Appended straight onto `merged` (rather than via the generic dlog() helper) because dlog's own
+    // read-getUsers/write-saveUsers round-trip would get clobbered a few lines down by this
+    // function's own writeUsersDirect(users) call, which still holds the `users` object as it was
+    // BEFORE dlog's write. debugLog is always local-only (see dlog's own comment) -- explicitly
+    // rebuilt from `local.debugLog` here, never from cloudData.debugLog, so a pull can never make
+    // this device's own Sync Log jump to some other device's history.
     merged.debugLog = Array.isArray(local.debugLog) ? local.debugLog.slice() : [];
-    merged.debugLog.push(pullDebugEntry);
+    if(isActivityLogEnabled()){
+      const pullDebugEntry = { t: Date.now(), iso: new Date().toISOString(), device: getDeviceName(), event: "pull_merge_result", data: {
+        cloudTombstoneDates: Object.keys(cloudData.deletedScaleDates || {}),
+        localTombstoneDates: Object.keys(local.deletedScaleDates || {}),
+        mergedTombstoneDates: Object.keys(deletedScaleDates || {}),
+        localScaleLogsDates: localScaleLogsList.map(l=>({date:l.date, updatedAt:l.updatedAt||null})),
+        cloudScaleLogsDates: (Array.isArray(cloudData.scaleLogs)?cloudData.scaleLogs:[]).map(l=>({date:l.date, updatedAt:l.updatedAt||null})),
+        mergedScaleLogsDates: mergedScaleLogsList.map(l=>l.date),
+      }};
+      merged.debugLog.push(pullDebugEntry);
+    }
     if(mergedScaleLogsList.length < expectedMinScaleLogs){
       console.error("Cloud pull rejected: merge would have reduced scale-log readings beyond what known deletions explain", {
         localCount: localScaleLogsList.length, mergedCount: mergedScaleLogsList.length, localScaleLogsTombstonedCount,
         localDates: localScaleLogsList.map(l=>l.date), mergedDates: mergedScaleLogsList.map(l=>l.date),
       });
-      merged.debugLog.push({ t: Date.now(), iso: new Date().toISOString(), event: "pull_scale_log_backstop_tripped",
-        data: {localCount: localScaleLogsList.length, mergedCount: mergedScaleLogsList.length} });
+      if(isActivityLogEnabled()){
+        merged.debugLog.push({ t: Date.now(), iso: new Date().toISOString(), device: getDeviceName(), event: "pull_scale_log_backstop_tripped",
+          data: {localCount: localScaleLogsList.length, mergedCount: mergedScaleLogsList.length} });
+      }
       merged.scaleLogs = local.scaleLogs;
       showToast("Cloud sync issue detected — kept your on-device scale-log readings safe. Please tell the developer.");
     }
-    if(merged.debugLog.length > 80) merged.debugLog = merged.debugLog.slice(-80);
+    if(merged.debugLog.length > ACTIVITY_LOG_MAX_ENTRIES) merged.debugLog = merged.debugLog.slice(-ACTIVITY_LOG_MAX_ENTRIES);
     users[email] = merged;
     writeUsersDirect(users); // direct write — avoids re-triggering a push of what we just pulled (see writeUsersDirect above)
     return true;
@@ -4083,6 +4274,14 @@ document.getElementById("langSelect").addEventListener("change", (e)=>{
 });
 document.getElementById("themeSelect").addEventListener("change", (e)=>{
   setTheme(e.target.value);
+});
+document.getElementById("activityLogEnabledCb").addEventListener("change", (e)=>{
+  setActivityLogEnabled(e.target.checked);
+  if(getActiveView()==="synclog") renderSyncLogView();
+});
+document.getElementById("deviceNameInput").addEventListener("change", (e)=>{
+  setDeviceName(e.target.value);
+  e.target.value = getDeviceName();
 });
 
 document.getElementById("cloudSyncSaveBtn").addEventListener("click", async ()=>{
@@ -4589,6 +4788,7 @@ function switchView(view){
   document.getElementById("viewTabCommitments").classList.toggle("active", view==="commitments");
   document.getElementById("viewTabAiLog").classList.toggle("active", view==="ailog");
   document.getElementById("viewTabCoach").classList.toggle("active", view==="coach");
+  document.getElementById("viewTabSyncLog").classList.toggle("active", view==="synclog");
   document.getElementById("planView").classList.toggle("hidden", view!=="plan");
   document.getElementById("logView").classList.toggle("hidden", view!=="log");
   document.getElementById("foodView").classList.toggle("hidden", view!=="food");
@@ -4598,6 +4798,7 @@ function switchView(view){
   document.getElementById("commitmentsView").classList.toggle("hidden", view!=="commitments");
   document.getElementById("aiLogView").classList.toggle("hidden", view!=="ailog");
   document.getElementById("coachView").classList.toggle("hidden", view!=="coach");
+  document.getElementById("syncLogView").classList.toggle("hidden", view!=="synclog");
   if(view==="log") renderLogView();
   if(view==="food"){ renderFoodView(); }
   if(view==="recipes") renderRecipesView();
@@ -4606,6 +4807,7 @@ function switchView(view){
   if(view==="commitments") renderCommitmentsView();
   if(view==="ailog") renderAiLogView();
   if(view==="coach") renderCoachView();
+  if(view==="synclog") renderSyncLogView();
   if(view==="plan"){
     // Settings fields (Appearance, Language, AI Assistant, Cloud Sync) now live on General
     // Settings -- refresh them here so they're current regardless of how My Plan was reached.
@@ -4613,6 +4815,8 @@ function switchView(view){
     document.getElementById("langSelect").value = getLang();
     document.getElementById("aiProviderSelect").value = getAiProvider();
     document.getElementById("aiApiKeyInput").value = getAiApiKey();
+    document.getElementById("activityLogEnabledCb").checked = isActivityLogEnabled();
+    document.getElementById("deviceNameInput").value = getDeviceName();
     renderVersionInfo();
     refreshCloudSyncSettingsUI();
     syncCoachFocusUI(); syncVisibleTabsUI(); syncRestGuardrailUI(); syncDailyQuestionsSettingsUI(); renderTargetRangesTab();
@@ -4757,6 +4961,7 @@ document.getElementById("viewTabHabits").addEventListener("click", ()=>switchVie
 document.getElementById("viewTabCommitments").addEventListener("click", ()=>switchView("commitments"));
 document.getElementById("viewTabAiLog").addEventListener("click", ()=>switchView("ailog"));
 document.getElementById("viewTabCoach").addEventListener("click", ()=>switchView("coach"));
+document.getElementById("viewTabSyncLog").addEventListener("click", ()=>switchView("synclog"));
 
 /* ---------------------------------------------------------
    SCALE LOG
@@ -6678,6 +6883,7 @@ function saveFoodLogObj(obj){
   if(!users[currentUserEmail]) return;
   users[currentUserEmail].foodLog = obj;
   saveUsers(users);
+  dlog("food_log_saved", {totalEntries: Object.values(obj||{}).reduce((n,arr)=>n+(Array.isArray(arr)?arr.length:0),0)});
 }
 
 function getEntriesForDate(date){
@@ -7850,6 +8056,7 @@ function deleteFoodEntry(date, id){
   if(log[date].length === 0) delete log[date];
   recordDeletedId(id); // v2.14: so a later sync can't resurrect it -- see mergeDateKeyedEntryLog
   saveFoodLogObj(log);
+  dlog("food_entry_deleted", {date, id});
   // Usage stats in "My products / My meals" are computed live from the log (see
   // computePackageUsage), so deleting an entry here is automatically reflected there too --
   // nothing to update or decrement by hand.
@@ -9735,6 +9942,7 @@ function saveWorkoutLogObj(obj){
   if(!users[currentUserEmail]) return;
   users[currentUserEmail].workoutLog = obj;
   saveUsers(users);
+  dlog("workout_log_saved", {totalEntries: Object.values(obj||{}).reduce((n,arr)=>n+(Array.isArray(arr)?arr.length:0),0)});
 }
 
 function getWorkoutEntriesForDate(date){
@@ -10991,6 +11199,7 @@ function deleteWorkoutEntry(date, id){
   if(log[date].length === 0) delete log[date];
   recordDeletedId(id); // v2.14: so a later sync can't resurrect it -- see mergeDateKeyedEntryLog
   saveWorkoutLogObj(log);
+  dlog("workout_entry_deleted", {date, id});
   if(editingWorkoutId === id){
     document.getElementById("workoutForm").reset();
     exitWorkoutEditMode();
@@ -12955,6 +13164,7 @@ function saveHabitLogObj(obj){
   if(!users[currentUserEmail]) return;
   users[currentUserEmail].habitLog = obj;
   saveUsers(users);
+  dlog("habit_log_saved", {totalEntries: Object.values(obj||{}).reduce((n,arr)=>n+(Array.isArray(arr)?arr.length:0),0)});
 }
 
 function getHabitEntriesForDate(date){
@@ -14434,6 +14644,7 @@ function saveCommitmentsArr(arr){
   if(!users[currentUserEmail]) return;
   users[currentUserEmail].commitments = arr;
   saveUsers(users);
+  dlog("commitments_saved", {count: Array.isArray(arr) ? arr.length : 0});
 }
 function genCommitId(){
   return "c" + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
@@ -17206,7 +17417,7 @@ document.getElementById("coachSaveFeedbackBtn").addEventListener("click", ()=>{
 // re-rendered in place immediately after a successful pull.
 function getActiveView(){
   const views = [["plan","planView"], ["log","logView"], ["food","foodView"], ["recipes","recipesView"], ["workout","workoutView"],
-    ["habits","habitsView"], ["commitments","commitmentsView"], ["ailog","aiLogView"], ["coach","coachView"]];
+    ["habits","habitsView"], ["commitments","commitmentsView"], ["ailog","aiLogView"], ["coach","coachView"], ["synclog","syncLogView"]];
   for(const [name, id] of views){
     const el = document.getElementById(id);
     if(el && !el.classList.contains("hidden")) return name;
