@@ -2014,8 +2014,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.27";
+const APP_VERSION = "2.28";
 const CHANGELOG = [
+  { version: "2.28", date: "2026-09-27", desc: "Direct, frustrated live report: a scale reading logged on an iPhone (Edge) never reached the PC, and tapping \"Sync now\" didn't fix it. Confirmed live: the PC's cloud copy genuinely didn't have the reading -- it never made it off the phone. Root cause, already half-documented in the code but never actually closed: pushToCloud() waits 1.5s before pushing, and the push itself takes real network time (uploading any new photo, then writing to Firestore) -- on iOS, locking the phone or switching apps can suspend the browser tab before that work finishes, silently killing the push mid-flight with no error and nothing left on-device to show it failed. Two fixes: (1) saving a scale reading now skips the 1.5s wait and pushes immediately, shrinking the window backgrounding has to interrupt it; (2) every push now leaves a small marker the instant it's scheduled, only cleared once Firestore actually confirms the write landed -- so if a push does get killed mid-flight, the very next time this device's app is opened, brought back to the foreground, or restored from Safari's background cache, it retries that push immediately, before anything else, rather than silently waiting for some unrelated future save to trigger another attempt." },
   { version: "2.27", date: "2026-09-26", desc: "Follow-up fix, reported with a screenshot: \"horrible now the slopes are very tiny\". Root cause: v2.26's row-label fix widened DAILY_CHART_GRID_WIDE's horizontal pad (24 -> 90) to make room for the heatmap's labels, but the Calorie/Protein bar charts were reusing that SAME value as their vertical (top/bottom) margin too, so it silently crushed the usable bar height from about 176px down to about 44px. The vertical margin is now its own fixed value, independent of whatever the horizontal one needs -- bars are back to their proper height. Also asked for 10 visual style proposals for the bars and got a pick: bars now fill with a soft top-to-bottom gradient tint instead of a flat color." },
   { version: "2.26", date: "2026-09-26", desc: "Follow-up fix, reported with a screenshot with arrows pointing at the daily check-in results heatmap's row labels: they were rendering cut off to 4-6 characters (\"Creati\", \"Good\", \"Stoma\", \"Water\", \"High C\", \"Alcoh\"). Root cause: v2.25's wider bars ate almost all of the small margin the row-label column's width was derived from, leaving barely 19px of room. Fixed with two changes: the heatmap now shows a short label (\"Sleep\", \"Stomach\", \"Caffeine\", ...) instead of the longer Settings wording, and the reserved space before the first day's bar grew enough to comfortably fit it. The Calorie/Protein charts and heatmap are very slightly wider as a result (still well within normal card width on most screens)." },
   { version: "2.25", date: "2026-09-26", desc: "Direct feedback on the Phase view of Nutrition Trends (with a screenshot pointing at the \"Phase 2 - Cut to 73kg\" badge): \"in daily please optically take the reference from weekly, and phase.\" Investigation found the badge, legend and \"Average X/day...\" line already matched across Daily/Weekly/Phase -- the real difference was that Weekly/Phase show a few, wide, generously-spaced bars while Daily's 14-day page packed many thinner bars closer together, reading visually busier. Asked directly which fix was wanted and went with \"wider bars + more spacing\": the Daily view's Calorie/Protein charts and the check-in results heatmap below them now render with noticeably wider bars and gaps than before, while Weekly and Phase are completely unchanged." },
@@ -2872,6 +2873,39 @@ const FIREBASE_SDK_VERSION = "10.13.2";
 let fbApp = null, fbAuth = null, fbDb = null, fbStorage = null, fbUser = null;
 let cloudSyncTimer = null;
 
+// v2.28: live report -- a scale reading logged on an iPhone (via Edge) never reached a PC, and
+// tapping "Sync now" (on the PC, which only PULLS) didn't help because there was nothing in the
+// cloud to pull yet. Root cause: pushToCloud()'s 1.5s debounce + performCloudPush()'s own awaited
+// network work (photo upload, then the batch commit) is exactly the kind of in-flight async work
+// iOS can kill the instant a tab backgrounds (see the comment above the visibilitychange/pagehide
+// listeners) -- flushPendingCloudPush() tries to start that work immediately instead of waiting out
+// the debounce, but starting it is not the same as it finishing before the OS suspends the page.
+// This marker closes the gap from the other end: it's set (synchronous localStorage write, so it
+// survives even a hard kill) the moment ANY push is scheduled, and only cleared once a push has
+// actually been CONFIRMED to land (the batch.commit() in performCloudPush resolves). Every place
+// this device's app resumes -- fresh load, regaining focus, restoring from bfcache -- checks it via
+// retryPendingCloudPushIfAny() and retries the push before doing anything else, so a push killed
+// mid-flight by backgrounding gets one more chance the very next moment this device is back, rather
+// than silently waiting for some unrelated future save to happen to trigger another push.
+const PENDING_CLOUD_PUSH_KEY = "bodyAnalyzer.pendingCloudPush.v1";
+function markCloudPushPending(email){
+  try { localStorage.setItem(PENDING_CLOUD_PUSH_KEY, JSON.stringify({email, since: Date.now()})); } catch(e){}
+}
+function clearCloudPushPending(email){
+  try {
+    const raw = localStorage.getItem(PENDING_CLOUD_PUSH_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if(!parsed || parsed.email === email) localStorage.removeItem(PENDING_CLOUD_PUSH_KEY);
+  } catch(e){}
+}
+function hasCloudPushPending(email){
+  try {
+    const raw = localStorage.getItem(PENDING_CLOUD_PUSH_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return !!(parsed && parsed.email === email);
+  } catch(e){ return false; }
+}
+
 // Built into the app so every device (desktop, phone, anyone visiting the site) gets Cloud Sync
 // automatically with no copy/paste step. This is safe to hardcode: a Firebase web config only
 // identifies the project, it isn't a secret — access is actually controlled by requiring sign-in
@@ -3434,7 +3468,16 @@ function dlog(event, data){
     if(!Array.isArray(u.debugLog)) u.debugLog = [];
     u.debugLog.push({t: Date.now(), iso: new Date().toISOString(), event, data: data===undefined?null:data});
     if(u.debugLog.length > 80) u.debugLog = u.debugLog.slice(-80);
-    saveUsers(users);
+    // v2.28: writeUsersDirect, not saveUsers -- this diagnostic breadcrumb is meant to just "ride
+    // along" whenever the next real push happens (see the comment on pullFromCloud's own inline
+    // pullDebugEntry), not trigger a dedicated push of its own. It's called FROM performCloudPush
+    // itself on every push (dlog("push_success"/"push_error", ...)) -- saveUsers() here would
+    // re-schedule another debounced pushToCloud() every single time, which on landing would call
+    // dlog() again, which would schedule another push again, forever, for as long as a tab with
+    // Cloud Sync configured stays open. It would also mean PENDING_CLOUD_PUSH_KEY (see above) almost
+    // never reads as truly idle, since this self-triggered push would constantly re-mark it pending
+    // moments after every real push clears it.
+    writeUsersDirect(users);
   } catch(e){}
 }
 function getDeletedScaleDates(){
@@ -3591,6 +3634,7 @@ function looksLikeCatastrophicWipe(previousCount, newCount){
 
 function pushToCloud(){
   if(!fbUser || !fbDb || !currentUserEmail) return;
+  markCloudPushPending(currentUserEmail);
   clearTimeout(cloudSyncTimer);
   cloudSyncTimer = setTimeout(()=>{
     cloudSyncTimer = null;
@@ -3664,6 +3708,7 @@ async function performCloudPush(force){
     batch.set(logsDocRef, logs);
     await batch.commit();
     saveLastPushEntryCount(currentUserEmail, newCount);
+    clearCloudPushPending(currentUserEmail);
     updateCloudSyncStatus("Synced " + new Date().toLocaleTimeString());
     dlog("push_success", {mainSizeBytes, logsSizeBytes, scaleLogsCount: (u.scaleLogs||[]).length, tombstoneDates: Object.keys(u.deletedScaleDates||{})});
   } catch(err){
@@ -3684,6 +3729,18 @@ if(typeof document !== "undefined" && typeof document.addEventListener === "func
 }
 if(typeof window !== "undefined" && typeof window.addEventListener === "function"){
   window.addEventListener("pagehide", flushPendingCloudPush);
+}
+
+// v2.28: the other half of the PENDING_CLOUD_PUSH_KEY marker above -- if this device still has a
+// push that was scheduled but never confirmed to land (most likely killed mid-flight by the exact
+// backgrounding scenario described above), retry it right away the next time this device's app is
+// back, before showing/refreshing anything else. Called from syncFromCloudAndRefresh(), which
+// already runs on every resume path this app has (fresh load, regaining focus, bfcache restore),
+// so this doesn't need its own separate wiring.
+async function retryPendingCloudPushIfAny(){
+  if(!fbUser || !fbDb || !currentUserEmail) return;
+  if(!hasCloudPushPending(currentUserEmail)) return;
+  await performCloudPush(true);
 }
 
 async function pullFromCloud(email){
@@ -4715,6 +4772,12 @@ function saveScaleLogs(logs){
   if(!users[currentUserEmail]) return;
   users[currentUserEmail].scaleLogs = logs;
   saveUsers(users);
+  // v2.28: a scale reading is a low-frequency, deliberate save (unlike, say, macro edits while
+  // typing) -- so there's no batching benefit to waiting out the normal 1.5s debounce, and every
+  // millisecond of that wait is extra time for a phone to get locked/backgrounded before the push
+  // even starts (see the comment above PENDING_CLOUD_PUSH_KEY). Flushing immediately shrinks that
+  // window to just the push's own network time.
+  flushPendingCloudPush();
 }
 
 function sortedLogs(){
@@ -17168,6 +17231,11 @@ let lastVisibilityPullAt = 0;
 async function syncFromCloudAndRefresh(){
   if(!fbUser || !currentUserEmail) return;
   updateSyncBanner("syncing");
+  // v2.28: retry a push that was scheduled but never confirmed to land (see
+  // retryPendingCloudPushIfAny's own comment) before pulling, so data logged just before this
+  // device was last backgrounded gets pushed the moment it's back, instead of waiting for some
+  // unrelated future save.
+  await retryPendingCloudPushIfAny();
   const pulled = await pullFromCloud(currentUserEmail);
   updateSyncBanner("synced");
   if(pulled){
