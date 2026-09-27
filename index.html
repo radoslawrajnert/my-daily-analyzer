@@ -2042,8 +2042,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.29";
+const APP_VERSION = "2.30";
 const CHANGELOG = [
+  { version: "2.30", date: "2026-09-27", desc: "Direct follow-up on the new Sync Log: \"maybe it would be good actually to record all the changes I push? e.g. I enter information of measure reading... Pushed information waist xxx hip xx weight etc.?\" -- then, clarifying further, \"I want to know exactly which values are pushed/pulled\". Sync Log entries now spell out the actual data, not just that something happened: a scale-reading save line reads e.g. \"Saved scale reading for 27.09: 74.3 kg, body fat 16.1%, muscle 41.9%, waist 78cm, hip 85cm\" (skipping any field left blank that day); and since a push/pull moves the whole current state rather than a delta, \"Synced successfully to the cloud\" / \"Checked the cloud for newer data\" lines now append a snapshot of exactly what that sync carried -- the latest scale reading on record plus whatever's logged for today across Nutrition/Workout/Habits." },
   { version: "2.29", date: "2026-09-27", desc: "New \"Sync Log\" tab, requested directly while chasing the v2.28 sync bug: \"create a new tab called Log... so it would be easier to investigate the problem... you write that I save data at this time, then is synchronized, etc.\" Off by default (turn it on in Settings -> Sync Log, or right from the new tab) -- once on, it keeps a plain-English, timestamped timeline on THIS device of every save (Nutrition/Workout/Habit/Commitment/Scale Log) and every sync event (queued, sent, succeeded, failed, checked the cloud), each line tagged with a name for this device (auto-detected, editable in Settings) so two devices' timelines can be compared side by side -- exactly what's needed to tell \"did the phone actually push?\" from \"did the PC actually pull?\". Deliberately local-only: never uploaded to the cloud, and a sync can never overwrite it, so each device keeps its own independent history. Includes Copy (for pasting into a bug report) and Clear." },
   { version: "2.28", date: "2026-09-27", desc: "Direct, frustrated live report: a scale reading logged on an iPhone (Edge) never reached the PC, and tapping \"Sync now\" didn't fix it. Confirmed live: the PC's cloud copy genuinely didn't have the reading -- it never made it off the phone. Root cause, already half-documented in the code but never actually closed: pushToCloud() waits 1.5s before pushing, and the push itself takes real network time (uploading any new photo, then writing to Firestore) -- on iOS, locking the phone or switching apps can suspend the browser tab before that work finishes, silently killing the push mid-flight with no error and nothing left on-device to show it failed. Two fixes: (1) saving a scale reading now skips the 1.5s wait and pushes immediately, shrinking the window backgrounding has to interrupt it; (2) every push now leaves a small marker the instant it's scheduled, only cleared once Firestore actually confirms the write landed -- so if a push does get killed mid-flight, the very next time this device's app is opened, brought back to the foreground, or restored from Safari's background cache, it retries that push immediately, before anything else, rather than silently waiting for some unrelated future save to trigger another attempt." },
   { version: "2.27", date: "2026-09-26", desc: "Follow-up fix, reported with a screenshot: \"horrible now the slopes are very tiny\". Root cause: v2.26's row-label fix widened DAILY_CHART_GRID_WIDE's horizontal pad (24 -> 90) to make room for the heatmap's labels, but the Calorie/Protein bar charts were reusing that SAME value as their vertical (top/bottom) margin too, so it silently crushed the usable bar height from about 176px down to about 44px. The vertical margin is now its own fixed value, independent of whatever the horizontal one needs -- bars are back to their proper height. Also asked for 10 visual style proposals for the bars and got a pick: bars now fill with a soft top-to-bottom gradient tint instead of a flat color." },
@@ -3564,12 +3565,91 @@ function dlog(event, data){
 // Turns one {event, data} entry into a plain-English line for the Sync Log tab. Unknown/future event
 // names fall back to something readable rather than a blank line, so this never needs to be kept in
 // perfect lockstep with every dlog() call site above.
+// Formats the measured-value fields of a scale_log_saved entry (or a push_success snapshot of one)
+// as "74.3 kg, waist 78cm, hip 85cm" -- skipping any field that wasn't actually filled in that day,
+// so this doesn't turn into a wall of "waist: -" noise on a reading that only had a weight.
+function describeScaleReadingValues(d){
+  const parts = [];
+  if(d.weightKg != null && d.weightKg !== "") parts.push(`${d.weightKg} kg`);
+  if(d.bodyFatPct != null && d.bodyFatPct !== "") parts.push(`body fat ${d.bodyFatPct}%`);
+  if(d.musclePct != null && d.musclePct !== "") parts.push(`muscle ${d.musclePct}%`);
+  if(d.visceralFat != null && d.visceralFat !== "") parts.push(`visceral fat ${d.visceralFat}`);
+  if(d.chestCm != null && d.chestCm !== "") parts.push(`chest ${d.chestCm}cm`);
+  if(d.waistCm != null && d.waistCm !== "") parts.push(`waist ${d.waistCm}cm`);
+  if(d.hipCm != null && d.hipCm !== "") parts.push(`hip ${d.hipCm}cm`);
+  if(d.thighCm != null && d.thighCm !== "") parts.push(`thigh ${d.thighCm}cm`);
+  if(d.calfCm != null && d.calfCm !== "") parts.push(`calf ${d.calfCm}cm`);
+  return parts.join(", ");
+}
+// v2.30: the direct follow-up to the field-level scale-reading detail above -- "so I could also get
+// record. Pushed information waist xxx hip xx weight etc" clarified to mean "I want to know exactly
+// which values are pushed/pulled", not just that a sync happened. Since a push/pull moves the WHOLE
+// current state rather than a delta, the most honest "what actually went out/came back" snapshot is:
+// the latest scale reading on record, plus whatever is logged for today across food/workout/habits --
+// that's the data the user is actually watching when they just entered something and hit sync.
+function latestScaleReadingSummary(scaleLogs){
+  const list = Array.isArray(scaleLogs) ? scaleLogs : [];
+  if(!list.length) return null;
+  const sorted = list.slice().sort((a,b) => String(a.date).localeCompare(String(b.date)));
+  return sorted[sorted.length-1];
+}
+function describeFoodEntries(arr){
+  if(!Array.isArray(arr) || !arr.length) return "";
+  return arr.map(e => {
+    const bits = [];
+    if(e.name) bits.push(e.name);
+    if(e.kcal != null && e.kcal !== "") bits.push(`${e.kcal} kcal`);
+    const macros = [];
+    if(e.proteinG != null && e.proteinG !== "") macros.push(`P${e.proteinG}`);
+    if(e.carbG != null && e.carbG !== "") macros.push(`C${e.carbG}`);
+    if(e.fatG != null && e.fatG !== "") macros.push(`F${e.fatG}`);
+    if(macros.length) bits.push(macros.join("/"));
+    return bits.join(" ");
+  }).join(", ");
+}
+function describeWorkoutEntries(arr){
+  if(!Array.isArray(arr) || !arr.length) return "";
+  return arr.map(e => {
+    const bits = [e.exercise || e.category || "exercise"];
+    if(e.isCardio){
+      if(e.distanceKm != null && e.distanceKm !== "") bits.push(`${e.distanceKm}km`);
+      if(e.durationMin != null && e.durationMin !== "") bits.push(`${e.durationMin}min`);
+    } else {
+      if(e.sets != null && e.reps != null) bits.push(`${e.sets}x${e.reps}`);
+      if(e.weightKg != null && e.weightKg !== "") bits.push(`${e.weightKg}kg`);
+    }
+    return bits.join(" ");
+  }).join(", ");
+}
+function describeHabitEntries(arr){
+  if(!Array.isArray(arr) || !arr.length) return "";
+  return arr.map(e => (e.name || "habit") + (e.exception ? " (missed)" : "")).join(", ");
+}
+// Shared by push_success and pull_merge_result -- both carry the same "what data is actually in this
+// sync" snapshot fields (latestScale, todayFoodEntries, todayWorkoutEntries, todayHabitEntries).
+function describeSyncSnapshot(d){
+  const parts = [];
+  if(d.latestScale && d.latestScale.date){
+    const vals = describeScaleReadingValues(d.latestScale);
+    parts.push(`latest reading ${formatShortDate(d.latestScale.date)}` + (vals ? ": " + vals : ""));
+  }
+  const food = describeFoodEntries(d.todayFoodEntries);
+  if(food) parts.push("today's food: " + food);
+  const workout = describeWorkoutEntries(d.todayWorkoutEntries);
+  if(workout) parts.push("today's workout: " + workout);
+  const habit = describeHabitEntries(d.todayHabitEntries);
+  if(habit) parts.push("today's habits: " + habit);
+  return parts.join("; ");
+}
 function describeActivityLogEntry(entry){
   const d = entry && entry.data || {};
   const ev = entry && entry.event;
   switch(ev){
-    case "scale_log_saved":
-      return (d.wasEditing ? "Updated scale reading for " : "Saved scale reading for ") + formatShortDate(d.date) + (d.hadPhotoFront || d.hadPhotoBack ? " (with photo)" : "");
+    case "scale_log_saved": {
+      const values = describeScaleReadingValues(d);
+      return (d.wasEditing ? "Updated scale reading for " : "Saved scale reading for ") + formatShortDate(d.date)
+        + (values ? ": " + values : "") + (d.hadPhotoFront || d.hadPhotoBack ? " (with photo)" : "");
+    }
     case "food_log_saved": return "Saved Nutrition Log (" + (d.totalEntries != null ? d.totalEntries + " entries total" : "changes saved") + ")";
     case "food_entry_deleted": return "Deleted a Nutrition Log entry from " + formatShortDate(d.date);
     case "workout_log_saved": return "Saved Workout Log (" + (d.totalEntries != null ? d.totalEntries + " entries total" : "changes saved") + ")";
@@ -3578,12 +3658,18 @@ function describeActivityLogEntry(entry){
     case "commitments_saved": return "Saved Commitment Log (" + (d.count != null ? d.count + " commitments" : "changes saved") + ")";
     case "push_scheduled": return "Save queued to sync to the cloud";
     case "push_flushed": return "Sending queued save to the cloud now (not waiting)";
-    case "push_success": return "Synced successfully to the cloud";
+    case "push_success": {
+      const snap = describeSyncSnapshot(d);
+      return "Synced successfully to the cloud" + (snap ? " (" + snap + ")" : "");
+    }
     case "push_error": return "Sync FAILED: " + (d.message || "unknown error");
     case "push_rejected_oversized": return "Sync FAILED: " + (d.label || "your data") + " is too large for the cloud";
     case "push_retried_on_resume": return "Retrying a save that never got confirmed as synced";
     case "pull_started": return "Checking the cloud for newer data";
-    case "pull_merge_result": return "Checked the cloud for newer data";
+    case "pull_merge_result": {
+      const snap = describeSyncSnapshot(d);
+      return "Checked the cloud for newer data" + (snap ? " (" + snap + ")" : "");
+    }
     case "pull_scale_log_backstop_tripped": return "Sync safety net stepped in to protect scale-log readings on this device";
     case "tombstone_set": return "Marked " + formatShortDate(d.date) + " as deleted (so it won't come back on sync)";
     case "tombstone_cleared": return "Cleared the old delete-marker for " + formatShortDate(d.date);
@@ -3895,7 +3981,15 @@ async function performCloudPush(force){
     saveLastPushEntryCount(currentUserEmail, newCount);
     clearCloudPushPending(currentUserEmail);
     updateCloudSyncStatus("Synced " + new Date().toLocaleTimeString());
-    dlog("push_success", {mainSizeBytes, logsSizeBytes, scaleLogsCount: (u.scaleLogs||[]).length, tombstoneDates: Object.keys(u.deletedScaleDates||{})});
+    // v2.30: "I want to know exactly which values are pushed/pulled" -- a push sends the whole
+    // current state, not a delta, so the most honest answer is a snapshot of the latest scale
+    // reading plus whatever's logged for today across food/workout/habits (see describeSyncSnapshot).
+    const todayKeyForPush = localDateStr(new Date());
+    dlog("push_success", {mainSizeBytes, logsSizeBytes, scaleLogsCount: (u.scaleLogs||[]).length, tombstoneDates: Object.keys(u.deletedScaleDates||{}),
+      latestScale: latestScaleReadingSummary(u.scaleLogs),
+      todayFoodEntries: (u.foodLog && u.foodLog[todayKeyForPush]) || [],
+      todayWorkoutEntries: (u.workoutLog && u.workoutLog[todayKeyForPush]) || [],
+      todayHabitEntries: (u.habitLog && u.habitLog[todayKeyForPush]) || []});
   } catch(err){
     updateCloudSyncStatus("Sync error: " + err.message);
     dlog("push_error", {message: err && err.message});
@@ -4015,6 +4109,10 @@ async function pullFromCloud(email){
     // this device's own Sync Log jump to some other device's history.
     merged.debugLog = Array.isArray(local.debugLog) ? local.debugLog.slice() : [];
     if(isActivityLogEnabled()){
+      // v2.30: same "exactly which values" snapshot as push_success, but for what came back down --
+      // built from `merged` (the post-merge result actually being written to this device), not the
+      // raw cloud data, since that's what the user will see reflected on screen after this pull.
+      const todayKeyForPull = localDateStr(new Date());
       const pullDebugEntry = { t: Date.now(), iso: new Date().toISOString(), device: getDeviceName(), event: "pull_merge_result", data: {
         cloudTombstoneDates: Object.keys(cloudData.deletedScaleDates || {}),
         localTombstoneDates: Object.keys(local.deletedScaleDates || {}),
@@ -4022,6 +4120,10 @@ async function pullFromCloud(email){
         localScaleLogsDates: localScaleLogsList.map(l=>({date:l.date, updatedAt:l.updatedAt||null})),
         cloudScaleLogsDates: (Array.isArray(cloudData.scaleLogs)?cloudData.scaleLogs:[]).map(l=>({date:l.date, updatedAt:l.updatedAt||null})),
         mergedScaleLogsDates: mergedScaleLogsList.map(l=>l.date),
+        latestScale: latestScaleReadingSummary(merged.scaleLogs),
+        todayFoodEntries: (merged.foodLog && merged.foodLog[todayKeyForPull]) || [],
+        todayWorkoutEntries: (merged.workoutLog && merged.workoutLog[todayKeyForPull]) || [],
+        todayHabitEntries: (merged.habitLog && merged.habitLog[todayKeyForPull]) || [],
       }};
       merged.debugLog.push(pullDebugEntry);
     }
@@ -5523,7 +5625,11 @@ document.getElementById("logForm").addEventListener("submit", (e)=>{
   const wasEditing = !!editingLogDate;
   if(idx>=0) logs[idx] = entry; else logs.push(entry);
   saveScaleLogs(logs);
-  dlog("scale_log_saved", {date, wasEditing, hadPhotoFront: !!photoFront, hadPhotoBack: !!photoBack, updatedAt: entry.updatedAt});
+  // v2.30: carry the actual measured values, not just the date -- direct follow-up request after
+  // shipping the Sync Log tab ("I enter information of measure reading... in sync log I could also
+  // get record. Pushed information waist xxx hip xx weight etc.") so the log answers "was THIS value
+  // actually saved/synced", not just "something happened at this time".
+  dlog("scale_log_saved", {date, wasEditing, weightKg, bodyFatPct, musclePct, visceralFat, chestCm, waistCm, hipCm, thighCm, calfCm, hadPhotoFront: !!photoFront, hadPhotoBack: !!photoBack, updatedAt: entry.updatedAt});
   // v2.20: this date now has a real, live entry -- clear any old tombstone for it (see
   // clearDeletedScaleDate's comment) so a later cloud pull's merge doesn't silently strip it back out.
   // v2.21: kept as a courtesy cleanup -- the updatedAt stamp above is what actually protects the
