@@ -2042,8 +2042,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.31";
+const APP_VERSION = "2.32";
 const CHANGELOG = [
+  { version: "2.32", date: "2026-10-01", desc: "Direct live report, with a screenshot of the Nutrition Log: \"I click on Repeat on 30.09.. but the entry was not added in the same day but on 01.10.\" The Repeat button was hardcoded to always copy the entry onto the real calendar today, no matter which day's table it was clicked in -- every other action on that page (the form, Copy) already correctly uses whichever date is selected in the date picker above the table. Repeat now does the same: it duplicates the entry onto the day you're actually viewing." },
   { version: "2.31", date: "2026-10-01", desc: "Direct live report, with a screenshot of the Guided Workout popup: \"sometimes by mistake I click on the big window then the small window disappears and I lose the possibility to edit the data.\" The dark backdrop around the Guided Workout popup used to close it exactly like the small X button -- silently discarding your place in the exercise queue and anything typed into Sets/Reps/Weight but not yet submitted via Next. The backdrop is a much bigger, much easier target to miss-click than that X. It no longer closes the popup at all -- only the X button (or finishing/skipping through the exercises) does." },
   { version: "2.30", date: "2026-09-27", desc: "Direct follow-up on the new Sync Log: \"maybe it would be good actually to record all the changes I push? e.g. I enter information of measure reading... Pushed information waist xxx hip xx weight etc.?\" -- then, clarifying further, \"I want to know exactly which values are pushed/pulled\". Sync Log entries now spell out the actual data, not just that something happened: a scale-reading save line reads e.g. \"Saved scale reading for 27.09: 74.3 kg, body fat 16.1%, muscle 41.9%, waist 78cm, hip 85cm\" (skipping any field left blank that day); and since a push/pull moves the whole current state rather than a delta, \"Synced successfully to the cloud\" / \"Checked the cloud for newer data\" lines now append a snapshot of exactly what that sync carried -- the latest scale reading on record plus whatever's logged for today across Nutrition/Workout/Habits." },
   { version: "2.29", date: "2026-09-27", desc: "New \"Sync Log\" tab, requested directly while chasing the v2.28 sync bug: \"create a new tab called Log... so it would be easier to investigate the problem... you write that I save data at this time, then is synchronized, etc.\" Off by default (turn it on in Settings -> Sync Log, or right from the new tab) -- once on, it keeps a plain-English, timestamped timeline on THIS device of every save (Nutrition/Workout/Habit/Commitment/Scale Log) and every sync event (queued, sent, succeeded, failed, checked the cloud), each line tagged with a name for this device (auto-detected, editable in Settings) so two devices' timelines can be compared side by side -- exactly what's needed to tell \"did the phone actually push?\" from \"did the PC actually pull?\". Deliberately local-only: never uploaded to the cloud, and a sync can never overwrite it, so each device keeps its own independent history. Includes Copy (for pasting into a bug report) and Clear." },
@@ -8180,16 +8181,22 @@ function deleteFoodEntry(date, id){
 window.deleteFoodEntry = deleteFoodEntry;
 
 // Re-logs a past entry to today with one click — same food/meal/macros, a fresh id and today's date.
+// v2.32: direct live report with a screenshot -- "I click on Repeat on 30.09.. but the entry was
+// not added in the same day but on 01.10". This used to always target the real calendar today
+// (todayStr()) no matter which day's table the Repeat button was actually sitting in, unlike every
+// other action on this page (the form, Copy) which targets whatever date is selected in the foodDate
+// picker above the table. Now targets that same viewed date, so Repeat duplicates the entry within
+// the day you're looking at -- e.g. logging the same snack a second time that day.
 function repeatFoodEntry(sourceDate, id){
   const log = getFoodLog();
   const entry = (log[sourceDate]||[]).find(e=>e.id===id);
   if(!entry) return;
-  const today = todayStr();
+  const targetDate = document.getElementById("foodDate").value.trim() || todayStr();
   const newEntry = Object.assign({}, entry, {id: genFoodId()});
-  if(!log[today]) log[today] = [];
-  log[today].push(newEntry);
+  if(!log[targetDate]) log[targetDate] = [];
+  log[targetDate].push(newEntry);
   saveFoodLogObj(log);
-  showToast(`Repeated "${entry.name}" to today`);
+  showToast(`Repeated "${entry.name}"`);
   renderFoodView();
 }
 window.repeatFoodEntry = repeatFoodEntry;
@@ -9237,7 +9244,7 @@ function renderFoodTable(entries, date){
       <td>${e.proteinG!=null ? Math.round(e.proteinG)+"g" : "—"}</td>
       <td>${e.carbG!=null ? Math.round(e.carbG)+"g" : "—"}</td>
       <td>${e.fatG!=null ? Math.round(e.fatG)+"g" : "—"}</td>
-      <td><button type="button" class="repeat-btn" onclick="repeatFoodEntry('${date}','${e.id}')" title="Log this again today">Repeat</button> <button type="button" class="edit-btn" onclick="editFoodEntry('${date}','${e.id}')">Edit</button> <button type="button" class="del-btn" onclick="deleteFoodEntry('${date}','${e.id}')">Delete</button></td>
+      <td><button type="button" class="repeat-btn" onclick="repeatFoodEntry('${date}','${e.id}')" title="Log this again on this same day">Repeat</button> <button type="button" class="edit-btn" onclick="editFoodEntry('${date}','${e.id}')">Edit</button> <button type="button" class="del-btn" onclick="deleteFoodEntry('${date}','${e.id}')">Delete</button></td>
     </tr>`).join("");
   wrap.innerHTML = `
     <div class="table-scroll">
