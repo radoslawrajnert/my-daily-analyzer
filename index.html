@@ -2042,8 +2042,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.30";
+const APP_VERSION = "2.31";
 const CHANGELOG = [
+  { version: "2.31", date: "2026-10-01", desc: "Direct live report, with a screenshot of the Guided Workout popup: \"sometimes by mistake I click on the big window then the small window disappears and I lose the possibility to edit the data.\" The dark backdrop around the Guided Workout popup used to close it exactly like the small X button -- silently discarding your place in the exercise queue and anything typed into Sets/Reps/Weight but not yet submitted via Next. The backdrop is a much bigger, much easier target to miss-click than that X. It no longer closes the popup at all -- only the X button (or finishing/skipping through the exercises) does." },
   { version: "2.30", date: "2026-09-27", desc: "Direct follow-up on the new Sync Log: \"maybe it would be good actually to record all the changes I push? e.g. I enter information of measure reading... Pushed information waist xxx hip xx weight etc.?\" -- then, clarifying further, \"I want to know exactly which values are pushed/pulled\". Sync Log entries now spell out the actual data, not just that something happened: a scale-reading save line reads e.g. \"Saved scale reading for 27.09: 74.3 kg, body fat 16.1%, muscle 41.9%, waist 78cm, hip 85cm\" (skipping any field left blank that day); and since a push/pull moves the whole current state rather than a delta, \"Synced successfully to the cloud\" / \"Checked the cloud for newer data\" lines now append a snapshot of exactly what that sync carried -- the latest scale reading on record plus whatever's logged for today across Nutrition/Workout/Habits." },
   { version: "2.29", date: "2026-09-27", desc: "New \"Sync Log\" tab, requested directly while chasing the v2.28 sync bug: \"create a new tab called Log... so it would be easier to investigate the problem... you write that I save data at this time, then is synchronized, etc.\" Off by default (turn it on in Settings -> Sync Log, or right from the new tab) -- once on, it keeps a plain-English, timestamped timeline on THIS device of every save (Nutrition/Workout/Habit/Commitment/Scale Log) and every sync event (queued, sent, succeeded, failed, checked the cloud), each line tagged with a name for this device (auto-detected, editable in Settings) so two devices' timelines can be compared side by side -- exactly what's needed to tell \"did the phone actually push?\" from \"did the PC actually pull?\". Deliberately local-only: never uploaded to the cloud, and a sync can never overwrite it, so each device keeps its own independent history. Includes Copy (for pasting into a bug report) and Clear." },
   { version: "2.28", date: "2026-09-27", desc: "Direct, frustrated live report: a scale reading logged on an iPhone (Edge) never reached the PC, and tapping \"Sync now\" didn't fix it. Confirmed live: the PC's cloud copy genuinely didn't have the reading -- it never made it off the phone. Root cause, already half-documented in the code but never actually closed: pushToCloud() waits 1.5s before pushing, and the push itself takes real network time (uploading any new photo, then writing to Firestore) -- on iOS, locking the phone or switching apps can suspend the browser tab before that work finishes, silently killing the push mid-flight with no error and nothing left on-device to show it failed. Two fixes: (1) saving a scale reading now skips the 1.5s wait and pushes immediately, shrinking the window backgrounding has to interrupt it; (2) every push now leaves a small marker the instant it's scheduled, only cleared once Firestore actually confirms the write landed -- so if a push does get killed mid-flight, the very next time this device's app is opened, brought back to the foreground, or restored from Safari's background cache, it retries that push immediately, before anything else, rather than silently waiting for some unrelated future save to trigger another attempt." },
@@ -11678,12 +11679,12 @@ document.getElementById("guidedWorkoutCloseBtn").addEventListener("click", ()=>{
   guidedWorkoutState = null;
   closeGuidedWorkoutCard();
 });
-document.getElementById("guidedWorkoutOverlay").addEventListener("click", (e)=>{
-  if(e.target.id === "guidedWorkoutOverlay"){
-    guidedWorkoutState = null;
-    closeGuidedWorkoutCard();
-  }
-});
+// v2.31: direct live report -- "sometimes by mistake I click on the big window then the small
+// window disappears and I lose the possibility to edit the data". The backdrop used to close this
+// modal exactly like the X button (wiping guidedWorkoutState -- your place in the exercise queue --
+// and anything typed but not yet submitted via Next), but it's a much bigger, much easier target to
+// hit by accident than that small X. Intentionally NOT wired to close the modal anymore -- the X
+// button (and Next/Skip/finishing the session) remain the only ways out.
 
 // Manual Rest Day -- a "Set Rest Day" button sits next to Start Training (see
 // renderWorkoutTimerWidget): either you start training that date, or you deliberately rest it,
