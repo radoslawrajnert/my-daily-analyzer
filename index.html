@@ -1005,6 +1005,7 @@
             <button type="button" class="secondary" id="completePhaseBtn">Complete phase →</button>
           </div>
           <div class="row-inline">
+            <div class="field"><label>Goal weight (kg)</label><input type="number" id="targetGoalWeightInput" step="any" min="30" max="300" placeholder="e.g. 72"></div>
             <div class="field"><label>Calories / day</label><input type="number" id="targetCaloriesInput" step="any" min="0" max="8000" placeholder="Leave blank to auto-calculate"></div>
             <div class="field"><label>Protein / day (g)</label><input type="number" id="targetProteinInput" step="any" min="0" max="600" placeholder="Leave blank to auto-calculate"></div>
             <div class="field"><label>Planned duration (days)</label><input type="number" id="targetPlannedDurationInput" step="1" min="1" max="1000" placeholder="Optional"></div>
@@ -2044,8 +2045,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.33";
+const APP_VERSION = "2.34";
 const CHANGELOG = [
+  { version: "2.34", date: "2026-10-02", desc: "Direct request: \"also Goal e.g. 72 kg should be in Target ranges.\" The active phase's goal weight used to only ever be set through the Complete Phase modal when starting a new phase -- there was no way to see or change it afterward without completing a whole new phase. Target ranges (Settings) now has its own \"Goal weight (kg)\" field right next to Calories/day and Protein/day, editable and saveable at any time for the CURRENT phase. Saving it also keeps the single Body Profile target weight used elsewhere (milestones, the AI Coach export, the risk narrative) in sync, exactly like completing a phase already did." },
   { version: "2.33", date: "2026-10-02", desc: "Direct request: \"Can we make maybe instead of Synch option Push and Pull?\" The combined \"Sync now\" button (in the Settings tab and the top sync banner) is replaced by two separate buttons, Push and Pull, so each direction can be triggered on its own. Pull checks the cloud for newer data and merges it in, same as before; Push sends this device's data up on its own, WITHOUT pulling first -- which means, unlike the old combined button, a Push by itself can overwrite another device's changes if that device pushed something this one hasn't pulled yet (a tooltip on the button says so). To sync safely in both directions, tap Pull first, then Push." },
   { version: "2.32", date: "2026-10-01", desc: "Direct live report, with a screenshot of the Nutrition Log: \"I click on Repeat on 30.09.. but the entry was not added in the same day but on 01.10.\" The Repeat button was hardcoded to always copy the entry onto the real calendar today, no matter which day's table it was clicked in -- every other action on that page (the form, Copy) already correctly uses whichever date is selected in the date picker above the table. Repeat now does the same: it duplicates the entry onto the day you're actually viewing." },
   { version: "2.31", date: "2026-10-01", desc: "Direct live report, with a screenshot of the Guided Workout popup: \"sometimes by mistake I click on the big window then the small window disappears and I lose the possibility to edit the data.\" The dark backdrop around the Guided Workout popup used to close it exactly like the small X button -- silently discarding your place in the exercise queue and anything typed into Sets/Reps/Weight but not yet submitted via Next. The backdrop is a much bigger, much easier target to miss-click than that X. It no longer closes the popup at all -- only the X button (or finishing/skipping through the exercises) does." },
@@ -16091,10 +16093,16 @@ function syncAestheticTargetsUI(){
 // override, using auto-calc", so it should show blank, not a computed number that looks saved).
 function syncTargetKcalProteinNotesUI(){
   const active = getActivePhase();
+  const goalEl = document.getElementById("targetGoalWeightInput");
   const calEl = document.getElementById("targetCaloriesInput");
   const proEl = document.getElementById("targetProteinInput");
   const notesEl = document.getElementById("targetPhaseNotesInput");
   const durationEl = document.getElementById("targetPlannedDurationInput");
+  // v2.34: unlike Calories/Protein (where blank genuinely means "no override, using auto-calc"),
+  // Goal weight has no auto-calculated fallback of its own -- it shows the active phase's own
+  // targetWeightKg, or (for a phase that's never had one set) the single legacy Body Profile value
+  // that used to be the only place this lived, so upgrading users don't see a blank field.
+  if(goalEl && document.activeElement !== goalEl) goalEl.value = (active && active.targetWeightKg != null) ? active.targetWeightKg : ((answers && answers.targetWeightKg != null) ? answers.targetWeightKg : "");
   if(calEl && document.activeElement !== calEl) calEl.value = (active && active.calorieTarget != null) ? active.calorieTarget : "";
   if(proEl && document.activeElement !== proEl) proEl.value = (active && active.proteinTarget != null) ? active.proteinTarget : "";
   if(notesEl && document.activeElement !== notesEl) notesEl.value = (active && active.notes) ? active.notes : "";
@@ -16120,14 +16128,28 @@ function saveAestheticTargetsFromUI(){
   const phases = getPhases();
   const active = phases.find(p=>p.endDate == null) || phases[phases.length-1];
   if(active){
+    const goalRaw = parseFloat(document.getElementById("targetGoalWeightInput").value);
     const calRaw = parseFloat(document.getElementById("targetCaloriesInput").value);
     const proRaw = parseFloat(document.getElementById("targetProteinInput").value);
     const durationRaw = parseInt(document.getElementById("targetPlannedDurationInput").value, 10);
+    active.targetWeightKg = Number.isFinite(goalRaw) ? goalRaw : null;
     active.calorieTarget = Number.isFinite(calRaw) ? calRaw : null;
     active.proteinTarget = Number.isFinite(proRaw) ? proRaw : null;
     active.notes = document.getElementById("targetPhaseNotesInput").value.trim();
     active.plannedDurationDays = (Number.isFinite(durationRaw) && durationRaw > 0) ? durationRaw : null;
     savePhases(phases);
+    // v2.34: keep the single "current" target weight in Body Profile (answers.targetWeightKg --
+    // read by milestones, Coach/AI export, and the risk narrative elsewhere) in sync with whatever
+    // the active phase's own Goal weight now says, exactly like completePhase() already does when a
+    // new phase starts with a target weight.
+    if(Number.isFinite(goalRaw)){
+      answers.targetWeightKg = goalRaw;
+      const users = getUsers();
+      if(users[currentUserEmail]){
+        users[currentUserEmail].answers = answers;
+        saveUsers(users);
+      }
+    }
     renderActivePhaseUI(); // refresh the "Day X of Y planned" counter immediately
   }
   showToast("Target ranges saved");
