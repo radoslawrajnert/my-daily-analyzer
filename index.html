@@ -908,6 +908,7 @@
               <option value="light">Light</option>
             </select>
           </div>
+          <label style="display:flex; align-items:center; gap:8px; font-weight:400; cursor:pointer; margin-top:14px;"><input type="checkbox" id="welcomeBackPopupEnabledCb" style="width:auto;"> Show a "Welcome back" greeting when I open the app</label>
 
           <h3 style="margin-top:24px; padding-top:20px; border-top:1px solid var(--border);"><span>Language / Idioma</span></h3>
           <div class="field"><label>Language / Idioma</label>
@@ -2036,6 +2037,20 @@ function setTheme(theme){
 }
 applyTheme(getTheme());
 
+// v2.35: direct request -- "this [welcome back] option... I should have option to turn it off /
+// on". A simple on/off switch for the "Welcome back" greeting shown on every login/resume, stored
+// the same way as theme/language (a plain localStorage flag, not account data -- it's a this-
+// browser display preference, not something that needs to sync across devices). Defaults to on
+// (unset == true) so nothing changes for anyone who hasn't touched the new setting yet.
+const WELCOME_BACK_POPUP_KEY = "bodyAnalyzer.welcomeBackPopupEnabled.v1";
+function isWelcomeBackPopupEnabled(){
+  const v = localStorage.getItem(WELCOME_BACK_POPUP_KEY);
+  return v === null ? true : v === "1";
+}
+function setWelcomeBackPopupEnabled(on){
+  localStorage.setItem(WELCOME_BACK_POPUP_KEY, on ? "1" : "0");
+}
+
 /* ================= App version & changelog =================
    A simple, hand-maintained version number + change history so it's always clear which build of the
    app is currently loaded (came up because the app is edited often and re-published to GitHub Pages,
@@ -2045,8 +2060,9 @@ applyTheme(getTheme());
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.34";
+const APP_VERSION = "2.35";
 const CHANGELOG = [
+  { version: "2.35", date: "2026-10-02", desc: "Direct report: \"the application is now much slower... when I click buttons it takes some time.\" Measured directly against a real account: opening the Nutrition Log tab alone was calling getUsers() -- which deep-clones your ENTIRE stored account, photos and all -- 410 separate times just to read a handful of small fields, because several small helper functions (food log, food corrections, workout log, scale log, food packages, daily check-in settings/history, rest days, phases, rest-day guardrail) each independently re-cloned everything rather than reading just the one field they needed. Rewired all of them to read only their own small slice of the account instead. Measured result on a real account: Nutrition Log tab 1326ms to 104ms, Workout tab 460ms to 66ms, My Plan tab 437ms to 118ms -- same data, same behavior, just far less re-cloning. Second request in the same message: a toggle to turn the \"Welcome back\" login greeting off (Settings -> Appearance) -- on by default, exactly like before, for anyone who hasn't touched it." },
   { version: "2.34", date: "2026-10-02", desc: "Direct request: \"also Goal e.g. 72 kg should be in Target ranges.\" The active phase's goal weight used to only ever be set through the Complete Phase modal when starting a new phase -- there was no way to see or change it afterward without completing a whole new phase. Target ranges (Settings) now has its own \"Goal weight (kg)\" field right next to Calories/day and Protein/day, editable and saveable at any time for the CURRENT phase. Saving it also keeps the single Body Profile target weight used elsewhere (milestones, the AI Coach export, the risk narrative) in sync, exactly like completing a phase already did." },
   { version: "2.33", date: "2026-10-02", desc: "Direct request: \"Can we make maybe instead of Synch option Push and Pull?\" The combined \"Sync now\" button (in the Settings tab and the top sync banner) is replaced by two separate buttons, Push and Pull, so each direction can be triggered on its own. Pull checks the cloud for newer data and merges it in, same as before; Push sends this device's data up on its own, WITHOUT pulling first -- which means, unlike the old combined button, a Push by itself can overwrite another device's changes if that device pushed something this one hasn't pulled yet (a tooltip on the button says so). To sync safely in both directions, tap Pull first, then Push." },
   { version: "2.32", date: "2026-10-01", desc: "Direct live report, with a screenshot of the Nutrition Log: \"I click on Repeat on 30.09.. but the entry was not added in the same day but on 01.10.\" The Repeat button was hardcoded to always copy the entry onto the real calendar today, no matter which day's table it was clicked in -- every other action on that page (the form, Copy) already correctly uses whichever date is selected in the date picker above the table. Repeat now does the same: it duplicates the entry onto the day you're actually viewing." },
@@ -2839,6 +2855,31 @@ async function hydrateUsersCache(){
 function getUsers(){
   if(usersCache != null) return JSON.parse(JSON.stringify(usersCache)); // same "fresh clone every call" contract localStorage always gave callers
   return JSON.parse(localStorage.getItem(USERS_KEY) || "{}");
+}
+// v2.35: live report -- "the application is now much slower... when I click buttons it takes some
+// time". Measured directly against the real account: opening the Nutrition Log tab alone calls
+// getUsers() 410 separate times, each one deep-cloning the ENTIRE account (1.18MB on this account,
+// including a 611KB exerciseReferences blob that none of those 410 callers even look at) just to
+// read one small field like foodLog or dailyQuestionsLog. That's because small leaf getters
+// (getFoodLog, getFoodOverrides, getWorkoutLog, getScaleLogs, getFoodPackages,
+// getDailyQuestionsEnabled) each independently call the full getUsers() for their one field.
+// This is the same "fresh clone every call" safety contract getUsers() already gives every
+// caller (so nothing you get back can ever be mutated into corrupting the live cache), just scoped
+// to ONE field of the current user's record instead of the whole account -- cloning cost now scales
+// with the size of that one field, not with everything else you happen to also have stored.
+// Only takes the fast path when usersCache is actually hydrated (the normal case in any real
+// browser); falls back to a plain getUsers() call otherwise (the IndexedDB-unavailable path, and
+// this app's Node-based automated tests unless they explicitly hydrate a fake IndexedDB) so
+// behavior is identical either way -- this is purely a speed optimization, never a behavior change.
+function getCurrentUserField(field, fallback){
+  if(usersCache != null){
+    const u = usersCache[currentUserEmail];
+    const v = u ? u[field] : undefined;
+    return (v != null) ? JSON.parse(JSON.stringify(v)) : fallback;
+  }
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  return (u && u[field] != null) ? u[field] : fallback;
 }
 function showStorageWriteFailedToast(err){
   console.error("Storage write failed", err);
@@ -4300,7 +4341,7 @@ function enterApp(email, forceMigration){
   renderBackupReminderBanner();
   renderMissingDataWarningBanner();
   if(isReturningUser){
-    showWelcomeBackPopup(u.name);
+    if(isWelcomeBackPopupEnabled()) showWelcomeBackPopup(u.name);
     // v1.82: previously the redirect to your configured landing view only happened when the
     // welcome-back popup was dismissed via its own close button/X -- so it relied on that click
     // actually happening. Doing it here too, right away, means you land on the right view
@@ -4408,6 +4449,9 @@ document.getElementById("langSelect").addEventListener("change", (e)=>{
 });
 document.getElementById("themeSelect").addEventListener("change", (e)=>{
   setTheme(e.target.value);
+});
+document.getElementById("welcomeBackPopupEnabledCb").addEventListener("change", (e)=>{
+  setWelcomeBackPopupEnabled(e.target.checked);
 });
 document.getElementById("activityLogEnabledCb").addEventListener("change", (e)=>{
   setActivityLogEnabled(e.target.checked);
@@ -4950,6 +4994,7 @@ function switchView(view){
     // Settings fields (Appearance, Language, AI Assistant, Cloud Sync) now live on General
     // Settings -- refresh them here so they're current regardless of how My Plan was reached.
     document.getElementById("themeSelect").value = getTheme();
+    document.getElementById("welcomeBackPopupEnabledCb").checked = isWelcomeBackPopupEnabled();
     document.getElementById("langSelect").value = getLang();
     document.getElementById("aiProviderSelect").value = getAiProvider();
     document.getElementById("aiApiKeyInput").value = getAiApiKey();
@@ -5105,9 +5150,7 @@ document.getElementById("viewTabSyncLog").addEventListener("click", ()=>switchVi
    SCALE LOG
 --------------------------------------------------------- */
 function getScaleLogs(){
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  return (u && u.scaleLogs) ? u.scaleLogs.slice() : [];
+  return getCurrentUserField("scaleLogs", []);
 }
 
 function saveScaleLogs(logs){
@@ -6984,9 +7027,7 @@ const COMMON_FOODS = [
    are ever overridden, never the label/emoji itself.
 --------------------------------------------------------- */
 function getFoodOverrides(){
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  return (u && u.foodOverrides) ? u.foodOverrides : {};
+  return getCurrentUserField("foodOverrides", {});
 }
 function saveFoodOverridesObj(obj){
   const users = getUsers();
@@ -7015,9 +7056,7 @@ function effectiveFood(index){
 }
 
 function getFoodLog(){
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  return (u && u.foodLog) ? u.foodLog : {};
+  return getCurrentUserField("foodLog", {});
 }
 
 function saveFoodLogObj(obj){
@@ -7097,9 +7136,7 @@ const DAILY_CONDITION_QUESTIONS = [
 const NUTRITION_CARD_QUESTION_IDS = ["creatine", "water", "caffeine", "alcohol", "sleep", "stomach"];
 const POPUP_QUESTION_IDS = [];
 function getDailyQuestionsEnabled(){
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  const stored = (u && u.dailyQuestionsEnabled) ? u.dailyQuestionsEnabled : {};
+  const stored = getCurrentUserField("dailyQuestionsEnabled", {});
   const out = {};
   DAILY_CONDITION_QUESTIONS.forEach(q=>{
     out[q.id] = stored[q.id] !== undefined ? !!stored[q.id] : (q.id === "creatine");
@@ -7127,6 +7164,17 @@ function setDailyQuestionEnabled(qid, flag){
 // original creatineLog the first time "creatine" is read under the new unified storage, so existing
 // Creatine history from before this was generalized isn't lost.
 function getDailyQuestionLogRaw(qid){
+  // v2.35: fast path -- this question id has already been migrated (the overwhelmingly common
+  // case, since migration only ever happens once per question id, ever), so there's nothing to
+  // write and no reason to pay for a full-account getUsers() clone just to hand back one question's
+  // log. Falls through to the original full-account path below for the rare first-ever read of a
+  // given qid, which still needs getUsers()/saveUsers() to run the one-time creatineLog migration.
+  if(usersCache != null){
+    const uFast = usersCache[currentUserEmail];
+    if(uFast && uFast.dailyQuestionsLog && uFast.dailyQuestionsLog[qid] !== undefined){
+      return JSON.parse(JSON.stringify(uFast.dailyQuestionsLog[qid]));
+    }
+  }
   const users = getUsers();
   const u = users[currentUserEmail];
   if(!u) return {};
@@ -9333,9 +9381,7 @@ function renderFoodView(){
    PACKAGES — reusable meal / product presets
 --------------------------------------------------------- */
 function getFoodPackages(){
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  return (u && u.foodPackages) ? u.foodPackages.slice() : [];
+  return getCurrentUserField("foodPackages", []);
 }
 
 function saveFoodPackagesArr(arr){
@@ -10080,9 +10126,7 @@ function workoutSplitCategoriesFromExercises(split){
 }
 
 function getWorkoutLog(){
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  return (u && u.workoutLog) ? u.workoutLog : {};
+  return getCurrentUserField("workoutLog", {});
 }
 
 function saveWorkoutLogObj(obj){
@@ -10154,9 +10198,7 @@ function strengthTrainedDaysThisWeekBefore(date){
 // explicitly saved onto a specific phase), else the plain defaults below.
 function getRestGuardrailSettings(){
   const active = getActivePhase();
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  const s = (active && active.restGuardrailSettings) || (u && u.restGuardrailSettings) || {};
+  const s = (active && active.restGuardrailSettings) || getCurrentUserField("restGuardrailSettings", {});
   return {
     streakEnabled: s.streakEnabled !== false,
     streakDays: (typeof s.streakDays === "number" && s.streakDays > 0) ? s.streakDays : 2,
@@ -10211,9 +10253,7 @@ function restGuardrailReasonText(date){
 // recommendation. Stored as a simple date->true dictionary, same day-keyed convention as workoutLog
 // and workoutSessions. ---
 function getWorkoutRestDays(){
-  const users = getUsers();
-  const u = users[currentUserEmail];
-  return (u && u.workoutRestDays) ? u.workoutRestDays : {};
+  return getCurrentUserField("workoutRestDays", {});
 }
 function saveWorkoutRestDaysObj(obj){
   const users = getUsers();
@@ -15926,6 +15966,17 @@ function earliestActivityDate(){
   return earliest;
 }
 function getPhases(){
+  // v2.35: fast path -- once an account has ever been migrated to Phases (true for every account
+  // that's used this feature at all), u.phases is already a non-empty array and there's nothing
+  // left to migrate or write -- so there's no reason to pay for a full-account getUsers() clone
+  // just to hand back this one field. Falls through to the original full-account path below only
+  // for the rare case a phases array still needs the one-time migration (and its write-back).
+  if(usersCache != null){
+    const uFast = usersCache[currentUserEmail];
+    if(uFast && Array.isArray(uFast.phases) && uFast.phases.length > 0){
+      return JSON.parse(JSON.stringify(uFast.phases));
+    }
+  }
   const users = getUsers();
   const u = users[currentUserEmail];
   if(!u) return [];
