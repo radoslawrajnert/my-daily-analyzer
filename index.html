@@ -2060,8 +2060,9 @@ function setWelcomeBackPopupEnabled(on){
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.35";
+const APP_VERSION = "2.36";
 const CHANGELOG = [
+  { version: "2.36", date: "2026-10-09", desc: "Direct report, with a screenshot of the History table: \"I deleted some pictures. Now instead of seeing the previous one I see 'Photo unavailable'.\" Cause: when a photo file is deleted from cloud storage, the reading keeps a saved link to it that can never work again -- so the row counted as \"has its own photo\" (showing the placeholder) and the usual rule that a reading without a photo repeats the most recent earlier photo never kicked in. Now, when the app confirms the file is genuinely gone (not just a temporary connection problem), it clears that dead link from the reading and redraws, so the row shows the previous photo again, like any reading without one. If that earlier photo is dead too, it clears itself the same way until the nearest working photo is found. Nothing else on the reading is touched." },
   { version: "2.35", date: "2026-10-02", desc: "Direct report: \"the application is now much slower... when I click buttons it takes some time.\" Measured directly against a real account: opening the Nutrition Log tab alone was calling getUsers() -- which deep-clones your ENTIRE stored account, photos and all -- 410 separate times just to read a handful of small fields, because several small helper functions (food log, food corrections, workout log, scale log, food packages, daily check-in settings/history, rest days, phases, rest-day guardrail) each independently re-cloned everything rather than reading just the one field they needed. Rewired all of them to read only their own small slice of the account instead. Measured result on a real account: Nutrition Log tab 1326ms to 104ms, Workout tab 460ms to 66ms, My Plan tab 437ms to 118ms -- same data, same behavior, just far less re-cloning. Second request in the same message: a toggle to turn the \"Welcome back\" login greeting off (Settings -> Appearance) -- on by default, exactly like before, for anyone who hasn't touched it." },
   { version: "2.34", date: "2026-10-02", desc: "Direct request: \"also Goal e.g. 72 kg should be in Target ranges.\" The active phase's goal weight used to only ever be set through the Complete Phase modal when starting a new phase -- there was no way to see or change it afterward without completing a whole new phase. Target ranges (Settings) now has its own \"Goal weight (kg)\" field right next to Calories/day and Protein/day, editable and saveable at any time for the CURRENT phase. Saving it also keeps the single Body Profile target weight used elsewhere (milestones, the AI Coach export, the risk narrative) in sync, exactly like completing a phase already did." },
   { version: "2.33", date: "2026-10-02", desc: "Direct request: \"Can we make maybe instead of Synch option Push and Pull?\" The combined \"Sync now\" button (in the Settings tab and the top sync banner) is replaced by two separate buttons, Push and Pull, so each direction can be triggered on its own. Pull checks the cloud for newer data and merges it in, same as before; Push sends this device's data up on its own, WITHOUT pulling first -- which means, unlike the old combined button, a Push by itself can overwrite another device's changes if that device pushed something this one hasn't pulled yet (a tooltip on the button says so). To sync safely in both directions, tap Pull first, then Push." },
@@ -6468,9 +6469,40 @@ function healBrokenScalePhoto(imgEl, date, field){
       entry[field] = freshUrl;
       saveUsers(users);
     }
-  }).catch(()=>{
+  }).catch((err)=>{
+    // v2.36: live report -- "I deleted some pictures. Now instead of seeing the previous one I see
+    // 'Photo unavailable'." When the Storage object is GENUINELY gone (storage/object-not-found --
+    // not a transient offline/permission error, which must never destroy anything), the reading's
+    // saved link to it is permanently dead, and leaving it in place made the History table (and
+    // every other view) treat the entry as "has its own photo" and show a placeholder, which also
+    // blocked the forward-fill that shows the most recent EARLIER photo for a reading without one.
+    // Clear just that dead link from the entry (no real data is lost -- the file it pointed to no
+    // longer exists), then re-render so forward-fill takes over exactly as if the photo had been
+    // removed normally. If the earlier photo it falls back to turns out to be dead too, its own
+    // img goes through this same path and clears itself, converging on the nearest live photo.
+    if(err && err.code === "storage/object-not-found" && clearDeadScalePhotoLink(date, field)){
+      scheduleScaleLogRerender();
+      return;
+    }
     showPhotoUnavailable(imgEl);
   });
+}
+function clearDeadScalePhotoLink(date, field){
+  const users = getUsers();
+  const u = users[currentUserEmail];
+  const entry = u && (u.scaleLogs||[]).find(l=>l.date===date);
+  if(!entry || !entry[field] || isLocalPhotoDataUrl(entry[field])) return false; // nothing to clear, or a real local photo -- never touch
+  delete entry[field];
+  saveUsers(users);
+  return true;
+}
+let scaleLogRerenderTimer = null;
+function scheduleScaleLogRerender(){
+  clearTimeout(scaleLogRerenderTimer);
+  scaleLogRerenderTimer = setTimeout(()=>{
+    scaleLogRerenderTimer = null;
+    if(typeof renderLogView === "function" && getActiveView && getActiveView() === "log") renderLogView();
+  }, 60);
 }
 function showPhotoUnavailable(imgEl){
   if(!imgEl || !imgEl.parentNode) return;
