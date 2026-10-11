@@ -2060,8 +2060,9 @@ function setWelcomeBackPopupEnabled(on){
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.36";
+const APP_VERSION = "2.37";
 const CHANGELOG = [
+  { version: "2.37", date: "2026-10-11", desc: "Direct request: once you click Set Rest Day, stop showing the red \"Don't train\" label. Fixed: a day you have confirmed as a Rest Day now shows only the Rest Day chip in the Weekly split tracker, and the red Don't train banner on Workout Log is hidden for it too." },
   { version: "2.36", date: "2026-10-09", desc: "Direct report, with a screenshot of the History table: \"I deleted some pictures. Now instead of seeing the previous one I see 'Photo unavailable'.\" Cause: when a photo file is deleted from cloud storage, the reading keeps a saved link to it that can never work again -- so the row counted as \"has its own photo\" (showing the placeholder) and the usual rule that a reading without a photo repeats the most recent earlier photo never kicked in. Now, when the app confirms the file is genuinely gone (not just a temporary connection problem), it clears that dead link from the reading and redraws, so the row shows the previous photo again, like any reading without one. If that earlier photo is dead too, it clears itself the same way until the nearest working photo is found. Nothing else on the reading is touched." },
   { version: "2.35", date: "2026-10-02", desc: "Direct report: \"the application is now much slower... when I click buttons it takes some time.\" Measured directly against a real account: opening the Nutrition Log tab alone was calling getUsers() -- which deep-clones your ENTIRE stored account, photos and all -- 410 separate times just to read a handful of small fields, because several small helper functions (food log, food corrections, workout log, scale log, food packages, daily check-in settings/history, rest days, phases, rest-day guardrail) each independently re-cloned everything rather than reading just the one field they needed. Rewired all of them to read only their own small slice of the account instead. Measured result on a real account: Nutrition Log tab 1326ms to 104ms, Workout tab 460ms to 66ms, My Plan tab 437ms to 118ms -- same data, same behavior, just far less re-cloning. Second request in the same message: a toggle to turn the \"Welcome back\" login greeting off (Settings -> Appearance) -- on by default, exactly like before, for anyone who hasn't touched it." },
   { version: "2.34", date: "2026-10-02", desc: "Direct request: \"also Goal e.g. 72 kg should be in Target ranges.\" The active phase's goal weight used to only ever be set through the Complete Phase modal when starting a new phase -- there was no way to see or change it afterward without completing a whole new phase. Target ranges (Settings) now has its own \"Goal weight (kg)\" field right next to Calories/day and Protein/day, editable and saveable at any time for the CURRENT phase. Saving it also keeps the single Body Profile target weight used elsewhere (milestones, the AI Coach export, the risk narrative) in sync, exactly like completing a phase already did." },
@@ -13131,7 +13132,9 @@ function renderWorkoutHeatmap(){
       // The rest-day chip is deliberately allowed to show even on a FUTURE date -- that's the
       // whole point (see shouldRestFromStrength) -- so a future cell with a rest recommendation no
       // longer stays blank the way a plain future cell otherwise would.
-      const restChip = d.restRecommended
+      // v2.37: once the person has confirmed a manual Rest Day for the date, the automatic red
+      // "Don't train" warning is redundant -- they already acted on it -- so only the Rest Day chip shows.
+      const restChip = (d.restRecommended && !d.restDay)
         ? `<span class="workout-chip workout-rest-chip" style="background:#f16b83; color:${darkTextForFill("#f16b83")};" title="Recommended rest day for strength -- see your Rest-day guardrail settings in My Plan">${ICON_BAN}Don't train</span>`
         : "";
       // The manual "Rest Day" chip (Set Rest Day button, confirmed by the person themselves) is
@@ -13294,7 +13297,8 @@ function renderWorkoutRestBanner(date){
   // whether that's because the warning got overridden or the day just isn't due anymore. Without
   // this, browsing back to an already-trained day, or one you trained through the warning on,
   // would keep showing "don't train" for something that already happened.
-  if(date < todayStr() || isStrengthTrainedDate(date) || !shouldRestFromStrength(date)){ wrap.innerHTML = ""; return; }
+  // v2.37: also hidden once the date is marked as a manual Rest Day (the warning has been acted on).
+  if(date < todayStr() || isStrengthTrainedDate(date) || isRestDay(date) || !shouldRestFromStrength(date)){ wrap.innerHTML = ""; return; }
   wrap.innerHTML = `
     <div class="workout-rest-banner">
       <div class="workout-rest-banner-title">${ICON_BAN}Don't train (strength) — ${formatShortDate(date)}</div>
