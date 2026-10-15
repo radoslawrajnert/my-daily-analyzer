@@ -2060,8 +2060,9 @@ function setWelcomeBackPopupEnabled(on){
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.37";
+const APP_VERSION = "2.38";
 const CHANGELOG = [
+  { version: "2.38", date: "2026-10-15", desc: "Two direct requests. (1) The weight chart now labels Phase 1 as well -- before, only later phases (e.g. \"Phase 2 - Cut to 72kg starts\") were named on the chart; Phase 1 now shows its name at the left edge. (2) Phone lock / reload at the gym: if the Start Training card was open (or you had typed Sets/Reps/Weight but not yet pressed Next) when the phone locked and the browser reloaded the page, the app used to forget your place and you had to start over. It now remembers the exercise queue and the half-typed numbers on this device and reopens the same Start Training card on the Workout Log tab when you come back (kept for 12 hours; closing the card or finishing the session clears it)." },
   { version: "2.37", date: "2026-10-11", desc: "Direct request: once you click Set Rest Day, stop showing the red \"Don't train\" label. Fixed: a day you have confirmed as a Rest Day now shows only the Rest Day chip in the Weekly split tracker, and the red Don't train banner on Workout Log is hidden for it too." },
   { version: "2.36", date: "2026-10-09", desc: "Direct report, with a screenshot of the History table: \"I deleted some pictures. Now instead of seeing the previous one I see 'Photo unavailable'.\" Cause: when a photo file is deleted from cloud storage, the reading keeps a saved link to it that can never work again -- so the row counted as \"has its own photo\" (showing the placeholder) and the usual rule that a reading without a photo repeats the most recent earlier photo never kicked in. Now, when the app confirms the file is genuinely gone (not just a temporary connection problem), it clears that dead link from the reading and redraws, so the row shows the previous photo again, like any reading without one. If that earlier photo is dead too, it clears itself the same way until the nearest working photo is found. Nothing else on the reading is touched." },
   { version: "2.35", date: "2026-10-02", desc: "Direct report: \"the application is now much slower... when I click buttons it takes some time.\" Measured directly against a real account: opening the Nutrition Log tab alone was calling getUsers() -- which deep-clones your ENTIRE stored account, photos and all -- 410 separate times just to read a handful of small fields, because several small helper functions (food log, food corrections, workout log, scale log, food packages, daily check-in settings/history, rest days, phases, rest-day guardrail) each independently re-cloned everything rather than reading just the one field they needed. Rewired all of them to read only their own small slice of the account instead. Measured result on a real account: Nutrition Log tab 1326ms to 104ms, Workout tab 460ms to 66ms, My Plan tab 437ms to 118ms -- same data, same behavior, just far less re-cloning. Second request in the same message: a toggle to turn the \"Welcome back\" login greeting off (Settings -> Appearance) -- on by default, exactly like before, for anyone who hasn't touched it." },
@@ -4342,8 +4343,13 @@ function enterApp(email, forceMigration){
   renderStep();
   renderBackupReminderBanner();
   renderMissingDataWarningBanner();
+  // v2.38: a Start Training card that was open when the phone locked / the page got reloaded comes
+  // back exactly as it was (queue position + half-typed numbers) -- see restoreGuidedWorkoutSession.
+  // That means landing on the Workout Log tab, and skipping the welcome-back greeting that would
+  // otherwise sit on top of it.
+  const resumeGuided = !!readPendingGuidedWorkoutSession();
   if(isReturningUser){
-    if(isWelcomeBackPopupEnabled()) showWelcomeBackPopup(u.name);
+    if(isWelcomeBackPopupEnabled() && !resumeGuided) showWelcomeBackPopup(u.name);
     // v1.82: previously the redirect to your configured landing view only happened when the
     // welcome-back popup was dismissed via its own close button/X -- so it relied on that click
     // actually happening. Doing it here too, right away, means you land on the right view
@@ -4351,7 +4357,11 @@ function enterApp(email, forceMigration){
     // call to the same thing is now just a harmless re-run. v1.100: uses the captured entryView
     // (see above) instead of always forcing resolveLandingView(), so this restores whichever tab
     // was actually last open rather than always jumping to Nutrition Log.
-    switchView(entryView);
+    switchView(resumeGuided ? "workout" : entryView);
+  }
+  if(resumeGuided){
+    if(!isReturningUser) switchView("workout");
+    restoreGuidedWorkoutSession();
   }
 }
 
@@ -5921,8 +5931,17 @@ function renderTrendChart(logs){
   const currentPhaseForChart = getPhaseForDate(last.date);
   let phaseDividers = "";
   phases.forEach((p, i)=>{
-    if(i === 0) return; // the very first phase's start is the beginning of all history, not a "transition"
     const startMs = new Date(p.startDate+"T00:00:00").getTime();
+    if(i === 0){
+      // v2.38: the very first phase has no "transition" line (its start is the beginning of all
+      // history, and may even be an old placeholder date before the first reading), but it still
+      // gets its NAME drawn at the left edge of the chart so Phase 1 is visible next to Phase 2+.
+      // Only when phases are shown at all (2+), a single-phase chart stays unlabeled as before.
+      if(phases.length < 2) return;
+      const x1 = xFor(Math.max(startMs, minDateMs)).toFixed(1);
+      phaseDividers += `<text x="${(parseFloat(x1)+3).toFixed(1)}" y="10" font-size="8" fill="var(--muted)">${p.name}</text>`;
+      return;
+    }
     if(startMs < minDateMs || startMs > maxDateMs) return; // this boundary isn't in the visible range
     const x = xFor(startMs).toFixed(1);
     phaseDividers += `<line x1="${x}" y1="0" x2="${x}" y2="${h}" stroke="var(--muted)" stroke-width="1" stroke-dasharray="2 3" opacity="0.7"><title>${p.name} starts ${formatShortDate(p.startDate)}</title></line>`;
@@ -11535,6 +11554,67 @@ let guidedWorkoutState = null; // {splitId, splitName, targetDate, total, comple
 // finalizeGuidedSessionDuration below.
 const GUIDED_SESSION_MAX_MINUTES = 90;
 
+// v2.38: direct report from the gym -- "I entered some gym data, then the cellphone got locked. When I
+// came back I had to start entering data from the beginning. Whenever the phone is locked and
+// unlocked I need to see the last window that was open." A phone browser freely discards and reloads
+// a backgrounded page, and guidedWorkoutState (your place in the exercise queue) plus the Sets/Reps/
+// Weight you'd typed but not yet submitted with Next only lived in memory, so the reload dropped them.
+// Now mirrored into localStorage (this device only, like the other display/session settings) on every
+// change and every time the page is hidden, and reopened by enterApp() -> restoreGuidedWorkoutSession().
+// Expires after 12 hours so a session abandoned yesterday doesn't pop up again today.
+const GUIDED_SESSION_KEY = "bodyAnalyzer.guidedWorkoutSession.v1";
+const GUIDED_SESSION_RESUME_MAX_MS = 12 * 60 * 60 * 1000;
+function clearGuidedWorkoutSession(){
+  try{ localStorage.removeItem(GUIDED_SESSION_KEY); }catch(_e){}
+}
+function persistGuidedWorkoutSession(){
+  try{
+    const st = guidedWorkoutState;
+    // No live session -> do nothing (never clear here): right after a reload guidedWorkoutState is
+    // still null while the saved copy is exactly what restoreGuidedWorkoutSession() needs to find.
+    // Finishing/closing the session clears it explicitly instead.
+    if(!st || !Array.isArray(st.queue) || !st.queue.length) return;
+    const val = (id)=>{ const el = document.getElementById(id); return el ? String(el.value == null ? "" : el.value) : ""; };
+    localStorage.setItem(GUIDED_SESSION_KEY, JSON.stringify({
+      email: currentUserEmail,
+      savedAt: Date.now(),
+      state: st,
+      draft: { exercise: st.queue[0].name, sets: val("guidedWorkoutSets"), reps: val("guidedWorkoutReps"), weight: val("guidedWorkoutWeight") },
+    }));
+  }catch(_e){}
+}
+function readPendingGuidedWorkoutSession(){
+  try{
+    const raw = localStorage.getItem(GUIDED_SESSION_KEY);
+    if(!raw) return null;
+    const saved = JSON.parse(raw);
+    if(!saved || saved.email !== currentUserEmail || !saved.state || !Array.isArray(saved.state.queue) || !saved.state.queue.length) return null;
+    if(typeof saved.savedAt !== "number" || Date.now() - saved.savedAt > GUIDED_SESSION_RESUME_MAX_MS) return null;
+    return saved;
+  }catch(_e){ return null; }
+}
+function restoreGuidedWorkoutSession(){
+  const saved = readPendingGuidedWorkoutSession();
+  if(!saved){ return false; }
+  guidedWorkoutState = saved.state;
+  renderGuidedWorkoutCard();
+  const d = saved.draft;
+  if(d && d.exercise === guidedWorkoutState.queue[0].name){
+    document.getElementById("guidedWorkoutSets").value = d.sets;
+    document.getElementById("guidedWorkoutReps").value = d.reps;
+    document.getElementById("guidedWorkoutWeight").value = d.weight;
+  }
+  document.getElementById("guidedWorkoutOverlay").classList.remove("hidden");
+  return true;
+}
+window.restoreGuidedWorkoutSession = restoreGuidedWorkoutSession;
+["guidedWorkoutSets","guidedWorkoutReps","guidedWorkoutWeight"].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.addEventListener("input", persistGuidedWorkoutSession);
+});
+if(typeof document.addEventListener === "function") document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState === "hidden") persistGuidedWorkoutSession(); });
+if(typeof window.addEventListener === "function") window.addEventListener("pagehide", persistGuidedWorkoutSession);
+
 function startTrainingAction(){
   const splitId = document.getElementById("workoutSplitSelect").value;
   if(!splitId){ showToast("Pick a Split above first, then Start Training"); return; }
@@ -11606,6 +11686,7 @@ function startTrainingAction(){
   renderWorkoutsView();
   renderGuidedWorkoutCard();
   document.getElementById("guidedWorkoutOverlay").classList.remove("hidden");
+  persistGuidedWorkoutSession();
 }
 window.startTrainingAction = startTrainingAction;
 
@@ -11744,11 +11825,13 @@ document.getElementById("guidedWorkoutNextBtn").addEventListener("click", ()=>{
     renderWorkoutsView();
     showToast(`${st.splitName} complete — nice work!`);
     guidedWorkoutState = null;
+    clearGuidedWorkoutSession();
     closeGuidedWorkoutCard();
     return;
   }
   renderWorkoutsView();
   renderGuidedWorkoutCard();
+  persistGuidedWorkoutSession();
 });
 
 // "Skip" means the machine's busy right now -- push this exercise to the back of today's queue
@@ -11758,6 +11841,7 @@ document.getElementById("guidedWorkoutSkipBtn").addEventListener("click", ()=>{
   if(!st || st.queue.length < 2){ showToast("Nothing left to skip to"); return; }
   st.queue.push(st.queue.shift());
   renderGuidedWorkoutCard();
+  persistGuidedWorkoutSession();
 });
 
 // "Previous" steps back to the exercise you just finished, in case you want to double check or
@@ -11785,12 +11869,14 @@ document.getElementById("guidedWorkoutPrevBtn").addEventListener("click", ()=>{
   st.completedCount--;
   renderWorkoutsView();
   renderGuidedWorkoutCard();
+  persistGuidedWorkoutSession();
 });
 
 document.getElementById("guidedWorkoutCloseBtn").addEventListener("click", ()=>{
   // Closing early doesn't discard anything already logged via Next -- it just stops prompting
   // for the rest. The remaining exercises can always be added normally from the form below.
   guidedWorkoutState = null;
+  clearGuidedWorkoutSession();
   closeGuidedWorkoutCard();
 });
 // v2.31: direct live report -- "sometimes by mistake I click on the big window then the small
