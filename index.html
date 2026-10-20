@@ -2060,8 +2060,9 @@ function setWelcomeBackPopupEnabled(on){
    by 0.01 and a new entry is added to the FRONT of CHANGELOG (newest first) with today's date and a
    short plain-language description of what changed. Shown read-only in Settings -> General Settings,
    under "Version". */
-const APP_VERSION = "2.38";
+const APP_VERSION = "2.39";
 const CHANGELOG = [
+  { version: "2.39", date: "2026-10-20", desc: "Direct report: \"When I click + Add a product I only have a few seconds -- then it jumps to General Settings.\" Cause: the background cloud sync finishes a few seconds after you open the form and refreshes the screen you are on; for My Plan that refresh always reset the Settings sub-tab to General Settings, throwing you out of Nutrition Log Settings (and the half-filled product form with it). Background refreshes now keep whichever Settings sub-tab you have open; only opening My Plan fresh starts on General Settings." },
   { version: "2.38", date: "2026-10-15", desc: "Two direct requests. (1) The weight chart now labels Phase 1 as well -- before, only later phases (e.g. \"Phase 2 - Cut to 72kg starts\") were named on the chart; Phase 1 now shows its name at the left edge. (2) Phone lock / reload at the gym: if the Start Training card was open (or you had typed Sets/Reps/Weight but not yet pressed Next) when the phone locked and the browser reloaded the page, the app used to forget your place and you had to start over. It now remembers the exercise queue and the half-typed numbers on this device and reopens the same Start Training card on the Workout Log tab when you come back (kept for 12 hours; closing the card or finishing the session clears it)." },
   { version: "2.37", date: "2026-10-11", desc: "Direct request: once you click Set Rest Day, stop showing the red \"Don't train\" label. Fixed: a day you have confirmed as a Rest Day now shows only the Rest Day chip in the Weekly split tracker, and the red Don't train banner on Workout Log is hidden for it too." },
   { version: "2.36", date: "2026-10-09", desc: "Direct report, with a screenshot of the History table: \"I deleted some pictures. Now instead of seeing the previous one I see 'Photo unavailable'.\" Cause: when a photo file is deleted from cloud storage, the reading keeps a saved link to it that can never work again -- so the row counted as \"has its own photo\" (showing the placeholder) and the usual rule that a reading without a photo repeats the most recent earlier photo never kicked in. Now, when the app confirms the file is genuinely gone (not just a temporary connection problem), it clears that dead link from the reading and redraws, so the row shows the previous photo again, like any reading without one. If that earlier photo is dead too, it clears itself the same way until the nearest working photo is found. Nothing else on the reading is touched." },
@@ -4249,7 +4250,7 @@ async function runPullOnly(opts){
     applyPresetAdjustmentsV2();
     seedDefaultSplitExercisePatterns();
     const activeView = getActiveView();
-    if(activeView) switchView(activeView);
+    if(activeView) switchView(activeView, {keepPlanTab:true});
   }
   updateSyncBanner("synced");
   if(!silent) showToast("Pull finished — check the status above");
@@ -4959,7 +4960,10 @@ document.getElementById("helpOverlay").addEventListener("click", (e)=>{
    "My Plan" is intentionally not a tab — it's opened via the
    user's name in the top-right user bar (see renderUserBar).
 --------------------------------------------------------- */
-function switchView(view){
+// v2.39: opts.keepPlanTab -- background refreshes (a cloud pull finishing a few seconds after you opened
+// a Settings sub-tab, e.g. "+ Add a product" on Nutrition Log Settings) re-render the current view in
+// place and must NOT bounce My Plan back to General Settings; only a deliberate open does that.
+function switchView(view, opts){
   renderMissingDataWarningBanner();
   saveLastView(view);
   // v2.18: leaving Scale Log for a different tab while the "Add a reading" form was open mid-Edit
@@ -5032,7 +5036,7 @@ function switchView(view){
     // Always land on General Settings first -- My Plan is reached fresh every time (via the name
     // click, not persistent nav state), so a predictable starting point beats remembering whatever
     // sub-tab happened to be open last.
-    switchPlanTab("general");
+    switchPlanTab((opts && opts.keepPlanTab) ? currentPlanTab : "general");
   }
 }
 
@@ -5049,7 +5053,9 @@ const PLAN_SUBTABS = {
   nutrition: {group:"planGroupNutrition", btn:"planSubtabNutrition"},
   coach: {group:"planGroupCoach", btn:"planSubtabCoach"},
 };
+let currentPlanTab = "general";
 function switchPlanTab(tab){
+  currentPlanTab = tab;
   Object.keys(PLAN_SUBTABS).forEach(key=>{
     const cfg = PLAN_SUBTABS[key];
     const groupEl = document.getElementById(cfg.group);
@@ -17807,7 +17813,7 @@ async function syncFromCloudAndRefresh(){
     // workout logged on another device) could sit merged in localStorage but invisible
     // until the user happened to navigate away and back.
     const activeView = getActiveView();
-    if(activeView) switchView(activeView);
+    if(activeView) switchView(activeView, {keepPlanTab:true});
     showToast("Synced latest data from the cloud");
   }
 }
